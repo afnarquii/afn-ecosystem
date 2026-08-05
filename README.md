@@ -1,6 +1,11 @@
 # afn-ecosystem
 
-Catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery Packs** para [AFN IDE](https://github.com/afnarqui99) (Marketplace).
+Catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery Packs** para AFN IDE (Marketplace).
+
+**Repo canónico (Azure DevOps):**  
+https://dev.azure.com/afnarqui/afnarqui-notion-ia/_git/afn-ecosystem  
+
+El proyecto **afnarqui-notion-ia** debe ser **Public** para que el Marketplace descargue `SKILL.md` sin login (Items API).
 
 ## Reglas (repo público)
 
@@ -11,7 +16,7 @@ Catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery 
 ## Layout
 
 ```text
-skills/          → SKILL.md (contentUrl del Marketplace)
+skills/          → SKILL.md (contentUrl del Marketplace vía Items API)
 agents/          → JSON o markdown de agentes
 mcps/            → descriptores stdio (npx @afn-ecosystem/mcp-*)
 packs/           → Delivery Packs (uiSchema + deploy.template + lista de piezas)
@@ -28,22 +33,16 @@ packs/           → Delivery Packs (uiSchema + deploy.template + lista de pieza
 | MCP Azure | [`mcps/azure-devops/`](mcps/azure-devops/) |
 | MCP AWS deploy | [`mcps/aws-deploy/`](mcps/aws-deploy/) |
 
-Stubs (extensión sin rebuild del IDE):
-
-- [`packs/pack-github-aws/`](packs/pack-github-aws/)
-- [`packs/pack-gcp-gcs/`](packs/pack-gcp-gcs/)
+Stubs: [`packs/pack-github-aws/`](packs/pack-github-aws/) · [`packs/pack-gcp-gcs/`](packs/pack-gcp-gcs/)
 
 ## Instalación en un proyecto
 
 1. Abrí el repo en **AFN IDE**.
 2. Marketplace → instalá el pack / skill / MCP (o `/cloud-delivery setup`).
-3. Completá credenciales en Ajustes (nunca en este GitHub).
+3. Completá credenciales en Ajustes (nunca en este repo).
 
-Ejemplo de guía de integración en un frontend real (QA→S3 · main→Lightsail):  
-en el repo del producto → `docs/README_CLOUD_DELIVERY_INTEGRACION_AFN.md` (san-core-front).
-
-Raw base (skills):  
-`https://raw.githubusercontent.com/afnarqui99/afn-ecosystem/main/skills/<id>/SKILL.md`
+Ejemplo de guía de integración (QA→S3 · main→Lightsail):  
+en el producto → `docs/README_CLOUD_DELIVERY_INTEGRACION_AFN.md` (san-core-front).
 
 ## Otros
 
