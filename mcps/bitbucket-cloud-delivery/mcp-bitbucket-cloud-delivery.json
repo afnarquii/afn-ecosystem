@@ -1,0 +1,47 @@
+{
+  "id": "mcp-bitbucket-cloud-delivery",
+  "name": "Bitbucket Cloud Delivery",
+  "type": "stdio",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-bitbucket"],
+  "pipelineWhen": "dynamic",
+  "listToolsTimeoutMs": 120000,
+  "timeout": 120000,
+  "description": "Stub work-tracker Bitbucket para cloud-delivery. Credenciales solo locales vía credentialSchema (sin secretos en el pack).",
+  "publisher": "afn-ecosystem",
+  "tags": ["bitbucket", "cloud-delivery", "work-tracker", "stub"],
+  "cloudDeliveryRole": "work-tracker",
+  "cloudDeliveryProviderId": "bitbucket",
+  "credentialId": "bitbucket",
+  "env": {
+    "BITBUCKET_TOKEN": "${BITBUCKET_TOKEN}",
+    "BITBUCKET_WORKSPACE": "${BITBUCKET_WORKSPACE}"
+  },
+  "credentialSchema": {
+    "version": 1,
+    "title": "Bitbucket",
+    "fields": [
+      { "key": "BITBUCKET_TOKEN", "label": "App password / token", "secret": true, "required": true },
+      { "key": "BITBUCKET_WORKSPACE", "label": "Workspace", "required": true }
+    ],
+    "jsonExample": {
+      "BITBUCKET_TOKEN": "PEGA_TOKEN",
+      "BITBUCKET_WORKSPACE": "mi-workspace"
+    }
+  },
+  "afnCloudDelivery": {
+    "defaultBaseBranch": "develop",
+    "promotionBranches": ["develop", "qa", "main"],
+    "workItemLinkPrefix": "afn-change:"
+  },
+  "cloudDeliveryTools": [
+    "cloud_delivery_list_assigned_work",
+    "cloud_delivery_link_change",
+    "cloud_delivery_create_pr",
+    "cloud_delivery_list_branches",
+    "cloud_delivery_create_branch",
+    "cloud_delivery_pipeline_status"
+  ],
+  "_comment": "Stub público. Mapear tools en el IDE o wrapper @afn-ecosystem cuando exista. Valores reales → .afn/credentials/bitbucket.json (local)."
+}

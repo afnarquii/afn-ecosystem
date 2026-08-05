@@ -17,6 +17,16 @@
   "env": {
     "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
   },
+  "credentialSchema": {
+    "version": 1,
+    "title": "GitHub",
+    "fields": [
+      { "key": "GITHUB_TOKEN", "label": "Personal access token", "secret": true, "required": true }
+    ],
+    "jsonExample": {
+      "GITHUB_TOKEN": "PEGA_TOKEN"
+    }
+  },
   "afnCloudDelivery": {
     "defaultRepo": "${GITHUB_REPO}",
     "defaultBaseBranch": "develop",

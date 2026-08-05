@@ -21,6 +21,23 @@
     "AZURE_DEVOPS_USER_EMAIL": "${AZURE_DEVOPS_USER_EMAIL}",
     "AZURE_DEVOPS_REPO_ID": "${AZURE_DEVOPS_REPO_ID}"
   },
+  "credentialSchema": {
+    "version": 1,
+    "title": "Azure DevOps",
+    "fields": [
+      { "key": "AZURE_DEVOPS_ORG", "label": "Organization", "required": true },
+      { "key": "AZURE_DEVOPS_PROJECT", "label": "Project", "required": true },
+      { "key": "AZURE_DEVOPS_PAT", "label": "PAT", "secret": true, "required": true },
+      { "key": "AZURE_DEVOPS_USER_EMAIL", "label": "User email", "required": false },
+      { "key": "AZURE_DEVOPS_REPO_ID", "label": "Repo id (opcional)", "required": false }
+    ],
+    "jsonExample": {
+      "AZURE_DEVOPS_ORG": "mi-org",
+      "AZURE_DEVOPS_PROJECT": "mi-proyecto",
+      "AZURE_DEVOPS_PAT": "PEGA_PAT",
+      "AZURE_DEVOPS_USER_EMAIL": "dev@example.com"
+    }
+  },
   "afnCloudDelivery": {
     "defaultBaseBranch": "develop",
     "promotionBranches": ["develop", "qa", "main"],

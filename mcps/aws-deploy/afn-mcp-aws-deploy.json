@@ -32,6 +32,27 @@
     "DEPLOY_POST_CMD": "${DEPLOY_POST_CMD}",
     "AFN_DEPLOY_MANIFEST": ".afn/deploy.json"
   },
+  "credentialSchema": {
+    "version": 1,
+    "title": "AWS Cloud Delivery",
+    "fields": [
+      { "key": "AWS_REGION", "label": "AWS region", "required": true },
+      { "key": "AWS_S3_BUCKET_QA", "label": "S3 bucket QA", "required": false },
+      { "key": "AWS_S3_BUCKET", "label": "S3 bucket", "required": false },
+      { "key": "DEPLOY_SSH_HOST", "label": "SSH host", "required": false },
+      { "key": "DEPLOY_SSH_USER", "label": "SSH user", "required": false },
+      { "key": "DEPLOY_SSH_KEY_PATH", "label": "SSH key path", "secret": true, "required": false },
+      { "key": "DEPLOY_REMOTE_PATH", "label": "Remote path", "required": false },
+      { "key": "FRONTEND_HEALTH_URL", "label": "Health URL", "required": false }
+    ],
+    "jsonExample": {
+      "AWS_REGION": "us-east-1",
+      "AWS_S3_BUCKET_QA": "mi-bucket-qa",
+      "DEPLOY_SSH_HOST": "PEGA_HOST",
+      "DEPLOY_SSH_USER": "ubuntu",
+      "DEPLOY_SSH_KEY_PATH": "C:/path/to/key.pem"
+    }
+  },
   "afnCloudDelivery": {
     "onMergeBranch": "main",
     "promotionBranches": ["develop", "qa", "main"],

@@ -38,11 +38,20 @@ packs/           → Delivery Packs (uiSchema + deploy.template + lista de pieza
 
 Stubs: [`packs/pack-github-aws/`](packs/pack-github-aws/) · [`packs/pack-gcp-gcs/`](packs/pack-gcp-gcs/)
 
+## Credenciales (`credentialSchema`)
+
+Los MCP del catálogo pueden declarar un schema para el **gate genérico** del Marketplace (formulario + pegar JSON → `.afn/credentials/<credentialId>.json`). Sin hardcode de vendor en el IDE: si no hay schema, se infiere de `env` con `${VAR}`.
+
+Ejemplo (stub Bitbucket): [`mcps/bitbucket-cloud-delivery/mcp-bitbucket-cloud-delivery.json`](mcps/bitbucket-cloud-delivery/mcp-bitbucket-cloud-delivery.json)
+
+También declarado en Azure / AWS / GitHub descriptors. Valores reales **nunca** en este repo.
+
 ## Instalación en un proyecto
 
 1. Abrí el repo en **AFN IDE**.
 2. Marketplace → instalá el pack / skill / MCP (o `/cloud-delivery setup`).
-3. Completá credenciales en Ajustes (nunca en este GitHub).
+3. Si el ítem declara secrets: modal gate (campos o JSON) → `.afn/credentials/` (local).
+4. Alternativa: Ajustes Cloud Delivery / Flujos → Credenciales (nunca en este GitHub).
 
 Ejemplo de guía de integración (QA→S3 · main→Lightsail):  
 en el producto → `docs/README_CLOUD_DELIVERY_INTEGRACION_AFN.md` (san-core-front).
@@ -54,3 +63,4 @@ en el producto → `docs/README_CLOUD_DELIVERY_INTEGRACION_AFN.md` (san-core-fro
 | Go profesional | [`skills/golang-professional/`](skills/golang-professional/) |
 | Agente Go | [`agents/agent-golang.md`](agents/agent-golang.md) |
 | MCP SQL Server (plantilla) | [`mcps/sql-server/`](mcps/sql-server/) |
+| Stub Bitbucket + schema | [`mcps/bitbucket-cloud-delivery/`](mcps/bitbucket-cloud-delivery/) |
