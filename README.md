@@ -3,10 +3,10 @@
 Catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery Packs** para AFN IDE (Marketplace).
 
 **Repo canónico (GitHub público):**  
-https://github.com/afnarqui99/afn-ecosystem  
+https://github.com/afnarquii/afn-ecosystem  
 
 Raw skills (ejemplo):  
-`https://raw.githubusercontent.com/afnarqui99/afn-ecosystem/main/skills/skill-cloud-delivery-azure-aws/SKILL.md`
+`https://raw.githubusercontent.com/afnarquii/afn-ecosystem/main/skills/skill-cloud-delivery-azure-aws/SKILL.md`
 
 > Azure DevOps ya no permite proyectos públicos nuevos; el mirror en ADO (si existe) es solo backup privado.
 

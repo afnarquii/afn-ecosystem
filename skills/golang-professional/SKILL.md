@@ -90,4 +90,4 @@ Usá esta skill cuando generés o revisés código **Go** (APIs REST, workers, C
 
 ---
 
-**Repo:** [github.com/afnarqui99/afn-ecosystem](https://github.com/afnarqui99/afn-ecosystem) — skill mantenida ahí para el marketplace Afn.
+**Repo:** [github.com/afnarquii/afn-ecosystem](https://github.com/afnarquii/afn-ecosystem) — skill mantenida ahí para el marketplace Afn.
