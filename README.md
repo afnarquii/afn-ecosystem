@@ -2,10 +2,13 @@
 
 Catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery Packs** para AFN IDE (Marketplace).
 
-**Repo canónico (Azure DevOps):**  
-https://dev.azure.com/afnarqui/afnarqui-notion-ia/_git/afn-ecosystem  
+**Repo canónico (GitHub público):**  
+https://github.com/afnarqui99/afn-ecosystem  
 
-El proyecto **afnarqui-notion-ia** debe ser **Public** para que el Marketplace descargue `SKILL.md` sin login (Items API).
+Raw skills (ejemplo):  
+`https://raw.githubusercontent.com/afnarqui99/afn-ecosystem/main/skills/skill-cloud-delivery-azure-aws/SKILL.md`
+
+> Azure DevOps ya no permite proyectos públicos nuevos; el mirror en ADO (si existe) es solo backup privado.
 
 ## Reglas (repo público)
 
@@ -16,7 +19,7 @@ El proyecto **afnarqui-notion-ia** debe ser **Public** para que el Marketplace d
 ## Layout
 
 ```text
-skills/          → SKILL.md (contentUrl del Marketplace vía Items API)
+skills/          → SKILL.md (contentUrl raw del Marketplace)
 agents/          → JSON o markdown de agentes
 mcps/            → descriptores stdio (npx @afn-ecosystem/mcp-*)
 packs/           → Delivery Packs (uiSchema + deploy.template + lista de piezas)
@@ -39,7 +42,7 @@ Stubs: [`packs/pack-github-aws/`](packs/pack-github-aws/) · [`packs/pack-gcp-gc
 
 1. Abrí el repo en **AFN IDE**.
 2. Marketplace → instalá el pack / skill / MCP (o `/cloud-delivery setup`).
-3. Completá credenciales en Ajustes (nunca en este repo).
+3. Completá credenciales en Ajustes (nunca en este GitHub).
 
 Ejemplo de guía de integración (QA→S3 · main→Lightsail):  
 en el producto → `docs/README_CLOUD_DELIVERY_INTEGRACION_AFN.md` (san-core-front).
