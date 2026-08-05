@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "promotionBranches": ["develop", "qa", "main"],
+  "onMergeBranch": "main",
+  "onDeployBranches": ["main"],
+  "targets": {
+    "frontend": {
+      "kind": "gcs-static",
+      "when": { "branches": ["main"] },
+      "bucket": "${GCS_BUCKET}",
+      "prefix": "${GCS_PREFIX}",
+      "localPath": "dist",
+      "build": "npm run build"
+    }
+  },
+  "healthcheck": {
+    "frontend": { "url": "${FRONTEND_HEALTH_URL}", "required": false }
+  },
+  "_comment": "Stub. kind gcs-static requiere MCP deploy GCP en el IDE. Ajustá build/localPath al stack real."
+}

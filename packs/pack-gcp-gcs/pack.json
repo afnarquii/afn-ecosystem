@@ -1,0 +1,29 @@
+{
+  "id": "pack-gcp-gcs",
+  "version": 1,
+  "name": "GCP (GCS) — stub",
+  "description": "Plantilla futura: frontend estático en GCS. Requiere MCP deploy GCP (@afn-ecosystem/mcp-gcp-deploy cuando exista). Sin secretos.",
+  "publisher": "afn-ecosystem",
+  "workTrackerProviderId": "azure",
+  "deployProviderId": "gcp",
+  "skills": ["skill-cloud-delivery-setup"],
+  "agents": ["agent-cloud-delivery-orchestrator"],
+  "mcps": [],
+  "manifestTemplateRel": "deploy.template.json",
+  "credentialsKeysRel": "credentials.keys.example.json",
+  "uiSchema": {
+    "steps": [
+      {
+        "id": "gcp",
+        "title": "GCP (próximamente)",
+        "fields": [
+          { "key": "GCP_PROJECT_ID", "label": "Project ID", "type": "text", "required": true },
+          { "key": "GCS_BUCKET", "label": "Bucket GCS", "type": "text", "required": true },
+          { "key": "GCS_PREFIX", "label": "Prefix", "type": "text", "required": false }
+        ]
+      }
+    ]
+  },
+  "status": "stub",
+  "docs": "https://github.com/afnarqui99/afn-ecosystem/tree/main/packs/pack-gcp-gcs"
+}

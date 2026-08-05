@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "promotionBranches": ["develop", "qa", "main"],
+  "onMergeBranch": "main",
+  "onDeployBranches": ["qa", "main"],
+  "targets": {
+    "frontend_qa": {
+      "kind": "s3-static",
+      "when": { "branches": ["qa"] },
+      "bucket": "${AWS_S3_BUCKET_QA}",
+      "prefix": "${AWS_S3_PREFIX_QA}",
+      "localPath": "dist",
+      "build": "npm run build"
+    },
+    "frontend_prod": {
+      "kind": "ssh-static",
+      "when": { "branches": ["main"] },
+      "host": "${DEPLOY_SSH_HOST}",
+      "user": "${DEPLOY_SSH_USER}",
+      "keyPath": "${DEPLOY_SSH_KEY_PATH}",
+      "localPath": "dist",
+      "remotePath": "${DEPLOY_REMOTE_PATH}",
+      "postCmd": "${DEPLOY_POST_CMD}"
+    }
+  },
+  "healthcheck": {
+    "frontend_qa": { "url": "${FRONTEND_HEALTH_URL_QA}", "required": false },
+    "frontend_prod": { "url": "${FRONTEND_HEALTH_URL}", "required": false }
+  },
+  "_comment": "Plantilla pública. El IDE/wizard materializa .afn/deploy.json. Ajustá localPath/build al stack del workspace (no asumir npm si el repo no lo usa)."
+}

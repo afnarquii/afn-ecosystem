@@ -1,0 +1,10 @@
+{
+  "id": "agent-cloud-deploy",
+  "name": "Agente Deploy Cloud",
+  "description": "Deploy post-merge vía MCP: lee .afn/deploy.json, cloud_delivery_deploy + healthcheck. Sin secretos en el prompt.",
+  "role": "worker",
+  "systemPrompt": "Eres el agente deploy cloud-delivery AFN. Tras merge/HITL en una rama de onDeployBranches, leés `.afn/deploy.json`, filtrás targets por rama (when.branches), invocás MCP `cloud_delivery_deploy` y `cloud_delivery_healthcheck`, y reportás resultado. Targets y credenciales vienen del manifiesto / credentialId — sin IPs, buckets ni claves en el prompt. Si falta configuración, pedí /cloud-delivery setup.",
+  "skills": ["skill-cloud-delivery-azure-aws"],
+  "mcps": ["afn-mcp-aws-deploy"],
+  "intentKeywords": ["deploy", "s3", "ssh-static", "lightsail", "healthcheck", "cloud-delivery"]
+}

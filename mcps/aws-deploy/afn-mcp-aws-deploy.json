@@ -1,0 +1,42 @@
+{
+  "id": "afn-mcp-aws-deploy",
+  "name": "AWS Cloud Delivery Deploy",
+  "type": "stdio",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@afn-ecosystem/mcp-aws-deploy@latest"],
+  "pipelineWhen": "dynamic",
+  "listToolsTimeoutMs": 120000,
+  "timeout": 300000,
+  "description": "Deploy cloud-delivery: lee .afn/deploy.json + targetBranch. Kinds s3-static, ssh-static, lightsail. Sin secretos en este archivo.",
+  "publisher": "afn-ecosystem",
+  "tags": ["aws", "cloud-delivery", "deploy", "s3", "ssh"],
+  "cloudDeliveryRole": "deploy",
+  "cloudDeliveryProviderId": "aws",
+  "credentialId": "aws-deploy",
+  "env": {
+    "AWS_REGION": "${AWS_REGION}",
+    "AWS_PROFILE": "${AWS_PROFILE}",
+    "AWS_S3_BUCKET": "${AWS_S3_BUCKET}",
+    "AWS_S3_BUCKET_QA": "${AWS_S3_BUCKET_QA}",
+    "AWS_S3_PREFIX": "${AWS_S3_PREFIX}",
+    "AWS_S3_PREFIX_QA": "${AWS_S3_PREFIX_QA}",
+    "LIGHTSAIL_SERVICE": "${LIGHTSAIL_SERVICE}",
+    "LIGHTSAIL_HOST": "${LIGHTSAIL_HOST}",
+    "FRONTEND_HEALTH_URL": "${FRONTEND_HEALTH_URL}",
+    "FRONTEND_HEALTH_URL_QA": "${FRONTEND_HEALTH_URL_QA}",
+    "DEPLOY_SSH_HOST": "${DEPLOY_SSH_HOST}",
+    "DEPLOY_SSH_USER": "${DEPLOY_SSH_USER}",
+    "DEPLOY_SSH_KEY_PATH": "${DEPLOY_SSH_KEY_PATH}",
+    "DEPLOY_REMOTE_PATH": "${DEPLOY_REMOTE_PATH}",
+    "DEPLOY_POST_CMD": "${DEPLOY_POST_CMD}",
+    "AFN_DEPLOY_MANIFEST": ".afn/deploy.json"
+  },
+  "afnCloudDelivery": {
+    "onMergeBranch": "main",
+    "promotionBranches": ["develop", "qa", "main"],
+    "onDeployBranches": ["qa", "main"]
+  },
+  "cloudDeliveryTools": ["cloud_delivery_deploy", "cloud_delivery_healthcheck"],
+  "_comment": "Público: solo placeholders. Valores → Ajustes AFN / .afn/credentials/aws-deploy.json (local)."
+}

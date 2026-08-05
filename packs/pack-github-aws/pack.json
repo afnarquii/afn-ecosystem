@@ -1,0 +1,37 @@
+{
+  "id": "pack-github-aws",
+  "version": 1,
+  "name": "GitHub + AWS deploy",
+  "description": "Work tracker GitHub + mismo deploy AWS (S3/SSH) que el pack dual. Stub público sin secretos.",
+  "publisher": "afn-ecosystem",
+  "workTrackerProviderId": "github",
+  "deployProviderId": "aws",
+  "skills": ["skill-cloud-delivery-azure-aws", "skill-cloud-delivery-setup"],
+  "agents": ["agent-cloud-delivery-orchestrator", "agent-cloud-deploy"],
+  "mcps": ["mcp-github-cloud-delivery", "afn-mcp-aws-deploy"],
+  "manifestTemplateRel": "../pack-azure-aws-dual/deploy.template.json",
+  "credentialsKeysRel": "credentials.keys.example.json",
+  "uiSchema": {
+    "steps": [
+      {
+        "id": "tracker",
+        "title": "GitHub",
+        "fields": [
+          { "key": "GITHUB_TOKEN", "label": "Personal Access Token", "type": "secret", "required": true },
+          { "key": "GITHUB_REPO", "label": "owner/repo", "type": "text", "required": true }
+        ]
+      },
+      {
+        "id": "deploy",
+        "title": "AWS deploy (mismas claves que pack dual)",
+        "fields": [
+          { "key": "AWS_REGION", "label": "Región", "type": "text", "required": true, "default": "us-east-1" },
+          { "key": "AWS_S3_BUCKET_QA", "label": "Bucket S3 QA", "type": "text", "required": false },
+          { "key": "DEPLOY_SSH_HOST", "label": "Host SSH prod", "type": "text", "required": false }
+        ]
+      }
+    ]
+  },
+  "status": "stub",
+  "docs": "https://github.com/afnarqui99/afn-ecosystem/tree/main/packs/pack-github-aws"
+}

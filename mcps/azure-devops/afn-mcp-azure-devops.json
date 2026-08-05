@@ -1,0 +1,39 @@
+{
+  "id": "afn-mcp-azure-devops",
+  "name": "Azure DevOps Cloud Delivery",
+  "type": "stdio",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@afn-ecosystem/mcp-azure-devops@latest"],
+  "pipelineWhen": "dynamic",
+  "listToolsTimeoutMs": 120000,
+  "timeout": 120000,
+  "description": "Work tracker Azure DevOps para cloud-delivery: WI, link SDD, PR, branches, pipeline status. Credenciales locales vía credentialId.",
+  "publisher": "afn-ecosystem",
+  "tags": ["azure", "cloud-delivery", "work-tracker", "devops"],
+  "cloudDeliveryRole": "work-tracker",
+  "cloudDeliveryProviderId": "azure",
+  "credentialId": "azure-devops",
+  "env": {
+    "AZURE_DEVOPS_ORG": "${AZURE_DEVOPS_ORG}",
+    "AZURE_DEVOPS_PROJECT": "${AZURE_DEVOPS_PROJECT}",
+    "AZURE_DEVOPS_PAT": "${AZURE_DEVOPS_PAT}",
+    "AZURE_DEVOPS_USER_EMAIL": "${AZURE_DEVOPS_USER_EMAIL}",
+    "AZURE_DEVOPS_REPO_ID": "${AZURE_DEVOPS_REPO_ID}"
+  },
+  "afnCloudDelivery": {
+    "defaultBaseBranch": "develop",
+    "promotionBranches": ["develop", "qa", "main"],
+    "workItemLinkPrefix": "afn-change:"
+  },
+  "cloudDeliveryTools": [
+    "cloud_delivery_list_assigned_work",
+    "cloud_delivery_link_change",
+    "cloud_delivery_create_pr",
+    "cloud_delivery_complete_pr",
+    "cloud_delivery_list_branches",
+    "cloud_delivery_create_branch",
+    "cloud_delivery_pipeline_status"
+  ],
+  "_comment": "Público: solo placeholders. Valores reales → Ajustes AFN / .afn/credentials/azure-devops.json (local)."
+}

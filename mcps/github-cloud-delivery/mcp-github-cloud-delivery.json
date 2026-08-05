@@ -1,0 +1,35 @@
+{
+  "id": "mcp-github-cloud-delivery",
+  "name": "GitHub Cloud Delivery",
+  "type": "stdio",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-github"],
+  "pipelineWhen": "dynamic",
+  "listToolsTimeoutMs": 120000,
+  "timeout": 120000,
+  "description": "Work tracker GitHub para cloud-delivery (issues/PR). Token solo en credentials locales.",
+  "publisher": "afn-ecosystem",
+  "tags": ["github", "cloud-delivery", "work-tracker", "pr"],
+  "cloudDeliveryRole": "work-tracker",
+  "cloudDeliveryProviderId": "github",
+  "credentialId": "github-api",
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+  },
+  "afnCloudDelivery": {
+    "defaultRepo": "${GITHUB_REPO}",
+    "defaultBaseBranch": "develop",
+    "promotionBranches": ["develop", "qa", "main"],
+    "workItemLinkPrefix": "afn-change:"
+  },
+  "cloudDeliveryTools": [
+    "cloud_delivery_list_assigned_work",
+    "cloud_delivery_link_change",
+    "cloud_delivery_create_pr",
+    "cloud_delivery_list_branches",
+    "cloud_delivery_create_branch",
+    "cloud_delivery_pipeline_status"
+  ],
+  "_comment": "Stub público. Mapear tools canónicas en el IDE (toolMap) o wrapper @afn-ecosystem cuando exista."
+}

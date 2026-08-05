@@ -1,0 +1,56 @@
+{
+  "id": "pack-azure-aws-dual",
+  "version": 1,
+  "name": "Azure + AWS dual (QA S3 · prod SSH)",
+  "description": "Work tracker Azure DevOps + deploy QA→s3-static y producción→ssh-static. Sin secretos; placeholders ${VAR}.",
+  "publisher": "afn-ecosystem",
+  "workTrackerProviderId": "azure",
+  "deployProviderId": "aws",
+  "skills": ["skill-cloud-delivery-azure-aws", "skill-cloud-delivery-setup"],
+  "agents": [
+    "agent-cloud-delivery-orchestrator",
+    "agent-cloud-deploy",
+    "agent-cloud-qa-gate"
+  ],
+  "mcps": ["afn-mcp-azure-devops", "afn-mcp-aws-deploy"],
+  "manifestTemplateRel": "deploy.template.json",
+  "credentialsKeysRel": "credentials.keys.example.json",
+  "ciGenerators": ["azure-pipelines"],
+  "uiSchema": {
+    "steps": [
+      {
+        "id": "tracker",
+        "title": "Azure DevOps",
+        "fields": [
+          { "key": "AZURE_DEVOPS_ORG", "label": "Organización", "type": "text", "required": true },
+          { "key": "AZURE_DEVOPS_PROJECT", "label": "Proyecto", "type": "text", "required": true },
+          { "key": "AZURE_DEVOPS_PAT", "label": "PAT", "type": "secret", "required": true },
+          { "key": "AZURE_DEVOPS_USER_EMAIL", "label": "Email (Assigned To)", "type": "text", "required": false }
+        ]
+      },
+      {
+        "id": "qa",
+        "title": "QA — S3 estático",
+        "fields": [
+          { "key": "AWS_REGION", "label": "Región AWS", "type": "text", "required": true, "default": "us-east-1" },
+          { "key": "AWS_S3_BUCKET_QA", "label": "Bucket S3 QA", "type": "text", "required": true },
+          { "key": "AWS_S3_PREFIX_QA", "label": "Prefix QA", "type": "text", "required": false, "default": "" },
+          { "key": "FRONTEND_HEALTH_URL_QA", "label": "Health URL QA (opcional)", "type": "text", "required": false }
+        ]
+      },
+      {
+        "id": "prod",
+        "title": "Producción — SSH estático",
+        "fields": [
+          { "key": "DEPLOY_SSH_HOST", "label": "Host SSH", "type": "text", "required": true },
+          { "key": "DEPLOY_SSH_USER", "label": "Usuario SSH", "type": "text", "required": true, "default": "ubuntu" },
+          { "key": "DEPLOY_SSH_KEY_PATH", "label": "Ruta local al .pem", "type": "path", "required": true },
+          { "key": "DEPLOY_REMOTE_PATH", "label": "Ruta remota", "type": "text", "required": true },
+          { "key": "DEPLOY_POST_CMD", "label": "postCmd (opcional, p. ej. reload nginx)", "type": "text", "required": false },
+          { "key": "FRONTEND_HEALTH_URL", "label": "Health URL prod (opcional)", "type": "text", "required": false }
+        ]
+      }
+    ]
+  },
+  "docs": "https://github.com/afnarqui99/afn-ecosystem/tree/main/packs/pack-azure-aws-dual"
+}
