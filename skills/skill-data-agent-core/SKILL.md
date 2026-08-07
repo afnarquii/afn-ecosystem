@@ -24,4 +24,4 @@ Usar solo las tools del MCP `afn-mcp-data-agent` / remoto. **No** inventar SQL n
 - Si una op falla con `entity_not_allowed` u `op_not_allowed`, **no** reintentar con otro nombre inventado.
 - Confirmá con el usuario antes de `data_delete` o escrituras masivas.
 - No pidas ni expongas connection strings; las credenciales las gestiona AFN.
-- El dominio concreto (pedidos, leads, sesiones) lo aportan **otras skills** de dominio.
+- El dominio concreto (pedidos, canal WhatsApp, etc.) lo aportan **otras skills** de dominio — en canal WA no ofrezcas ventas/mesas/turnos ni listados de clientes.
