@@ -1,0 +1,50 @@
+{
+  "id": "afn-mcp-data-agent",
+  "name": "AFN Data Agent (genérico)",
+  "type": "stdio",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@afn-ecosystem/mcp-data-agent@latest"],
+  "listToolsTimeoutMs": 120000,
+  "timeout": 120000,
+  "description": "MCP genérico de datos (mssql|mongodb|http-api) con manifiesto allowlist. Dominio vía skills. Sin secretos en el descriptor.",
+  "publisher": "afn-ecosystem",
+  "tags": ["data-agent", "mssql", "mongodb", "mcp", "whatsapp", "crud"],
+  "credentialId": "data-agent",
+  "env": {
+    "DATA_AGENT_DRIVER": "${DATA_AGENT_DRIVER}",
+    "DATA_AGENT_MANIFEST": "${DATA_AGENT_MANIFEST}",
+    "DB_SERVER": "${DB_SERVER}",
+    "DB_PORT": "${DB_PORT}",
+    "DB_DATABASE": "${DB_DATABASE}",
+    "DB_USER": "${DB_USER}",
+    "DB_PASSWORD": "${DB_PASSWORD}",
+    "MONGODB_URI": "${MONGODB_URI}",
+    "HTTP_API_BASE_URL": "${HTTP_API_BASE_URL}",
+    "HTTP_API_TOKEN": "${HTTP_API_TOKEN}"
+  },
+  "credentialSchema": {
+    "version": 1,
+    "title": "Data Agent",
+    "fields": [
+      { "key": "DATA_AGENT_DRIVER", "label": "Driver (mssql|mongodb|http-api|memory)", "required": true },
+      { "key": "DATA_AGENT_MANIFEST", "label": "Ruta local al domain-manifest.json", "required": false },
+      { "key": "DB_SERVER", "label": "SQL Server host", "required": false },
+      { "key": "DB_DATABASE", "label": "Database", "required": false },
+      { "key": "DB_USER", "label": "User", "required": false },
+      { "key": "DB_PASSWORD", "label": "Password", "secret": true, "required": false },
+      { "key": "MONGODB_URI", "label": "MongoDB URI", "secret": true, "required": false },
+      { "key": "HTTP_API_BASE_URL", "label": "HTTP API base URL", "required": false },
+      { "key": "HTTP_API_TOKEN", "label": "HTTP API Bearer", "secret": true, "required": false }
+    ],
+    "jsonExample": {
+      "DATA_AGENT_DRIVER": "mssql",
+      "DATA_AGENT_MANIFEST": "C:/path/domain-manifest.json",
+      "DB_SERVER": "localhost",
+      "DB_DATABASE": "mi_db",
+      "DB_USER": "app",
+      "DB_PASSWORD": "PEGA_AQUI"
+    }
+  },
+  "_comment": "Público: placeholders. Valores → .afn/credentials/data-agent.json. Remoto Lightsail: ver afn-mcp-data-agent-remote.example.json"
+}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "driver": "mssql",
+  "entities": {
+    "order": {
+      "collectionOrTable": "Pedidos",
+      "key": "id",
+      "ops": ["find", "upsert", "delete"],
+      "fields": ["id", "cliente", "direccion", "items", "estado", "total"]
+    },
+    "customer": {
+      "collectionOrTable": "Clientes",
+      "key": "id",
+      "ops": ["find", "upsert"],
+      "fields": ["id", "nombre", "telefono", "direccion"]
+    }
+  }
+}

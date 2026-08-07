@@ -1,0 +1,46 @@
+{
+  "id": "pack-data-agent-core",
+  "version": 1,
+  "name": "Data Agent core (MCP genérico)",
+  "description": "MCP data-agent + skill core + agente canal WhatsApp. Dominio se agrega con packs domain-* o skills sueltas. Sin secretos.",
+  "publisher": "afn-ecosystem",
+  "skills": ["skill-data-agent-core"],
+  "agents": ["agent-data-channel-wa"],
+  "mcps": ["afn-mcp-data-agent", "afn-mcp-data-agent-remote"],
+  "credentialsKeysRel": "credentials.keys.example.json",
+  "manifestTemplateRel": "domain-manifest.example.json",
+  "uiSchema": {
+    "steps": [
+      {
+        "id": "driver",
+        "title": "Conexión",
+        "fields": [
+          {
+            "key": "DATA_AGENT_DRIVER",
+            "label": "Driver",
+            "type": "text",
+            "required": true,
+            "default": "mssql"
+          },
+          {
+            "key": "DATA_AGENT_MANIFEST",
+            "label": "Ruta domain-manifest.json",
+            "type": "path",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "mssql",
+        "title": "SQL Server (si driver=mssql)",
+        "fields": [
+          { "key": "DB_SERVER", "label": "Server", "type": "text", "required": false },
+          { "key": "DB_DATABASE", "label": "Database", "type": "text", "required": false },
+          { "key": "DB_USER", "label": "User", "type": "text", "required": false },
+          { "key": "DB_PASSWORD", "label": "Password", "type": "secret", "required": false }
+        ]
+      }
+    ]
+  },
+  "docs": "https://github.com/afnarquii/afn-ecosystem/tree/main/packs/pack-data-agent-core"
+}

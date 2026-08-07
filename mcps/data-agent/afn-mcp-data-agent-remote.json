@@ -1,0 +1,30 @@
+{
+  "id": "afn-mcp-data-agent-remote",
+  "name": "AFN Data Agent (Lightsail)",
+  "type": "remote",
+  "transport": "streamableHttp",
+  "url": "https://data-agent.sancolombia.com/mcp",
+  "description": "MCP data-agent remoto (HTTP JSON-RPC). Credencial: DATA_AGENT_AUTH_TOKEN. Sustituí url si usás otro host.",
+  "publisher": "afn-ecosystem",
+  "tags": ["data-agent", "remote", "lightsail", "mssql", "whatsapp"],
+  "credentialId": "data-agent-remote",
+  "env": {
+    "DATA_AGENT_AUTH_TOKEN": "${DATA_AGENT_AUTH_TOKEN}"
+  },
+  "waSecretEnvKeys": ["DATA_AGENT_AUTH_TOKEN"],
+  "credentialSchema": {
+    "version": 1,
+    "title": "Data Agent remoto",
+    "fields": [
+      {
+        "key": "DATA_AGENT_AUTH_TOKEN",
+        "label": "Bearer token (servidor /etc/afn/data-agent.env)",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "jsonExample": {
+      "DATA_AGENT_AUTH_TOKEN": "PEGA_TOKEN_DEL_SERVER"
+    }
+  }
+}

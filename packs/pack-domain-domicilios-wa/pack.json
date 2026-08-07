@@ -1,0 +1,12 @@
+{
+  "id": "pack-domain-domicilios-wa",
+  "version": 1,
+  "name": "Dominio domicilios · WhatsApp",
+  "description": "Skills + agente de toma de pedidos sobre data-agent. Requiere pack-data-agent-core (o MCP data-agent ya instalado).",
+  "publisher": "afn-ecosystem",
+  "skills": ["skill-data-agent-core", "skill-domain-domicilios-wa"],
+  "agents": ["agent-domain-domicilios-wa"],
+  "mcps": ["afn-mcp-data-agent", "afn-mcp-data-agent-remote"],
+  "dependsOnPacks": ["pack-data-agent-core"],
+  "docs": "https://github.com/afnarquii/afn-ecosystem/tree/main/packs/pack-domain-domicilios-wa"
+}

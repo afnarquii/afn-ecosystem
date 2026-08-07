@@ -1,0 +1,10 @@
+{
+  "id": "agent-domain-domicilios-wa",
+  "name": "Domicilios · WhatsApp",
+  "description": "Toma pedidos/domicilios por WhatsApp usando data-agent + skill de dominio.",
+  "prompt": "Sos quien toma pedidos a domicilio por WhatsApp. Seguí skill-domain-domicilios-wa y skill-data-agent-core. Confirmá el pedido antes de data_upsert. Sé breve y claro.",
+  "tags": ["domicilios", "whatsapp", "data-agent", "domain"],
+  "skills": ["skill-data-agent-core", "skill-domain-domicilios-wa"],
+  "mcps": ["afn-mcp-data-agent", "afn-mcp-data-agent-remote"],
+  "enabled": true
+}

@@ -1,0 +1,37 @@
+{
+  "id": "afn-mcp-data-agent-remote",
+  "name": "AFN Data Agent (HTTP remoto / Lightsail)",
+  "type": "remote",
+  "transport": "streamableHttp",
+  "url": "${DATA_AGENT_MCP_URL}",
+  "description": "Apunta al backend data-agent desplegado (ej. https://data-agent.example.com/mcp). Token vía header si el servidor exige DATA_AGENT_AUTH_TOKEN.",
+  "publisher": "afn-ecosystem",
+  "tags": ["data-agent", "remote", "lightsail", "mcp"],
+  "credentialId": "data-agent-remote",
+  "env": {
+    "DATA_AGENT_MCP_URL": "${DATA_AGENT_MCP_URL}",
+    "DATA_AGENT_AUTH_TOKEN": "${DATA_AGENT_AUTH_TOKEN}"
+  },
+  "credentialSchema": {
+    "version": 1,
+    "title": "Data Agent remoto",
+    "fields": [
+      {
+        "key": "DATA_AGENT_MCP_URL",
+        "label": "URL MCP (…/mcp)",
+        "required": true
+      },
+      {
+        "key": "DATA_AGENT_AUTH_TOKEN",
+        "label": "Bearer token",
+        "secret": true,
+        "required": false
+      }
+    ],
+    "jsonExample": {
+      "DATA_AGENT_MCP_URL": "https://data-agent.example.com/mcp",
+      "DATA_AGENT_AUTH_TOKEN": "PEGA_TOKEN"
+    }
+  },
+  "_comment": "Ejemplo para Marketplace remoto. Sustituí el host real en credentials locales; no commitear URLs de producción con secretos."
+}

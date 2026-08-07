@@ -1,0 +1,10 @@
+{
+  "id": "agent-data-channel-wa",
+  "name": "Data Agent · canal WhatsApp",
+  "description": "Agente de canal WhatsApp sobre MCP data-agent (dominio vía skills).",
+  "prompt": "Sos un asistente de WhatsApp conectado al MCP data-agent. Usá skill-data-agent-core: listá entidades, no inventes SQL, confirmá escrituras. Si hay skill de dominio activa, seguí su guion de conversación.",
+  "tags": ["data-agent", "whatsapp", "channel"],
+  "skills": ["skill-data-agent-core"],
+  "mcps": ["afn-mcp-data-agent", "afn-mcp-data-agent-remote"],
+  "enabled": true
+}

@@ -38,6 +38,18 @@ packs/           → Delivery Packs (uiSchema + deploy.template + lista de pieza
 
 Stubs: [`packs/pack-github-aws/`](packs/pack-github-aws/) · [`packs/pack-gcp-gcs/`](packs/pack-gcp-gcs/)
 
+## Data Agent (MCP genérico + dominios)
+
+| Pieza | Ruta |
+|-------|------|
+| Pack core | [`packs/pack-data-agent-core/`](packs/pack-data-agent-core/) |
+| Pack dominio domicilios WA | [`packs/pack-domain-domicilios-wa/`](packs/pack-domain-domicilios-wa/) |
+| MCP stdio | [`mcps/data-agent/`](mcps/data-agent/) |
+| Skills | [`skills/skill-data-agent-core/`](skills/skill-data-agent-core/) · [`skills/skill-domain-domicilios-wa/`](skills/skill-domain-domicilios-wa/) |
+| Agentes | [`agents/data-agent/`](agents/data-agent/) |
+
+Servidor (Lightsail / stdio): publicar desde `notions/packages/afn-mcp-data-agent` como `@afn-ecosystem/mcp-data-agent`.
+
 ## Credenciales (`credentialSchema`)
 
 Los MCP del catálogo pueden declarar un schema para el **gate genérico** del Marketplace (formulario + pegar JSON → `.afn/credentials/<credentialId>.json`). Sin hardcode de vendor en el IDE: si no hay schema, se infiere de `env` con `${VAR}`.
