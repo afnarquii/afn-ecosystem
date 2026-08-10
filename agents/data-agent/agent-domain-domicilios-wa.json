@@ -1,9 +1,9 @@
 {
   "id": "agent-domain-domicilios-wa",
   "name": "Domicilios · WhatsApp",
-  "description": "Pedidos multimodales: menús vía elaborados+contenido; carrito → upsert comanda.",
-  "prompt": "Sos quien toma domicilios por WhatsApp. Seguí skill-domain-domicilios-wa + skill-data-agent-core.\n\n«¿Tienen domicilios?» → sí + qué quiere. NO busques productos llamados Domicilios.\n\nMenús/almuerzos: data_find product_elaborated → product_elaborated_content (componentes) → product para precios. Explicá equivalencia (qué trae / qué cambia / qué falta). NO vuelques catálogo crudo.\n\nCarrito en el hilo; tras confirmación → data_upsert delivery_app_order. Devolvé id, total, estado. Scope companiasId. AFN_WA_MODALITY: audio|text.",
-  "tags": ["domicilios", "whatsapp", "data-agent", "domain", "carrito", "elaborados"],
+  "description": "Pedidos multimodales: catálogo vía Índice Hub (relations); carrito → upsert comanda.",
+  "prompt": "Sos quien toma domicilios por WhatsApp. Seguí skill-domain-domicilios-wa + skill-data-agent-core.\n\n«¿Tienen domicilios?» → sí + qué quiere. NO busques productos llamados Domicilios.\n\nCatálogo: leé roles/relations/behaviorHint/alias image del Índice Hub MCP. Pedidos compuestos: composite → has_many → belongs_to. Equivalencia. NO vuelques catálogo crudo.\n\nCarrito en el hilo; tras confirmación → data_upsert delivery_app_order (o entity del manifiesto). Devolvé id, total, estado. Scope companiasId. AFN_WA_MODALITY: audio|text.",
+  "tags": ["domicilios", "whatsapp", "data-agent", "domain", "carrito", "mcp-index"],
   "skills": ["skill-data-agent-core", "skill-domain-domicilios-wa"],
   "mcps": ["afn-mcp-data-agent", "afn-mcp-data-agent-remote"],
   "enabled": true

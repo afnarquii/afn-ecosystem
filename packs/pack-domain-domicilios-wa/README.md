@@ -17,16 +17,16 @@ Perfil de dominio sobre **data-agent** (sin hardcode de restaurante en el MCP).
 3. Tras confirmación del cliente → **persistir** (`delivery_app_order` / `delivery_mgmt` / action `crear_domicilio` / `comandas` si el manifiesto permite upsert).
 4. Devolver al cliente **id, total, estado, dirección**.
 
-## Manifiesto sugerido (MSSQL / patrón ERP)
+## Catálogo unificado (Índice Hub MCP)
 
-Ver `examples/domain-manifest.domicilios.mssql.example.json` en este pack.
+En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`stock`/`image`), **role** (`sku`/`composite`/`component_line`), **relations** (`has_many`/`belongs_to`) y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
 
 | Entity | Tabla típica | Ops |
 |--------|--------------|-----|
 | `product_group` | `gruposProductos` | find |
 | `product` | `productos` | find |
-| `product_elaborated` | `productosElaborados` | find |
-| `product_elaborated_content` | `productosElaboradosContenido` | find (componentes del menú) |
+| `product_elaborated` | `productosElaborados` | find (ejemplo; role=composite en el índice) |
+| `product_elaborated_content` | `productosElaboradosContenido` | find (ejemplo; has_many desde composite) |
 | `delivery_app_order` | `domiciliosAppComandas` | find, **upsert** |
 | `delivery_mgmt` | `comandasGestionDomicilios` | find, upsert |
 | `order_line` | `comandas` | find (upsert solo si el ERP lo habilita) |

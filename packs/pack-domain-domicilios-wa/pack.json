@@ -1,8 +1,8 @@
 {
   "id": "pack-domain-domicilios-wa",
-  "version": 3,
+  "version": 4,
   "name": "Dominio domicilios · WhatsApp",
-  "description": "Menús vía elaborados+contenido; carrito multimodal → upsert comanda. Requiere pack-data-agent-core.",
+  "description": "Catálogo vía Índice Hub (relations/image); carrito multimodal → upsert comanda. Requiere pack-data-agent-core.",
   "publisher": "afn-ecosystem",
   "skills": ["skill-data-agent-core", "skill-domain-domicilios-wa"],
   "agents": ["agent-domain-domicilios-wa"],
