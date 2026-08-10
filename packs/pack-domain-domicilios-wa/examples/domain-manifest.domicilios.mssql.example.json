@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "driver": "mssql",
+  "meta": {
+    "note": "Ejemplo genérico domicilios WA. Sustituí tablas/campos por los del ERP. No versionar secretos; connectionString vía env del MCP.",
+    "waChannel": "Usar con agent-domain-domicilios-wa + skill-domain-domicilios-wa"
+  },
+  "entities": {
+    "product_group": {
+      "collectionOrTable": "gruposProductos",
+      "key": "gruposProductosId",
+      "ops": ["find"],
+      "fields": ["gruposProductosId", "nombreGrupo", "companiasId"]
+    },
+    "product": {
+      "collectionOrTable": "productos",
+      "key": "productosId",
+      "ops": ["find"],
+      "fields": ["productosId", "nombreProducto", "precio", "gruposProductosId", "companiasId", "stock"]
+    },
+    "product_elaborated": {
+      "collectionOrTable": "productosElaborados",
+      "key": "productosElaboradosId",
+      "ops": ["find"],
+      "fields": ["productosElaboradosId", "nombreProductoElaborado", "precio", "gruposProductosId", "companiasId"]
+    },
+    "customer": {
+      "collectionOrTable": "clientes",
+      "key": "clientesId",
+      "ops": ["find", "upsert"],
+      "fields": ["clientesId", "nombre", "telefono", "direccion", "companiasId"]
+    },
+    "delivery_app_order": {
+      "collectionOrTable": "domiciliosAppComandas",
+      "key": "domiciliosAppComandasId",
+      "ops": ["find", "upsert"],
+      "fields": [
+        "domiciliosAppComandasId",
+        "companiasId",
+        "nombreCliente",
+        "telefono",
+        "direccion",
+        "detalle",
+        "total",
+        "formaPago",
+        "estado",
+        "notas"
+      ]
+    },
+    "delivery_mgmt": {
+      "collectionOrTable": "comandasGestionDomicilios",
+      "key": "comandasGestionDomiciliosId",
+      "ops": ["find", "upsert"],
+      "fields": ["comandasGestionDomiciliosId", "companiasId", "estado", "direccion", "total"]
+    },
+    "order_line": {
+      "collectionOrTable": "comandas",
+      "key": "comandasId",
+      "ops": ["find"],
+      "fields": ["comandasId", "companiasId", "estado", "total"]
+    },
+    "company": {
+      "collectionOrTable": "companias",
+      "key": "companiasId",
+      "ops": ["find"],
+      "fields": ["companiasId", "nombre"]
+    }
+  },
+  "actions": {
+    "crear_domicilio": {
+      "method": "POST",
+      "path": "/actions/crear_domicilio",
+      "description": "Alta de domicilio vía facade/procedure ERP cuando comandas no admite upsert directo."
+    }
+  }
+}
