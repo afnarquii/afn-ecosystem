@@ -1,6 +1,6 @@
 ---
 name: skill-domain-domicilios-wa
-description: WhatsApp domicilios — carrito → comanda; catálogo y contacto local vía Índice Hub MCP.
+description: WhatsApp domicilios — carrito → cotización+IVA → confirm → action MCP; catálogo vía Índice Hub.
 tags: [domicilios, whatsapp, pedidos, carrito, mcp-index, venue, data-agent, domain]
 ---
 
@@ -21,6 +21,7 @@ Leé `.afn/mcp-local-index.json` (collections / sources):
 | `relations` | `has_many` / `belongs_to` + keys |
 | `fieldAliases.image` | Foto de producto o del local |
 | `fieldAliases.address` / `phone` | Dirección / teléfono del local |
+| `fieldAliases.title` / `price` / `taxRate` | Nombre, precio venta, % IVA |
 | `behaviorHint` | Texto libre de la colección |
 
 ### Pedido compuesto
@@ -34,11 +35,17 @@ Leé `.afn/mcp-local-index.json` (collections / sources):
 
 Sin índice: pedí que configuren Hub MCP → Índice (alias + roles + relaciones).
 
-## Pedidos / carrito
-Slots: ítems+mods, dirección, nombre, pago, total (MCP), estado. Confirmá → upsert → id/total/estado. Scope compañía.
+## Pedidos / carrito (flujo obligatorio)
+1. Armá carrito en el hilo: ítems + mods, dirección, nombre, pago.
+2. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate` (o % impuesto en la fila), desglosá IVA y **total**. No inventes precios.
+3. Mostrá resumen y pedí confirmación explícita («¿confirmás este pedido?»).
+4. Tras el sí → `data_list_actions` (si hace falta) + **`data_run_action`** con un id del manifiesto (p. ej. el que publique el deploy; no hardcodees procedure). Body según `bodyHint`.
+5. Decolvé al cliente: qué se guardó, total, que queda listo para entrega / estado. Scope compañía.
+
+Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
 ## Multimodal
 Texto/audio STT; imagen OCR (comprobantes). `AFN_WA_MODALITY: audio|text`.
 
 ## Qué NO
-Clientes, ventas, mesas, turnos, upsert sin confirmación, inventar entity ids o tablas.
+Clientes (salvo match teléfono interno), ventas, mesas, turnos, persistir sin confirmación, inventar entity/action ids o tablas.

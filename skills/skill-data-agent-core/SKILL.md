@@ -17,12 +17,12 @@ Usar solo las tools del MCP `afn-mcp-data-agent` / remoto. **No** inventar SQL n
 3. `data_find` — leer con filtros exactos.
 4. `data_upsert` — crear/actualizar (siempre incluir la key).
 5. `data_delete` — solo si el manifiesto lo permite.
-6. `data_run_action` — solo acciones listadas (adaptador http-api).
+6. `data_run_action` — solo acciones listadas por `data_list_actions` (procedure/HTTP del manifiesto).
 
 ## Reglas
 
 - Si una op falla con `entity_not_allowed` u `op_not_allowed`, **no** reintentar con otro nombre inventado.
-- Confirmá con el usuario antes de `data_delete` o escrituras masivas.
+- Confirmá con el usuario antes de `data_delete`, `data_run_action` (pedidos) o escrituras masivas.
 - No pidas ni expongas connection strings; las credenciales las gestiona AFN.
 - `data_find` admite filtro exacto o LIKE: `{ "campo": { "like": "texto" } }` / `{ "contains": "texto" }` (parcial).
 - El dominio concreto (pedidos, canal WhatsApp, etc.) lo aportan **otras skills** de dominio — en canal WA no ofrezcas ventas/mesas/turnos ni listados de clientes.

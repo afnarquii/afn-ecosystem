@@ -14,12 +14,13 @@ Perfil de dominio sobre **data-agent** (sin hardcode de restaurante en el MCP).
 
 1. Entender **texto, audio (STT) e imágenes** (comprobantes vía visión del runtime).
 2. Ir armando un **carrito** en el hilo del chat.
-3. Tras confirmación del cliente → **persistir** (`delivery_app_order` / `delivery_mgmt` / action `crear_domicilio` / `comandas` si el manifiesto permite upsert).
-4. Devolver al cliente **id, total, estado, dirección**.
+3. **Cotizar**: precios del MCP (`price` / alias) + IVA si hay `taxRate` u % en la fila; mostrar total.
+4. Tras confirmación del cliente → **persistir** con `data_list_actions` + `data_run_action` (ids del manifiesto, p. ej. `persist_order`). **No hardcodear** nombres de procedure en el skill.
+5. Devolver al cliente **qué se guardó, total, estado / listo para entrega**.
 
 ## Catálogo unificado (Índice Hub MCP)
 
-En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`stock`/`image`/`address`/`phone`), **role** (`sku`/`composite`/`component_line`/`venue`), **relations** y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
+En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`taxRate`/`stock`/`image`/`address`/`phone`), **role** (`sku`/`composite`/`component_line`/`venue`), **relations** y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
 
 | Entity | Tabla típica | Ops / nota |
 |--------|--------------|------------|
@@ -31,9 +32,9 @@ En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, a
 | `general_params` | `parametrosGenerales` | find — Índice: role=`venue`, image→`imagen` |
 | `delivery_app_order` | `domiciliosAppComandas` | find, **upsert** |
 | `delivery_mgmt` | `comandasGestionDomicilios` | find, upsert |
-| `order_line` | `comandas` | find (upsert solo si el ERP lo habilita) |
+| `order_line` | `comandas` | find (escritura fuerte → action del manifiesto) |
 
-Escritura a `comandas` “clásicas” suele ir por procedure ERP → preferí `data_run_action` `crear_domicilio` o upsert en `domiciliosAppComandas`.
+Escritura tipo Caja (procedure ERP): `data_list_actions` → `data_run_action` con el id publicado (p. ej. `persist_order`). El nombre del PA vive solo en el manifiesto del data-agent.
 
 ## Workspace del restaurante (no va en ecosystem)
 
