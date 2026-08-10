@@ -27,8 +27,8 @@ En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, a
 | `product` | `productos` | find |
 | `product_elaborated` | `productosElaborados` | find (ejemplo; role=composite) |
 | `product_elaborated_content` | `productosElaboradosContenido` | find (ejemplo) |
-| `company` | `companias` | find — en Índice: role=`venue`, aliases address/phone |
-| `general_params` | `parametrosGenerales` | find — en Índice: role=`venue`, alias image (mapa/fachada) |
+| `company` | `companias` | find — Índice: role=`venue`, address→`direccion`, phone→`telefonos` |
+| `general_params` | `parametrosGenerales` | find — Índice: role=`venue`, image→`imagen` |
 | `delivery_app_order` | `domiciliosAppComandas` | find, **upsert** |
 | `delivery_mgmt` | `comandasGestionDomicilios` | find, upsert |
 | `order_line` | `comandas` | find (upsert solo si el ERP lo habilita) |

@@ -75,7 +75,7 @@
       "collectionOrTable": "companias",
       "key": "companiasId",
       "ops": ["find"],
-      "fields": ["companiasId", "nombre", "direccion", "telefono"]
+      "fields": ["companiasId", "nombreCompania", "direccion", "telefonos"]
     },
     "general_params": {
       "collectionOrTable": "parametrosGenerales",
