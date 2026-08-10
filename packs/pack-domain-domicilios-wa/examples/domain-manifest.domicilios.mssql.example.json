@@ -24,6 +24,18 @@
       "ops": ["find"],
       "fields": ["productosElaboradosId", "nombreProductoElaborado", "precio", "gruposProductosId", "companiasId"]
     },
+    "product_elaborated_content": {
+      "collectionOrTable": "productosElaboradosContenido",
+      "key": "productosElaboradosContenidoId",
+      "ops": ["find"],
+      "fields": [
+        "productosElaboradosContenidoId",
+        "productosElaboradosId",
+        "productosId",
+        "cantidad",
+        "companiasId"
+      ]
+    },
     "customer": {
       "collectionOrTable": "clientes",
       "key": "clientesId",

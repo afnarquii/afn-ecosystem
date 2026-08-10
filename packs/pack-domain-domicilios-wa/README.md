@@ -26,6 +26,7 @@ Ver `examples/domain-manifest.domicilios.mssql.example.json` en este pack.
 | `product_group` | `gruposProductos` | find |
 | `product` | `productos` | find |
 | `product_elaborated` | `productosElaborados` | find |
+| `product_elaborated_content` | `productosElaboradosContenido` | find (componentes del menú) |
 | `delivery_app_order` | `domiciliosAppComandas` | find, **upsert** |
 | `delivery_mgmt` | `comandasGestionDomicilios` | find, upsert |
 | `order_line` | `comandas` | find (upsert solo si el ERP lo habilita) |
