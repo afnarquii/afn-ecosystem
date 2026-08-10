@@ -1,7 +1,7 @@
 ---
 name: skill-domain-domicilios-wa
-description: WhatsApp domicilios — carrito → comanda; catálogo vía Índice Hub MCP (roles/relations/image).
-tags: [domicilios, whatsapp, pedidos, carrito, mcp-index, data-agent, domain]
+description: WhatsApp domicilios — carrito → comanda; catálogo y contacto local vía Índice Hub MCP.
+tags: [domicilios, whatsapp, pedidos, carrito, mcp-index, venue, data-agent, domain]
 ---
 
 # Dominio — Domicilios (WhatsApp)
@@ -17,24 +17,28 @@ Leé `.afn/mcp-local-index.json` (collections / sources):
 
 | Campo | Uso |
 |-------|-----|
-| `role` | `sku` / `composite` / `component_line` — cómo tratar la entidad |
-| `relations` | `has_many` / `belongs_to` + `localKey` / `foreignKey` / `as` |
-| `fieldAliases.image` | Si el cliente pide foto, usá ese campo para media |
-| `behaviorHint` | Texto de comportamiento de la colección (equivalencias, etc.) |
+| `role` | `sku` / `composite` / `component_line` / `venue` |
+| `relations` | `has_many` / `belongs_to` + keys |
+| `fieldAliases.image` | Foto de producto o del local |
+| `fieldAliases.address` / `phone` | Dirección / teléfono del local |
+| `behaviorHint` | Texto libre de la colección |
 
-Flujo genérico ante pedido compuesto:
-1. `data_find` del source con `role=composite` (o el que indique behaviorHint).
-2. Seguís `has_many` → líneas; luego `belongs_to` → SKU/precio.
-3. Equivalencia en lenguaje natural (qué trae / qué cambia / qué no hay).
-4. Sumá al carrito. **NO** vuelques catálogo crudo.
+### Pedido compuesto
+1. `data_find` role=`composite` → `has_many` → `belongs_to` SKU.
+2. Equivalencia (qué trae / cambia / falta). Sin catálogo crudo.
 
-Sin índice configurado: pedí que configuren Hub MCP → Índice (alias + relaciones).
+### «¿Dónde están?» / teléfono / mapa
+1. Sources con `role=venue` (o aliases `address`/`phone`).
+2. Respondé con address/phone del índice; si hay `image` (otra source venue o la misma), mandá la foto.
+3. NO inventes dirección ni teléfono. Sin índice venue → pedí configurar Hub MCP → Índice.
+
+Sin índice: pedí que configuren Hub MCP → Índice (alias + roles + relaciones).
 
 ## Pedidos / carrito
-Slots: ítems+mods, dirección, nombre, pago, total (MCP), estado. Confirmá → upsert (`delivery_app_order` u entity del manifiesto) → devolvé id/total/estado. Scope compañía.
+Slots: ítems+mods, dirección, nombre, pago, total (MCP), estado. Confirmá → upsert → id/total/estado. Scope compañía.
 
 ## Multimodal
-Texto/audio STT; imagen OCR (comprobantes). Modalidad: carrito → text; saludos → audio. `AFN_WA_MODALITY: audio|text`.
+Texto/audio STT; imagen OCR (comprobantes). `AFN_WA_MODALITY: audio|text`.
 
 ## Qué NO
 Clientes, ventas, mesas, turnos, upsert sin confirmación, inventar entity ids o tablas.

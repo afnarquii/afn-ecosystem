@@ -19,14 +19,16 @@ Perfil de dominio sobre **data-agent** (sin hardcode de restaurante en el MCP).
 
 ## Catálogo unificado (Índice Hub MCP)
 
-En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`stock`/`image`), **role** (`sku`/`composite`/`component_line`), **relations** (`has_many`/`belongs_to`) y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
+En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`stock`/`image`/`address`/`phone`), **role** (`sku`/`composite`/`component_line`/`venue`), **relations** y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
 
-| Entity | Tabla típica | Ops |
-|--------|--------------|-----|
+| Entity | Tabla típica | Ops / nota |
+|--------|--------------|------------|
 | `product_group` | `gruposProductos` | find |
 | `product` | `productos` | find |
-| `product_elaborated` | `productosElaborados` | find (ejemplo; role=composite en el índice) |
-| `product_elaborated_content` | `productosElaboradosContenido` | find (ejemplo; has_many desde composite) |
+| `product_elaborated` | `productosElaborados` | find (ejemplo; role=composite) |
+| `product_elaborated_content` | `productosElaboradosContenido` | find (ejemplo) |
+| `company` | `companias` | find — en Índice: role=`venue`, aliases address/phone |
+| `general_params` | `parametrosGenerales` | find — en Índice: role=`venue`, alias image (mapa/fachada) |
 | `delivery_app_order` | `domiciliosAppComandas` | find, **upsert** |
 | `delivery_mgmt` | `comandasGestionDomicilios` | find, upsert |
 | `order_line` | `comandas` | find (upsert solo si el ERP lo habilita) |

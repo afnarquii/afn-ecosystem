@@ -75,7 +75,13 @@
       "collectionOrTable": "companias",
       "key": "companiasId",
       "ops": ["find"],
-      "fields": ["companiasId", "nombre"]
+      "fields": ["companiasId", "nombre", "direccion", "telefono"]
+    },
+    "general_params": {
+      "collectionOrTable": "parametrosGenerales",
+      "key": "parametrosGeneralesId",
+      "ops": ["find"],
+      "fields": ["parametrosGeneralesId", "imagen", "companiasId"]
     }
   },
   "actions": {
