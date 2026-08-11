@@ -121,6 +121,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
    - `wa.commerce.unitNouns: porcion, combo, gaseosa`
    - `wa.commerce.skuTriggers: porcion, coca, jugo`
    - `wa.commerce.compositeSkip: combo con, menu con, almuerzo con`
+   - `wa.commerce.synonyms: frigoles=frijol|frijoles, cuartico=cuarto|pechuga|pollo` (vertical; no van en notions)
 3. Confirmá unitario + subtotal (**sí/no**) ANTES de sumar al carrito. Cambió de ítem → limpiá opciones/pendiente; **no** borres el carrito confirmado.
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
