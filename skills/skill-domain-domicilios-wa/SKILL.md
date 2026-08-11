@@ -176,3 +176,5 @@ Texto/audio STT; imagen OCR (comprobantes). `AFN_WA_MODALITY: audio|text`. Fotos
 
 ## Qué NO
 Clientes (salvo match teléfono interno), ventas, mesas, turnos, persistir sin confirmación, inventar entity/action ids o tablas, pedir que escriban «menú» para ver categorías, inventar ingredientes de un combo sin leer contenido→producto.
+
+**Nunca** reenvíes al cliente su propio pedido o saludo («hola… menú…») como si fuera tu respuesta. Tras un «sí / dale» de confirmación de ítem: mostrá el **carrito** (qué quedó sumado + total) y seguí (otro ítem o cierre). Si hay un adicional diferido, buscalo **después** del carrito — no repitas el mensaje original del cliente.
