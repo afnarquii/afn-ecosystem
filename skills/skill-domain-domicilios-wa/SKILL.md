@@ -128,8 +128,31 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
 6. Lead: nombre + dirección si no hay match de teléfono.
-7. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint`.
+7. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
 8. Devolvé: qué se guardó, total, listo para entrega / estado. Scope compañía.
+
+### Persist body (ERP) — sin hardcode en el runtime AFN
+
+El IDE **no** conoce columnas de tu BD (tipo ítem, mesa, flags delivery, ids de tabla…). Esos valores salen **solo** de líneas en el `behaviorHint` del Índice y/o en este skill:
+
+```text
+wa.commerce.persist.itemDefaults: key=value,key2=value2
+wa.commerce.persist.bodyDefaults: key=value
+wa.commerce.persist.skuIdField: <id SKU>
+wa.commerce.persist.compositeSkuIdField: <id combo>
+wa.commerce.persist.titleField: <nombre>
+wa.commerce.persist.priceField: <precio>
+wa.commerce.persist.qtyField: <cantidad>
+wa.commerce.persist.typeField: <campo tipo>
+wa.commerce.persist.typeSku: <valor tipo SKU>
+wa.commerce.persist.typeComposite: <valor tipo combo>
+wa.commerce.persist.compositeEntitySubstr: <regex sourceEntity>
+wa.commerce.persist.lineTotalField: <total línea>
+wa.commerce.persist.basePriceField: <base>
+wa.commerce.persist.taxField: <impuesto>
+```
+
+Prioridad: skill → Índice (el Índice del workspace gana si redefine). Sin hints → body genérico (`title`/`qty`/`unitPrice`), sin inventar un vertical ajeno.
 
 Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
