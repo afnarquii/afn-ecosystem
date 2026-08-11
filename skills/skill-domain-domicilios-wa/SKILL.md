@@ -127,9 +127,9 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 3. Confirmá unitario + subtotal (**sí/no**) ANTES de sumar al carrito. Cambió de ítem → limpiá opciones/pendiente; **no** borres el carrito confirmado.
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
-6. Lead: nombre + dirección si no hay match de teléfono.
+6. Lead: nombre + dirección de entrega. Si ya hay match de teléfono en BD o la sesión ya tiene dirección/nombre, **reutilizalos** — no los pidas de nuevo salvo que el cliente diga cambiarlos. `clientesId` del match (si hay) pisa el default del skill al persistir.
 7. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
-8. Devolvé: qué se guardó, total, listo para entrega / estado. Scope compañía.
+8. Devolvé: qué se guardó, total, **estado** según `itemDefaults.estado` / `bodyDefaults.estado` del skill (p. ej. `G` = generado) / listo para entrega. Scope compañía.
 
 ### Persist body (ERP) — sin hardcode en el runtime AFN
 
