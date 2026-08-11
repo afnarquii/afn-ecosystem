@@ -1,6 +1,6 @@
 ---
 name: skill-domain-domicilios-wa
-description: WhatsApp domicilios — carrito → cotización+IVA → confirm → action MCP; catálogo vía Índice Hub; combos vía elaborado→contenido→producto.
+description: WhatsApp domicilios — motor carrito genérico AFN (oferta→qty→confirm) + catálogo Índice Hub; combos elaborado→contenido→producto; persist via data_run_action.
 tags: [domicilios, whatsapp, pedidos, carrito, mcp-index, venue, channel-media, data-agent, domain, combos]
 ---
 
@@ -97,8 +97,9 @@ Al ofrecer un combo: **nombre + precio + «Incluye: …»** con títulos resuelt
 
 ### Pedido compuesto / equivalencia
 1. Composite → contenido → SKU (arriba).
-2. Equivalencia (qué trae / cambia / falta) con esos SKUs. Sin catálogo crudo.
-3. **Antes de decir que no hay un ítem**, buscalo en MCP (product y composite). Aceptá variantes ortográficas (frígoles≈frijol, cuartico≈pechuga/pollo).
+2. **Alineá** el pedido del cliente con los títulos de `components` / `_components` (no asumas solo por el nombre del combo). Preferí el elaborado con más solape (frijol, arroz, tajada/papa, pechuga/cuartico/pollo…).
+3. Equivalencia (qué trae / cambia / falta) con esos SKUs. Sin catálogo crudo.
+4. **Antes de decir que no hay un ítem**, buscalo en MCP (product y composite). Aceptá variantes ortográficas (frígoles≈frijol, cuartico≈pechuga/pollo).
 
 ### «¿Qué tienen?» / menú / categorías
 1. Listá `product_group` (categorías) **ya** — no pidas que el cliente escriba una palabra mágica.
@@ -113,11 +114,19 @@ Al ofrecer un combo: **nombre + precio + «Incluye: …»** con títulos resuelt
 Sin índice: pedí que configuren Hub MCP → Índice (alias + roles + relaciones).
 
 ## Pedidos / carrito (flujo obligatorio)
-1. Armá carrito en el hilo: ítems + mods, dirección, nombre, pago.
-2. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate` (o % impuesto en la fila), desglosá IVA y **total**. No inventes precios.
-3. Mostrá resumen y pedí confirmación explícita («¿confirmás este pedido?»).
-4. Tras el sí → `data_list_actions` (si hace falta) + **`data_run_action`** con un id del manifiesto (p. ej. el que publique el deploy; no hardcodees procedure). Body según `bodyHint`.
-5. Devolvé al cliente: qué se guardó, total, que queda listo para entrega / estado. Scope compañía.
+Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este skill aporta el **dominio** (domicilios / combos); otro pack puede reutilizar el mismo motor para citas, membresías, etc.
+
+1. Identificá coincidencias del catálogo MCP/índice (product / composite). Si hay variantes, listalas con **precio**.
+2. Si no dijo cantidad → pedila. Opcional en Índice Hub `behaviorHint`:
+   - `wa.commerce.unitNouns: porcion, combo, gaseosa`
+   - `wa.commerce.skuTriggers: porcion, coca, jugo`
+   - `wa.commerce.compositeSkip: combo con, menu con, almuerzo con`
+3. Confirmá unitario + subtotal (**sí/no**) ANTES de sumar al carrito. Cambió de ítem → limpiá opciones/pendiente; **no** borres el carrito confirmado.
+4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
+5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
+6. Lead: nombre + dirección si no hay match de teléfono.
+7. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint`.
+8. Devolvé: qué se guardó, total, listo para entrega / estado. Scope compañía.
 
 Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
