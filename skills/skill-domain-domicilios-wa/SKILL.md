@@ -42,6 +42,8 @@ Cadena (ids de entity del manifiesto / Índice Hub; tablas solo como referencia 
 2. Contenido (`product_elaborated_content`) — FK al elaborado + FK al SKU (+ `cantidad`).
 3. SKU (`product`) — título vía alias `title` / campo de nombre del describe.
 
+**Ranking (pedido armado / «menú con…»):** primá elaborados cuyo **contenido** (productosId → nombre) calza el pedido. Un SKU suelto de despensa/insumo **no** sustituye un almuerzo/combo aunque comparta una palabra en el título. Mostrá «Incluye: …» desde el contenido. Scope compañía en todo find/expand.
+
 ### De dónde sale el id del elaborado (no se inventa)
 
 **Paso A — buscar el combo** (con scope):
