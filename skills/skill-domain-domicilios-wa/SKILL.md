@@ -128,8 +128,23 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
 6. Lead: nombre + dirección de entrega. Si ya hay match de teléfono en BD o la sesión ya tiene dirección/nombre, **reutilizalos** — no los pidas de nuevo salvo que el cliente diga cambiarlos. `clientesId` del match (si hay) pisa el default del skill al persistir.
-7. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
-8. Devolvé: qué se guardó, total, **estado** según `itemDefaults.estado` / `bodyDefaults.estado` del skill (p. ej. `G` = generado) / listo para entrega. Scope compañía.
+7. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocode). Fuera de zona → no persistir; ofrecer otra dirección o pickup.
+8. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
+9. Devolvé: qué se guardó, total, **estado** según `itemDefaults.estado` / `bodyDefaults.estado` del skill (p. ej. `G` = generado) / listo para entrega. Scope compañía.
+
+### Zona de entrega (hints — sin hardcode en el runtime)
+
+```text
+wa.commerce.delivery.maxMinutes: 60
+wa.commerce.delivery.minutesPerKm: 2.5
+wa.commerce.delivery.origin: <local>
+wa.commerce.delivery.originLat: <lat>
+wa.commerce.delivery.originLng: <lng>
+wa.commerce.delivery.geocode: nominatim
+wa.commerce.delivery.countryCodes: <cc>
+wa.commerce.delivery.minAddressChars: 8
+wa.commerce.delivery.minAddressTokens: 2
+```
 
 ### Persist body (ERP) — sin hardcode en el runtime AFN
 
