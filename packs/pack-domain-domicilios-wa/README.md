@@ -20,14 +20,15 @@ Perfil de dominio sobre **data-agent** (sin hardcode de restaurante en el MCP).
 
 ## Catálogo unificado (Índice Hub MCP)
 
-En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`taxRate`/`stock`/`image`/`address`/`phone`), **role** (`sku`/`composite`/`component_line`/`venue`), **relations** y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
+En el workspace del restaurante: **Hub MCP → Índice** — listá entidades, alias (`title`/`price`/`taxRate`/`stock`/`image`/`address`/`phone`), **role** (`sku`/`composite`/`component_line`/`venue`/`channel_media`), **relations** y `behaviorHint`. El bot y este skill leen esa config; no hardcodean tablas.
 
 | Entity | Tabla típica | Ops / nota |
 |--------|--------------|------------|
-| `product_group` | `gruposProductos` | find |
-| `product` | `productos` | find |
-| `product_elaborated` | `productosElaborados` | find (ejemplo; role=composite) |
-| `product_elaborated_content` | `productosElaboradosContenido` | find (ejemplo) |
+| `product_group` | `gruposProductos` | find — «qué tienen» lista categorías (no pedir «escribí menú») |
+| `product_elaborated` | `productosElaborados` | find + **relations** has_many→content (expand) |
+| `product_elaborated_content` | `productosElaboradosContenido` | find — FK `productosElaboradosId` + `productosId` |
+| `product` | `productos` | find — título del ítem dentro del combo |
+| `channel_media` | `afnWaChannelMedia` | find — role=`channel_media`; fotos/textos de menú/combos (`mediaUrl`, `bodyText`) |
 | `company` | `companias` | find — Índice: role=`venue`, address→`direccion`, phone→`telefonos` |
 | `general_params` | `parametrosGenerales` | find — Índice: role=`venue`, image→`imagen` |
 | `delivery_app_order` | `domiciliosAppComandas` | find, **upsert** |
