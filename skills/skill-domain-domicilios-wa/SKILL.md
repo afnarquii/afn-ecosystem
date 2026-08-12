@@ -127,8 +127,8 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 3. Confirmá unitario + subtotal (**sí/no**) ANTES de sumar al carrito. Cambió de ítem → limpiá opciones/pendiente; **no** borres el carrito confirmado.
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
-6. Lead: nombre + dirección de entrega. Si ya hay match de teléfono en BD o la sesión ya tiene dirección/nombre, **reutilizalos** — no los pidas de nuevo salvo que el cliente diga cambiarlos. `clientesId` del match (si hay) pisa el default del skill al persistir.
-7. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocode). Fuera de zona → no persistir; ofrecer otra dirección o pickup.
+6. Lead: **nombre = contacto WhatsApp** (o match BD). **NUNCA** lo pidas ni lo tomes de un mensaje libre. Solo pedí **dirección** al checkout si falta. `clientesId` del match (si hay) pisa el default del skill al persistir.
+7. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
 8. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
 9. Devolvé: qué se guardó, total, **estado** según `itemDefaults.estado` / `bodyDefaults.estado` del skill (p. ej. `G` = generado) / listo para entrega. Scope compañía.
 
@@ -141,10 +141,14 @@ wa.commerce.delivery.origin: <local>
 wa.commerce.delivery.originLat: <lat>
 wa.commerce.delivery.originLng: <lng>
 wa.commerce.delivery.geocode: nominatim
+wa.commerce.delivery.geocodeMode: soft
+wa.commerce.delivery.geocodeTimeoutMs: 2500
 wa.commerce.delivery.countryCodes: <cc>
 wa.commerce.delivery.minAddressChars: 8
 wa.commerce.delivery.minAddressTokens: 2
 ```
+
+`geocodeMode: soft` (default si hay geocode): si el mapa falla o tarda, **no** bloquea el pedido. `strict` solo si querés exigir coords.
 
 ### Persist body (ERP) — sin hardcode en el runtime AFN
 
