@@ -25,4 +25,8 @@ wa.commerce.persist.groupIdField: gruposProductosId
 wa.commerce.persist.costCenterIdField: centroDeCostosId
 wa.commerce.persist.costCenterGestionIdField: centroDeCostosGestionId
 wa.commerce.persist.userIdField: usuariosId
+wa.commerce.persist.addressField: descripcion
+wa.commerce.persist.addressMaxLen: 240
 ```
+
+La dirección de entrega va en `comandas.descripcion` (no hay columna `direccion` en comandas).
