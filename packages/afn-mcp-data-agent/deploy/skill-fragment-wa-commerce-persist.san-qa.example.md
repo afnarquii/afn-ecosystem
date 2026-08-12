@@ -68,6 +68,7 @@ Misma ref/monto/fecha ? «ya registrado»; no sumar dos veces.
 
 Caption («parte del pago» / «Valida» / «Abono») + media: el runtime **bloquea catálogo MCP** (sin `data_find`/`local_index` ni prefetch), OCR/Gmail.
 **PROHIBIDO** preguntar «¿cuánto abonaste?», buscar la imagen en el workspace, decir «no me llegó la foto», o improvisar «estoy validando» sin `payment_proof`.
+Si la visión falla al primer intento: el runtime deja *matching* y **reintenta OCR + Gmail** (no queda en reposo).
 Si se perdió `payment.status` pero hay `orderCodigo` + foto de comprobante ? soft awaiting (reabre validación). Sin hardcode de banco/vertical: solo hints `wa.commerce.payment.*`.
 **Imagen/PDF sola (sin texto)** también dispara payment_proof.
 ## Reanudar pedido (SQLite â†’ ERP)
