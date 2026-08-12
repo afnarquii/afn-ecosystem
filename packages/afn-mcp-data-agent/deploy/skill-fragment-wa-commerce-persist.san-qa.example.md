@@ -61,4 +61,9 @@ wa.commerce.payment.gmailQueryExtra: newer_than:3d
 
 Tras persist: pedir foto o PDF (galer�a/c�mara/captura/reenv�o). Ventana v�a hints (SAN QA: 3 d�as). Con `partialEnabled`: abono parcial ? saldo (no �pagado�). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenv�an la misma).
 
-## Abonos parciales\n\nCon partialEnabled: true: foto/PDF por monto menor al saldo = *abono* (NO responder «monto no encaja»).\nRuntime: 1) leer comprobante 2) cruzar correo entidad 3) registrar abono + saldo 4) preguntar si espera *otros comprobantes* o paga el resto en *efectivo*.\nMisma ref/monto/fecha → «ya registrado»; no sumar dos veces.\n
+## Abonos parciales
+
+Con partialEnabled: true: foto/PDF por monto menor al saldo = *abono* (NO responder «monto no encaja»).
+Runtime: 1) leer comprobante 2) cruzar correo entidad 3) registrar abono + saldo 4) preguntar si espera *otros comprobantes* o paga el resto en *efectivo*.
+Misma ref/monto/fecha → «ya registrado»; no sumar dos veces.
+
