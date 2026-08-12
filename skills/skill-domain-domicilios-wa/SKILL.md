@@ -158,7 +158,8 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 7. **Dirección de entrega → campo `wa.commerce.persist.addressField`** (p. ej. `descripcion` si el ERP no tiene columna dedicada). Pedí barrio/calle/apto/referencia. NO uses el texto del menú/pedido como dirección. Si la sesión o el cliente ya tienen dirección real, no la pidas de nuevo.
 8. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
 9. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
-10. Devolvé: qué se guardó, total, **estado** según `itemDefaults.estado` / `bodyDefaults.estado` del skill (p. ej. `G` = generado) / listo para entrega. Scope compañía. Mostrá la dirección guardada en el campo `addressField`.
+10. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección en `addressField`.
+11. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana). Match OK o timeout → revisión humana.
 
 ### Zona de entrega (hints — sin hardcode en el runtime)
 
@@ -204,6 +205,22 @@ wa.commerce.persist.userIdField: <usuario/mesero>
 wa.commerce.persist.addressField: <campo dirección en el pedido, p.ej. descripcion>
 wa.commerce.persist.addressMaxLen: 240
 ```
+
+### Pago / comprobante (hints)
+
+```text
+wa.commerce.payment.enabled: true
+wa.commerce.payment.methods: <metodo1,metodo2>
+wa.commerce.payment.askAfterPersist: true
+wa.commerce.payment.emailMaxMessages: 5
+wa.commerce.payment.emailWindowMinutes: 3
+wa.commerce.payment.matchTimeoutMinutes: 2
+wa.commerce.payment.senderAllowlist: <dominio1,dominio2>
+wa.commerce.payment.amountTolerance: 1
+wa.commerce.payment.gmailQueryExtra: newer_than:1d
+```
+
+Gmail: OAuth nativo AFN y/o descriptor MCP `examples/mcp-gmail.descriptor.example.json` → `.afn/mcps/mcp-gmail.json`.
 
 Para Caja / venta: incluí en `itemDefaults` (o traé del catálogo) `gruposProductosId`, `centroDeCostosId`, `usuariosId` (y `centroDeCostosGestionId` si aplica). El runtime enriquece desde `data_find` del producto si el hit trae esos campos; el fallback es el hint.
 

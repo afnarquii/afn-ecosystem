@@ -1,0 +1,10 @@
+{
+  "id": "mcp-gmail",
+  "name": "Gmail",
+  "description": "Leer/enviar Gmail vía MCP (OAuth del paquete). Alternativa: Gmail nativo AFN (Ajustes).",
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"],
+  "env": {},
+  "tags": ["gmail", "mail", "payment-proof"]
+}

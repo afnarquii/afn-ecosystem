@@ -30,3 +30,19 @@ wa.commerce.persist.addressMaxLen: 240
 ```
 
 La dirección de entrega va en `comandas.descripcion` (no hay columna `direccion` en comandas).
+
+## Pago / comprobante (Gmail + OCR)
+
+```text
+wa.commerce.payment.enabled: true
+wa.commerce.payment.methods: bancolombia,nequi
+wa.commerce.payment.askAfterPersist: true
+wa.commerce.payment.emailMaxMessages: 5
+wa.commerce.payment.emailWindowMinutes: 3
+wa.commerce.payment.matchTimeoutMinutes: 2
+wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com
+wa.commerce.payment.amountTolerance: 1
+wa.commerce.payment.gmailQueryExtra: newer_than:1d
+```
+
+Ver también `examples/mcp-gmail.descriptor.example.json`.
