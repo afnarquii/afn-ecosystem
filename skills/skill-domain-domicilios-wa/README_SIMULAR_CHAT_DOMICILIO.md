@@ -174,12 +174,38 @@ Ledger local AFN (pago): tablas cerebro / `brain_wa_payment_*` y dump `afn-wa-pa
 
 ---
 
+## 8) Guion D — Multimodal (voz + foto comprobante)
+
+Basado en export real con `PTT-*.opus` + `IMG-*.jpg` (archivos locales en `chats/` del operador — **no se versionan**).
+
+### Flujo observado
+1. Pedido texto (combos + notas + dirección).
+2. Total + ETA.
+3. Transferencia → QR/cuenta.
+4. Cliente manda **foto** comprobante Bancolombia (monto = total, p. ej. $30.000).
+5. Más tarde: **notas de voz** preguntando por el domicilio → mostrador: «ok» / «ya me comunico con el domiciliario».
+
+### Cómo simularlo con el bot AFN
+1. Completá Guion A hasta pedir foto.
+2. Enviá una captura real de transferencia (monto ≈ total).
+3. Esperá reply corto de validación OCR/Gmail.
+4. Enviá una **nota de voz** tipo «¿ya va el domicilio?» (hace falta API key STT en Ajustes → IA).
+5. Esperá reply corto de estado (texto), sin relanzar catálogo ni pedir otra foto.
+
+### Checklist multimodal
+| Check | OK |
+|-------|-----|
+| STT key configurada | Voz → texto |
+| PTT no entra a payment_proof | Runtime excluye audio |
+| JPG comprobante → OCR | Monto/ref leídos |
+| Match Gmail (si hay mail) | Abono/pagado |
+| Post-venta voz | ETA/ruta, ultra corto |
+
+---
+
 ## 7) Referencia chats reales (estilo)
 
-En notions (solo referencia humana, no runtime):
+Exports locales del operador (PII/media — **gitignore `chats/`**, no subir a git):
 
-- `chats/Chat57322 2608516.txt`
-- `chats/Chat573116292999.txt`
-- `chats/Chat573106670320.txt`
-
-Playbook embebido en el skill: sección **«Playbook ventas (aprendido de chats reales)»**.
+- Transcripción + media de ejemplo en carpeta local `chats/` (WhatsApp export).
+- Playbook en el skill: **«Playbook ventas»** + **«Multimodal»**.

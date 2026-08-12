@@ -68,6 +68,9 @@ El mostrador humano responde **ultra corto**. El bot debe imitar eso (1–2 lín
 | Agrega ítem después de cotizar / mientras paga | Recotizá total; con pago pendiente valen `allowAddItemsWhileAwaiting` + ventana. |
 | «¿Cuánto demora?» / «¿cómo van los domicilios?» | ETA corto (`wa.commerce.eta.*`). Sin inventar GPS ni “el domiciliario está en X”. |
 | «¿Aún se demora?» post-pedido | «Ya va en camino» / «te aviso» — breve. No inventes estado ERP si no lo consultaste. |
+| **Nota de voz (PTT/.opus)** | Runtime hace **STT** → tratá el texto como mensaje normal. Post-venta (ETA/ruta/domiciliario) → 1 línea. **Nunca** trates audio como comprobante de pago. |
+| **Imagen comprobante** (JPG/PDF captura banco) | Solo transferencia: pipeline **payment_proof** (OCR → ledger → Gmail). Monto debe cruzar con total/saldo. Cuenta destino del hint. |
+| Bot manda QR + cuenta (channel_media) | Tras elegir transferencia: enviá media del Índice (`channel_media` / venue). No inventes números de cuenta fuera de hints. |
 
 ```text
 wa.commerce.reply.style: ultra_short
@@ -329,8 +332,24 @@ Campos Caja (alineados a `useCajaComandas`): ids de fallback solo en `itemDefaul
 
 Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
-## Multimodal
-Texto/audio STT; imagen/PDF OCR (comprobantes — galería/cámara/reenvío/PDF). `AFN_WA_MODALITY: audio|text`. Fotos de menú/producto vía alias `image` o `channel_media` (**nunca** para buscar el comprobante de pago en el workspace).
+## Multimodal (texto + voz + comprobante — obligatorio)
+
+| Entrada | Runtime | Qué hace el agente |
+|---------|---------|-------------------|
+| Texto | LLM + tools | Pedido / notas / dirección / ETA |
+| **PTT / audio** (`.opus`) | STT (Whisper OpenAI/Groq en Ajustes → IA) → texto | Mismo flujo que texto. Si falla STT: pedí que escriba (1 línea). |
+| **Imagen/PDF comprobante** | `payment_proof` OCR + Gmail | No catálogo. No digas «no me llegó». |
+| Imagen menú/producto | `channel_media` / alias image | Solo catálogo; **nunca** como pago |
+
+```text
+wa.commerce.modality.voiceAsText: true
+wa.commerce.modality.voiceNeverPaymentProof: true
+wa.commerce.modality.preferTextReplyToVoice: true
+```
+
+`AFN_WA_MODALITY: audio|text` — con clientes que mandan voz, preferí **texto corto** de vuelta (como el mostrador real) salvo que el skill/TTS indiquen audio.
+
+**Validado con export real (no versionar `chats/`):** pedido 2 combos pechuga $30.000 + transferencia + IMG comprobante Bancolombia (monto/ref/cuenta alineados) + 2 PTT post-ruta (~25–32 s). Ese patrón es el target de venta multimodal.
 
 ## Qué NO
 Clientes (salvo match teléfono interno), ventas, mesas, turnos, persistir sin confirmación, inventar entity/action ids o tablas, pedir que escriban «menú» para ver categorías, inventar ingredientes de un combo sin leer contenido→producto.
