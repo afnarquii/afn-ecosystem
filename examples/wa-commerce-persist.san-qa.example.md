@@ -46,3 +46,18 @@ wa.commerce.payment.gmailQueryExtra: newer_than:1d
 ```
 
 QA: ventana y timeout de match = 60 min (vía skill). Ver también `examples/mcp-gmail.descriptor.example.json`.
+
+## Reanudar pedido (SQLite → ERP)
+
+```text
+wa.commerce.resume.enabled: true
+wa.commerce.resume.activeEstados: G
+wa.commerce.resume.entity: order_line
+wa.commerce.resume.codigoField: codigo
+wa.commerce.resume.estadoField: estado
+wa.commerce.resume.titleField: nombreProducto
+wa.commerce.resume.totalField: valorTotalVenta
+wa.commerce.resume.proposeOnce: true
+```
+
+Si SQLite tiene `orderCodigo`: `data_find` por código. Solo reutilizar si `estado` ∈ `activeEstados`. Otro estado / sin fila → pedido nuevo. Activo → proponer comprobante y/o más productos.

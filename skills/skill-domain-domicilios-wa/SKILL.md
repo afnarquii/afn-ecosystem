@@ -160,6 +160,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 9. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
 10. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección en `addressField`.
 11. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana). Match OK o timeout → revisión humana.
+12. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
 
 ### Zona de entrega (hints — sin hardcode en el runtime)
 
@@ -218,6 +219,19 @@ wa.commerce.payment.matchTimeoutMinutes: 60
 wa.commerce.payment.senderAllowlist: <dominio1,dominio2>
 wa.commerce.payment.amountTolerance: 1
 wa.commerce.payment.gmailQueryExtra: newer_than:1d
+```
+
+### Reanudar pedido (hints)
+
+```text
+wa.commerce.resume.enabled: true
+wa.commerce.resume.activeEstados: <estados activos, p.ej. G>
+wa.commerce.resume.entity: <entity pedido, p.ej. order_line>
+wa.commerce.resume.codigoField: <campo codigo>
+wa.commerce.resume.estadoField: <campo estado>
+wa.commerce.resume.titleField: <campo titulo linea>
+wa.commerce.resume.totalField: <campo total linea>
+wa.commerce.resume.proposeOnce: true
 ```
 
 Gmail: OAuth nativo AFN y/o **Life-ops IMAP** (cuenta Gmail en Ajustes → Life-ops / `lifeops-mail.json`) y/o descriptor MCP `examples/mcp-gmail.descriptor.example.json` → `.afn/mcps/mcp-gmail.json`. El match de comprobantes usa IMAP Life-ops si OAuth API no está listo.
