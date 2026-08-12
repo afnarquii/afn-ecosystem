@@ -40,6 +40,7 @@ Cuando el cliente pide un producto suelto o un combo:
 3. El sync baja **solo** roles de catálogo/venue/media (+ `syncInclude: true` para grupos). No indexa ventas/comandas.
 4. Cada `data_find` del sync lleva `fields` = key + search + display + scope (ni más ni menos).
 5. Si el índice está vacío o pasó el TTL, el bot lo refresca **antes** de contestar el pedido.
+6. Sync programado: `syncIntervalMinutes` (default 30) refresca SQLite en background (~15s tras arrancar + cada N min) para que el primer mensaje del día no espere.
 
 ## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
 
