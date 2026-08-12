@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "enabled": true,
+  "scopeField": "companiasId",
+  "defaultScopeValue": 40,
+  "requireSelection": false,
+  "localLicenses": [
+    {
+      "id": 40,
+      "label": "CROKY POLLO PARIS",
+      "enabled": true
+    }
+  ],
+  "licenseEntity": "",
+  "companyEntity": "company",
+  "companyKeyField": "companiasId",
+  "companyLabelFields": ["nombreCompania", "nombre", "razonSocial"],
+  "companyImageField": "imagen"
+}

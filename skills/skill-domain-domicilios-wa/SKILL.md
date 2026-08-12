@@ -44,23 +44,30 @@ Cuando el cliente pide un producto suelto (bebida, porción…) o un combo:
 
 ## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
 
-Este workspace (SAN QA Broster) tiene sucursal fija:
+Este workspace (SAN QA · CROKY POLLO PARIS) tiene sucursal fija vía config (no hardcode en notions):
 
 ```text
 wa.commerce.scopeField: companiasId
-wa.commerce.scopeValue: 4
+wa.commerce.scopeValue: 40
 ```
 
-También en `.afn/wa-company-scope.json`: `defaultScopeValue: 4`, `requireSelection: false`, licencia local id `4`.
+También en `.afn/wa-company-scope.json`: `defaultScopeValue` + `localLicenses` (misma sucursal), `requireSelection: false`.
 
 - **NUNCA** pidas al cliente `companiasId`, «cambiar empresa» ni que escriba el id.
-- El runtime inyecta `companiasId=4` en find/persist automáticamente.
+- El runtime inyecta el `scopeValue` de `wa-company-scope` / hints en find/persist automáticamente.
 - **Todas** las `data_find` / upsert / expand / `persist_order` llevan ese scope.
 - No inventes otra compañía ni consultes otras.
 
+### Estilo mostrador (transcripciones reales Croky)
+
+Flujo típico: saludo → **qué pide** → **dirección** → total → efectivo (con vueltos) o transferencia Bancolombia → foto comprobante → ETA (~30–40 min / hasta ~2 h si hay cola).
+Pedido a menudo llega en **un solo mensaje**: ítems + nombre + celular + dirección + medio de pago. Extraé todo; no re-preguntes lo ya dicho.
+Notas frecuentes: salsa rosada / piña / paprika / «bastantica» / papas frescas / pechuga|muslo|contramuslo|ala. Van a `descripcion` (notes), no son dirección.
+Transferencia: cuenta del hint `wa.commerce.payment.accountHint` — **no Nequi**.
+
 ## Combos / elaborados (obligatorio — no inventar ingredientes)
 
-Los combos suelen llamarse **Combo 1**, **Combo 2**, **Super Combo**, etc. El nombre **no** lista lo que trae.
+Los combos suelen llamarse **Combo Pechuga**, **Combo Asado …**, **Combinado …**, etc. El nombre **no** siempre lista lo que trae.
 
 Cadena (ids de entity del manifiesto / Índice Hub; tablas solo como referencia del ERP):
 
@@ -146,10 +153,10 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 
 1. Identificá coincidencias del catálogo MCP/índice (product / composite). Si hay variantes, listalas con **precio**.
 2. Si no dijo cantidad → pedila. Opcional en Índice Hub `behaviorHint`:
-   - `wa.commerce.unitNouns: porcion, combo, gaseosa`
-   - `wa.commerce.skuTriggers: porcion, coca, jugo`
+   - `wa.commerce.unitNouns: porcion, combo, gaseosa, cuarto, medio`
+   - `wa.commerce.skuTriggers: porcion, papa, papas, gaseosa, pechuga, muslo`
    - `wa.commerce.compositeSkip: combo con, menu con, almuerzo con`
-   - `wa.commerce.synonyms: frigoles=frijol|frijoles, cuartico=cuarto|pechuga|pollo` (vertical; no van en notions)
+   - `wa.commerce.synonyms: papas=papa|porcion de papas|francesa|papitas, cuarto=1/4|cuarto de pollo|1/4 asado, medio=medio asado|medio pollo, combo=combo pechuga|combo asado, muslo clontra=muslo|contramuslo` (vertical; no van en notions)
 3. Confirmá unitario + subtotal (**sí/no**) ANTES de sumar al carrito. Cambió de ítem → limpiá opciones/pendiente; **no** borres el carrito confirmado.
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
@@ -168,9 +175,9 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 ```text
 wa.commerce.delivery.maxMinutes: 60
 wa.commerce.delivery.minutesPerKm: 2.5
-wa.commerce.delivery.origin: BROSTER-BRASSAS LA 53 (CR 53 9S 29, Medellín)
-wa.commerce.delivery.originLat: 6.1937556
-wa.commerce.delivery.originLng: -75.5935859
+wa.commerce.delivery.origin: CROKY POLLO PARIS (CR 76 NRO 20 E 49, Medellín)
+wa.commerce.delivery.originLat: 6.2348
+wa.commerce.delivery.originLng: -75.5965
 wa.commerce.delivery.geocode: nominatim
 wa.commerce.delivery.geocodeMode: soft
 wa.commerce.delivery.geocodeTimeoutMs: 2500
@@ -186,7 +193,7 @@ Sin `originLat`/`originLng` el runtime solo chequea coherencia (no distancia). C
 El runtime AFN no inventa columnas ERP. Este skill + el Índice declaran el modelo de comandas:
 
 ```text
-wa.commerce.persist.itemDefaults: domicilio=S,numeromesa=200,estado=G,clientesId=11,usuariosId=10,turno=10,formaDePago=O,incluirServicio=N,imprimirProducto=1,imprimirGeneral=1,totalPagado=0,valorTotalDevolver=0,esUnTurnoGuardado=N,color=#425D42,gruposProductosId=48,centroDeCostosId=14,centroDeCostosGestionId=550
+wa.commerce.persist.itemDefaults: domicilio=S,numeromesa=200,estado=G,clientesId=39627,usuariosId=255,turno=10,formaDePago=O,incluirServicio=N,imprimirProducto=1,imprimirGeneral=1,totalPagado=0,valorTotalDevolver=0,esUnTurnoGuardado=N,color=#425D42,gruposProductosId=421,centroDeCostosId=1,centroDeCostosGestionId=1
 wa.commerce.persist.bodyDefaults: domicilio=S,numeromesa=200,estado=G
 wa.commerce.persist.skuIdField: productosId
 wa.commerce.persist.titleField: nombreProducto
@@ -217,13 +224,13 @@ Preferencias del cliente (no son dirección). El runtime las concatena a `descri
 wa.commerce.notes.enabled: true
 wa.commerce.notes.field: descripcion
 wa.commerce.notes.separator: | 
-wa.commerce.notes.triggers: sin,con,extra,azucar,azúcar,hielo,alquima,ensalada,tinto,poco,mucho,solo
+wa.commerce.notes.triggers: sin,con,extra,salsa,rosada,paprika,piña,pina,frescas,bastantica,pechuga,muslo,contramuslo,ala,ensalada,arepa
 wa.commerce.notes.maxNoteLen: 120
 wa.commerce.notes.maxTotalLen: 240
 ```
 
-Ejemplos: «sin ensalada», «gaseosa alquima», «tinto con 2 de azucar». Quedan p. ej.  
-`Av 26 niquia | Combo 1: sin ensalada | tinto con 2 de azucar`.
+Ejemplos: «salsa rosada bastantica», «paprika en las papas», «sin ensalada». Quedan p. ej.  
+`Calle 25a #76-29 apto 201 | salsa rosada y piña | papas frescas`.
 
 ### Pago / comprobante (Gmail + OCR — este workspace)
 
@@ -231,12 +238,13 @@ Tras persistir, el bot pide foto del comprobante. Métodos y remitentes **solo**
 
 ```text
 wa.commerce.payment.enabled: true
-wa.commerce.payment.methods: bancolombia,nequi
+wa.commerce.payment.methods: bancolombia
+wa.commerce.payment.accountHint: Bancolombia ahorros 36639307560 (no Nequi)
 wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 10
 wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
-wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com,notificacionesbancolombia.com
+wa.commerce.payment.senderAllowlist: bancolombia.com,notificacionesbancolombia.com
 wa.commerce.payment.amountTolerance: 1
 wa.commerce.payment.partialEnabled: true
 wa.commerce.payment.minAbono: 100
@@ -284,12 +292,12 @@ Gmail: OAuth nativo AFN (Ajustes → Gmail) y/o Life-ops IMAP (`lifeops-mail.jso
 `tipoProducto=P` → SKU (`product`); `E` → elaborado (`product_elaborated`). Preferí duplicar las mismas líneas en `.afn/mcp-local-index.json` → `behaviorHint`.
 
 Campos Caja (alineados a `useCajaComandas`):
-- `gruposProductosId` — del catálogo/grupo; fallback hint (SAN QA co=4: COMBOS=`48`).
-- `centroDeCostosId` — del producto/elaborado; fallback cocina de la compañía (SAN QA co=4: `14`).
-- `usuariosId` — mesero/sesión; fallback hint (SAN QA: usuario compañía `10`).
-- `centroDeCostosGestionId` — GESTIONADO del centro (SAN QA co=4 cocina: `550`). Se sembraron filas en `centroDeCostosGestion` (mismo patrón que otras compañías: SIN GESTIONAR + GESTIONADO por centro).
+- `gruposProductosId` — del catálogo/grupo; fallback hint (este workspace: Combos=`421`).
+- `centroDeCostosId` — del producto/elaborado; fallback cocina (`1` COCINA en catálogo Croky).
+- `usuariosId` — mesero/sesión; fallback hint (`255` General co=40).
+- `centroDeCostosGestionId` — fallback (`1`); preferí el del catálogo si viene en `data_find`.
 
-`clientesId` en `itemDefaults` es **fallback** de la compañía (SAN QA co=4: `11`). Si el lookup por teléfono devolvió `clientesId`, el runtime lo usa al armar el body de `persist_order`. `estado=G` = generado (modelo Caja).
+`clientesId` en `itemDefaults` es **fallback** de la compañía (este workspace: `39627` CONSUMIDOR FINAL co=40). Si el lookup por teléfono devolvió `clientesId`, el runtime lo usa al armar el body de `persist_order`. `estado=G` = generado (modelo Caja).
 
 Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
