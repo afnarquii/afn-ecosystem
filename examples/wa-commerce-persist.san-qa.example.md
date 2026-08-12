@@ -53,6 +53,9 @@ wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
 wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com
 wa.commerce.payment.amountTolerance: 1
+wa.commerce.payment.partialEnabled: true
+wa.commerce.payment.minAbono: 100
+wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 

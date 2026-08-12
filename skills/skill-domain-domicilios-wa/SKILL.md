@@ -160,7 +160,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 9. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
 10. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
 11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección + notas en `addressField`.
-12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana; SAN QA **3 días = 4320 min**). Si monto OCR ≠ total → pedir foto correcta. Match OK o timeout → revisión humana.
+12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana; SAN QA **3 días = 4320 min**). **Abonos** (`partialEnabled`): monto parcial validado (foto+mail) → anotar abono y saldo, **sin** marcar pagado; pedir resto (otra foto o efectivo). Match del saldo/total → OK; timeout → revisión humana.
 13. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
 14. **Timeout LLM**: no digas «Tardé demasiado». Con `wa.commerce.timeout.*` retomá la sesión (carrito/dirección/pago) hasta `maxAttempts`; si se agotan → limpiar y pedir pedido nuevo.
 
@@ -231,8 +231,13 @@ wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
 wa.commerce.payment.senderAllowlist: <dominio1,dominio2>
 wa.commerce.payment.amountTolerance: 1
+wa.commerce.payment.partialEnabled: true
+wa.commerce.payment.minAbono: 100
+wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
+
+**Abonos / pago mixto:** con `partialEnabled: true`, foto+mail por menos del total = *abono* (anotá monto y saldo). **No** digas pagado completo. Otra foto o efectivo para el resto.
 
 ### Reanudar pedido (hints)
 
