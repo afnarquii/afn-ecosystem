@@ -66,7 +66,9 @@ Tras persist: pedir foto o PDF (galería/cámara/captura/reenvío). Ventana vía hin
 Foto/PDF + mail por monto menor al total ? abono + saldo pendiente. Resto en otra transferencia o efectivo.
 Misma ref/monto/fecha ? «ya registrado»; no sumar dos veces.
 
-Caption («parte del pago» / «Valida» / «Abono») + media: el runtime **bloquea catálogo MCP**, OCR/Gmail. **PROHIBIDO** preguntar «¿cuánto abonaste?» o buscar la imagen en el workspace con `data_find`/`channel_media`.
+Caption («parte del pago» / «Valida» / «Abono») + media: el runtime **bloquea catálogo MCP** (sin `data_find`/`local_index`), OCR/Gmail.
+**PROHIBIDO** preguntar «¿cuánto abonaste?», buscar la imagen en el workspace, o decir «no me llegó la foto» si hay adjunto / trail «Mirando la imagen».
+Si se perdió `payment.status` pero hay `orderCodigo` + foto de comprobante ? soft awaiting (reabre validación). Sin hardcode de banco/vertical: solo hints `wa.commerce.payment.*`.
 **Imagen/PDF sola (sin texto)** también dispara payment_proof.
 ## Reanudar pedido (SQLite â†’ ERP)
 

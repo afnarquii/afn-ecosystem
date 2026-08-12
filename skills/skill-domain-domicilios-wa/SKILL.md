@@ -245,7 +245,7 @@ wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
 **Abonos / pago mixto:** con `partialEnabled: true`, un comprobante (foto/PDF + mail) por menos del total se registra como *abono* en SQLite (`brain_wa_payment_abonos`: número de comprobante + valor + proximidad de fecha) y en la sesión. **No** digas que el pedido está pagado. Otra vez la misma imagen/ref → «ya registrado»; pedí el saldo restante. Solo cuando abonos ≥ total → «pago recibido con éxito».
-Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo**, espera el archivo, OCR + Gmail. **No** preguntes «¿cuánto abonaste?» ni uses MCP para buscar la imagen en el workspace.
+Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo** (sin tools `data_find`/`local_index`), espera el archivo, OCR + Gmail. **PROHIBIDO** preguntar «¿cuánto abonaste?», buscar la imagen en el workspace, o decir «no me llegó la foto» cuando el trail ya muestra «Mirando la imagen» / hay adjunto WhatsApp. Si el status de pago se perdió pero hay `orderCodigo` + foto de comprobante, el runtime reabre validación (soft awaiting) sin hardcode de vertical.
 Gmail: OAuth AFN / Life-ops IMAP / MCP gmail. Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
 
 ### Reanudar pedido (SQLite → SQL Server)
