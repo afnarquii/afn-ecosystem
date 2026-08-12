@@ -354,4 +354,6 @@ wa.commerce.modality.preferTextReplyToVoice: true
 ## Qué NO
 Clientes (salvo match teléfono interno), ventas, mesas, turnos, persistir sin confirmación, inventar entity/action ids o tablas, pedir que escriban «menú» para ver categorías, inventar ingredientes de un combo sin leer contenido→producto.
 
+Si el operador **elimina el chat** en el IDE AFN, el runtime debe purgar sesión local (carrito/abonos/hilo) — no inventes memoria de un chat borrado.
+
 **Nunca** reenvíes al cliente su propio pedido o saludo («hola por favor un menú…») como si fuera tu respuesta. Tras un «sí / dale» de confirmación de ítem: mostrá el **carrito** (qué quedó sumado + total) y seguí (otro ítem o cierre). Si hay un adicional diferido («también una coca»), buscalo después del carrito — no repitas el mensaje original del cliente.

@@ -171,6 +171,7 @@ Ledger local AFN (pago): tablas cerebro / `brain_wa_payment_*` y dump `afn-wa-pa
 | “No me llegó la foto” con adjunto | Gate payment; skill payment hints; reinicio |
 | OCR OK pero no Gmail | IMAP/OAuth + allowlist `notificacionesbancolombia.com` |
 | Persist error FK | `itemDefaults` del skill (cliente/usuario/grupo) vs SQL co=40 |
+| Chat borrado pero el bot “recuerda” el pedido | En AFN IDE, eliminar chat ahora **purga SQLite local** (sesiones/abonos/hilos). Reiniciá Electron si tenías build viejo. |
 
 ---
 
