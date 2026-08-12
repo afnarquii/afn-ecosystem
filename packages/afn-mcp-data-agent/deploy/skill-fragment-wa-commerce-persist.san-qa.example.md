@@ -51,7 +51,7 @@ wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 10
 wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
-wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com
+wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com,notificacionesbancolombia.com
 wa.commerce.payment.amountTolerance: 1
 wa.commerce.payment.partialEnabled: true
 wa.commerce.payment.minAbono: 100
