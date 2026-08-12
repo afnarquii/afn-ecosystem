@@ -60,7 +60,7 @@ wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
 Tras persist: pedir foto o PDF (galería/cámara/captura/reenvío). Ventana vía hints (SAN QA: 3 días). Con `partialEnabled`: abono parcial → saldo (no «pagado»). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenvían la misma).
-Cruce correo: runtime usa **IMAP Life-ops primero** (monto en cuerpo), OAuth/MCP como fallback. Allowlist debe incluir el dominio real de alertas del banco.
+Cruce correo: **IMAP Life-ops primero** + merge OAuth; allowlist vía hints (incluir dominio real de alertas del banco). Evidencia del último cruce en AFN: `afn-wa-payment-gmail-last.json`.
 
 ## Abonos parciales
 

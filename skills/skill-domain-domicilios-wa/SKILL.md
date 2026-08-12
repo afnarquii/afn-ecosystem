@@ -246,7 +246,7 @@ wa.commerce.payment.gmailQueryExtra: newer_than:3d
 
 **Abonos / pago mixto:** con `partialEnabled: true`, monto menor al saldo = *abono* (NO «monto no encaja»). Mensaje al cliente: corto — validó imagen, cruzó o no con correo, abono sí/no y saldo. Un solo mensaje.
 Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo** (sin tools `data_find`/`local_index` — ni prefetch), corre `payment_proof` (OCR con reintentos → Gmail → ledger). Si la visión falla al primer intento, **no** se detiene: deja el pago en *matching* y reintenta OCR+correo. **PROHIBIDO** improvisar «estoy validando» sin `payment_proof`, buscar la imagen en el workspace, o decir «no me llegó la foto». Soft awaiting si hay `orderCodigo` + foto aunque se haya perdido el status.
-Gmail (cruce pago): **Life-ops IMAP primero** (cuerpo con monto), luego OAuth AFN, luego MCP gmail. Allowlist vía hints (incluir dominio de alertas del banco, p. ej. `notificacionesbancolombia.com`). Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
+Gmail (cruce pago): **Life-ops IMAP primero** (cuerpo con monto), merge con OAuth si aporta más mails, luego MCP gmail. Allowlist vía hints (incluir dominio de alertas del banco, p. ej. `notificacionesbancolombia.com`). Si el gate llega sin allowlist, el runtime la recupera del skill/Índice. Evidencia local del último cruce: `afn-wa-payment-gmail-last.json` (userData AFN). Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
 
 ### Reanudar pedido (SQLite → SQL Server)
 
