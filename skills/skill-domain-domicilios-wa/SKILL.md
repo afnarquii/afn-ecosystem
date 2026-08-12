@@ -26,12 +26,12 @@ Leé `.afn/mcp-local-index.json` (collections / sources):
 
 ### Búsqueda de ítems (SKU + elaborado — obligatorio)
 
-Cuando el cliente pide un producto suelto o un combo:
+Cuando el cliente pide un producto suelto (bebida, porción…) o un combo:
 
-1. Buscá en **role=sku** con `fieldAliases.title` de ese source.
-2. Buscá en **role=composite** con `fieldAliases.title` de ese source.
-3. LIKE parcial `{ "like": "…" }` en **cada** campo título — no cruces el título del sku sobre elaborados ni al revés.
-4. El runtime del índice local une ambos; si caés a `data_find`, repetí el find en las dos entities del Hub.
+1. Buscá en **role=sku** con `fieldAliases.title` de ese source (en este workspace: `nombreProducto` en `product` / `productos`).
+2. Buscá en **role=composite** con `fieldAliases.title` de ese source (aquí: `nombreProductoElaborado` en `product_elaborated` / `productosElaborados`).
+3. LIKE parcial `{ "like": "…" }` en **cada** campo título — no uses el título del sku sobre elaborados ni al revés.
+4. El runtime del índice local ya une ambos; si caés a `data_find`, repetí el find en las dos entities del Hub.
 
 ### Índice SQLite (rápido — obligatorio)
 
@@ -44,20 +44,19 @@ Cuando el cliente pide un producto suelto o un combo:
 
 ## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
 
-El Hub WA define el **campo** y el **valor** de sucursal **antes** del chat:
-
-1. `.afn/wa-company-scope.json` → `scopeField` + `defaultScopeValue` + `localLicenses` (preferido).
-2. Hints del skill / Índice: `wa.commerce.scopeField` / `wa.commerce.scopeValue`.
+Este workspace (SAN QA Broster) tiene sucursal fija:
 
 ```text
 wa.commerce.scopeField: companiasId
-wa.commerce.scopeValue: <id sucursal>
+wa.commerce.scopeValue: 4
 ```
 
-- **NUNCA** pidas al cliente `companiasId`, «cambiar empresa» ni el id de compañía en un pedido de domicilio mono-sucursal.
-- El runtime inyecta el scope en toda `data_find` / persist (`items[].companiasId`).
-- **Todas** las lecturas/escrituras llevan ese campo. No inventes otra compañía.
-- Solo multi-sucursal con `requireSelection: true` y varias licencias pedí elegir; si hay `defaultScopeValue` o una sola licencia, se auto-aplica.
+También en `.afn/wa-company-scope.json`: `defaultScopeValue: 4`, `requireSelection: false`, licencia local id `4`.
+
+- **NUNCA** pidas al cliente `companiasId`, «cambiar empresa» ni que escriba el id.
+- El runtime inyecta `companiasId=4` en find/persist automáticamente.
+- **Todas** las `data_find` / upsert / expand / `persist_order` llevan ese scope.
+- No inventes otra compañía ni consultes otras.
 
 ## Combos / elaborados (obligatorio — no inventar ingredientes)
 
@@ -155,81 +154,89 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 4. Tras cada ítem confirmado: carrito completo + total; ofrecé agregar más.
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
 6. Lead: **nombre = contacto WhatsApp** (o match BD). **NUNCA** lo pidas ni lo tomes de un mensaje libre. Solo pedí **dirección** al checkout si falta. `clientesId` del match (si hay) pisa el default del skill al persistir.
-7. **Dirección de entrega → campo `wa.commerce.persist.addressField`** (p. ej. `descripcion` si el ERP no tiene columna dedicada). Pedí barrio/calle/apto/referencia. NO uses el texto del menú/pedido como dirección. Si la sesión o el cliente ya tienen dirección real, no la pidas de nuevo.
-8. **Notas / preferencias de producto** (`wa.commerce.notes.*`): sin X / con N de azúcar / variantes de bebida, etc. No son dirección; concatenar al mismo campo `descripcion` junto a la dirección.
-9. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
-10. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
-11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección + notas en `addressField`.
-12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana; SAN QA **3 días = 4320 min**). **Imagen sola (sin caption)** también dispara el bot. **Abonos** (`partialEnabled`): monto parcial validado (foto+mail) → anotar abono y saldo, **sin** marcar pagado; pedir resto (otra foto o efectivo). Match del saldo/total → OK; timeout → revisión humana.
-13. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
-14. **Timeout LLM**: no digas «Tardé demasiado». Con `wa.commerce.timeout.*` retomá la sesión (carrito/dirección/pago) hasta `maxAttempts`; si se agotan → limpiar y pedir pedido nuevo.
+7. **Dirección de entrega → `descripcion` de la comanda** (campo `wa.commerce.persist.addressField`). Pedí barrio/calle/apto/referencia. NO uses el texto del menú/pedido como dirección. Si la sesión o `clientes.direccion` ya tienen una dirección real, no la pidas de nuevo.
+8. **Notas / preferencias de producto** (sin ensalada, gaseosa alquima, tinto con 2 de azúcar, etc.): NO son dirección. Detectalas vía `wa.commerce.notes.*` y **concatenalas** al mismo campo `descripcion` junto a la dirección (separador del skill). Confirmá al cliente que quedó anotado.
+9. **Zona de domicilio:** validá coherencia de la dirección. Si está vaga (solo ciudad/sin referencia), pedí barrio/conjunto/calle. Cobertura según hints (abajo): si claramente supera el tiempo/km en moto, NO registres el pedido — pedí otra dirección o pickup. No inventes coordenadas.
+10. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + `wa.commerce.persist.*`.
+11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Dirección + notas en `descripcion`.
+12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente → pedir *foto o PDF* del comprobante (galería, cámara, captura, reenvío/forward o adjunto). Runtime: OCR/PDF → ledger SQLite (`brain_wa_payment_abonos`: ref + monto + fecha) → cruza Gmail (allowlist + ventana; SAN QA **4320 min = 3 días**). **Imagen/PDF sola** dispara payment (no catálogo). **PROHIBIDO**: `data_find`/catálogo/`channel_media` para «buscar la imagen en el workspace»; decir que no llegó si el runtime ya la mira; preguntar «¿cuánto abonaste?» si la foto/PDF trae el monto. **Abonos** (`partialEnabled`): foto+mail por monto menor → registrar abono + saldo (no «pagado»). Misma ref/monto/fecha otra vez → «ya registrado». Match saldo/total → OK; timeout → revisión humana.
+13. **Reanudar pedido (SQLite → ERP)**: si la sesión SQLite ya tiene un `orderCodigo` (p. ej. post-persist / payment), el runtime consulta el ERP (`data_find` entity/campos de `wa.commerce.resume.*`). Solo se reutiliza si el `estado` está en `activeEstados` (SAN QA: `G`). Si no existe o el estado es otro → **pedido nuevo desde cero** (limpiar payment). Si está activo: informar estado y proponer *foto de comprobante* y/o *agregar más productos* / nuevo pedido según corresponda. Sin hardcode de letra de estado en el runtime.
+14. **Si el modelo tarda / falla (timeout)**: NO digas «Tardé demasiado». Validá qué hay en la sesión (carrito, dirección, notas, pago) y **continuá desde ahí**. Hasta `wa.commerce.timeout.maxAttempts` (default 3). Si se agotan → limpiá el pedido y pedí empezar de nuevo.
 
-### Zona de entrega (hints — sin hardcode en el runtime)
+### Zona de entrega (este workspace — tips en Índice/skill)
 
 ```text
 wa.commerce.delivery.maxMinutes: 60
 wa.commerce.delivery.minutesPerKm: 2.5
-wa.commerce.delivery.origin: <local>
-wa.commerce.delivery.originLat: <lat>
-wa.commerce.delivery.originLng: <lng>
+wa.commerce.delivery.origin: BROSTER-BRASSAS LA 53 (CR 53 9S 29, Medellín)
+wa.commerce.delivery.originLat: 6.1937556
+wa.commerce.delivery.originLng: -75.5935859
 wa.commerce.delivery.geocode: nominatim
 wa.commerce.delivery.geocodeMode: soft
 wa.commerce.delivery.geocodeTimeoutMs: 2500
-wa.commerce.delivery.countryCodes: <cc>
+wa.commerce.delivery.countryCodes: co
 wa.commerce.delivery.minAddressChars: 8
 wa.commerce.delivery.minAddressTokens: 2
 ```
 
-`geocodeMode: soft` (default si hay geocode): si el mapa falla o tarda, **no** bloquea el pedido. `strict` solo si querés exigir coords.
+Sin `originLat`/`originLng` el runtime solo chequea coherencia (no distancia). Con geocode + origen, estima minutos en moto; `geocodeMode: soft` no bloquea si el mapa falla/tarda. Nombre del cliente = contacto WhatsApp (nunca pedirlo).
 
-### Persist body (ERP) — sin hardcode en el runtime AFN
+### Persist body SAN QA (este workspace)
 
-El IDE **no** conoce columnas de tu BD (tipo ítem, mesa, flags delivery, ids de tabla…). Esos valores salen **solo** de líneas en el `behaviorHint` del Índice y/o en este skill:
+El runtime AFN no inventa columnas ERP. Este skill + el Índice declaran el modelo de comandas:
 
 ```text
-wa.commerce.persist.itemDefaults: key=value,key2=value2
-wa.commerce.persist.bodyDefaults: key=value
-wa.commerce.persist.skuIdField: <id SKU>
-wa.commerce.persist.compositeSkuIdField: <id combo>
-wa.commerce.persist.titleField: <nombre>
-wa.commerce.persist.priceField: <precio>
-wa.commerce.persist.qtyField: <cantidad>
-wa.commerce.persist.typeField: <campo tipo>
-wa.commerce.persist.typeSku: <valor tipo SKU>
-wa.commerce.persist.typeComposite: <valor tipo combo>
-wa.commerce.persist.compositeEntitySubstr: <regex sourceEntity>
-wa.commerce.persist.lineTotalField: <total línea>
-wa.commerce.persist.basePriceField: <base>
-wa.commerce.persist.taxField: <impuesto>
-wa.commerce.persist.groupIdField: <grupo producto>
-wa.commerce.persist.costCenterIdField: <centro de costos>
-wa.commerce.persist.costCenterGestionIdField: <gestión centro>
-wa.commerce.persist.userIdField: <usuario/mesero>
-wa.commerce.persist.addressField: <campo dirección en el pedido, p.ej. descripcion>
+wa.commerce.persist.itemDefaults: domicilio=S,numeromesa=200,estado=G,clientesId=11,usuariosId=10,turno=10,formaDePago=O,incluirServicio=N,imprimirProducto=1,imprimirGeneral=1,totalPagado=0,valorTotalDevolver=0,esUnTurnoGuardado=N,color=#425D42,gruposProductosId=48,centroDeCostosId=14,centroDeCostosGestionId=550
+wa.commerce.persist.bodyDefaults: domicilio=S,numeromesa=200,estado=G
+wa.commerce.persist.skuIdField: productosId
+wa.commerce.persist.titleField: nombreProducto
+wa.commerce.persist.priceField: valorVenta
+wa.commerce.persist.qtyField: cantidad
+wa.commerce.persist.typeField: tipoProducto
+wa.commerce.persist.typeSku: P
+wa.commerce.persist.typeComposite: E
+wa.commerce.persist.compositeEntitySubstr: elaborat
+wa.commerce.persist.lineTotalField: valorTotalVenta
+wa.commerce.persist.basePriceField: valorProducto
+wa.commerce.persist.taxField: valorImpuesto
+wa.commerce.persist.uuidField: Uuid
+wa.commerce.persist.fechaField: fecha
+wa.commerce.persist.groupIdField: gruposProductosId
+wa.commerce.persist.costCenterIdField: centroDeCostosId
+wa.commerce.persist.costCenterGestionIdField: centroDeCostosGestionId
+wa.commerce.persist.userIdField: usuariosId
+wa.commerce.persist.addressField: descripcion
 wa.commerce.persist.addressMaxLen: 240
 ```
 
-### Notas de producto (hints)
+### Notas / preferencias de producto → mismo `descripcion`
+
+Preferencias del cliente (no son dirección). El runtime las concatena a `descripcion` junto a la dirección:
 
 ```text
 wa.commerce.notes.enabled: true
-wa.commerce.notes.field: <mismo campo que address, p.ej. descripcion>
+wa.commerce.notes.field: descripcion
 wa.commerce.notes.separator: | 
-wa.commerce.notes.triggers: <sin,con,extra,azucar,...>
+wa.commerce.notes.triggers: sin,con,extra,azucar,azúcar,hielo,alquima,ensalada,tinto,poco,mucho,solo
 wa.commerce.notes.maxNoteLen: 120
 wa.commerce.notes.maxTotalLen: 240
 ```
 
-### Pago / comprobante (hints)
+Ejemplos: «sin ensalada», «gaseosa alquima», «tinto con 2 de azucar». Quedan p. ej.  
+`Av 26 niquia | Combo 1: sin ensalada | tinto con 2 de azucar`.
+
+### Pago / comprobante (Gmail + OCR — este workspace)
+
+Tras persistir, el bot pide foto del comprobante. Métodos y remitentes **solo** vía hints (sin hardcode en el runtime):
 
 ```text
 wa.commerce.payment.enabled: true
-wa.commerce.payment.methods: <metodo1,metodo2>
+wa.commerce.payment.methods: bancolombia,nequi
 wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 5
 wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
-wa.commerce.payment.senderAllowlist: <dominio1,dominio2>
+wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com
 wa.commerce.payment.amountTolerance: 1
 wa.commerce.payment.partialEnabled: true
 wa.commerce.payment.minAbono: 100
@@ -237,40 +244,56 @@ wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
-**Abonos / pago mixto:** con `partialEnabled: true`, foto+mail por menos del total = *abono* (anotá monto y saldo). **No** digas pagado completo. Otra foto o efectivo para el resto. Caption + imagen: runtime espera archivo → OCR/Gmail; no preguntes el monto si la foto ya lo muestra.
+**Abonos / pago mixto:** con `partialEnabled: true`, un comprobante (foto/PDF + mail) por menos del total se registra como *abono* en SQLite (`brain_wa_payment_abonos`: número de comprobante + valor + proximidad de fecha) y en la sesión. **No** digas que el pedido está pagado. Otra vez la misma imagen/ref → «ya registrado»; pedí el saldo restante. Solo cuando abonos ≥ total → «pago recibido con éxito».
+Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo**, espera el archivo, OCR + Gmail. **No** preguntes «¿cuánto abonaste?» ni uses MCP para buscar la imagen en el workspace.
+Gmail: OAuth AFN / Life-ops IMAP / MCP gmail. Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
 
-### Reanudar pedido (hints)
+### Reanudar pedido (SQLite → SQL Server)
+
+Si SQLite ya identificó un pedido (`payment.orderCodigo`), consultar ERP antes de seguir con pago/carrito:
 
 ```text
 wa.commerce.resume.enabled: true
-wa.commerce.resume.activeEstados: <estados activos, p.ej. G>
-wa.commerce.resume.entity: <entity pedido, p.ej. order_line>
-wa.commerce.resume.codigoField: <campo codigo>
-wa.commerce.resume.estadoField: <campo estado>
-wa.commerce.resume.titleField: <campo titulo linea>
-wa.commerce.resume.totalField: <campo total linea>
+wa.commerce.resume.activeEstados: G
+wa.commerce.resume.entity: order_line
+wa.commerce.resume.codigoField: codigo
+wa.commerce.resume.estadoField: estado
+wa.commerce.resume.titleField: nombreProducto
+wa.commerce.resume.totalField: valorTotalVenta
 wa.commerce.resume.proposeOnce: true
 ```
 
-### Timeout → retomar / limpiar
+- `activeEstados: G` = solo comandas en estado generado/activo (modelo Caja). Otro estado o sin fila → limpiar sesión de ese código y armar pedido **nuevo**.
+- Activo + payment awaiting → proponer foto comprobante **o** agregar productos / nuevo pedido.
+- Entity/campos vienen del skill/Índice (no hardcode en notions).
+
+### Timeout LLM → retomar pedido (no «Tardé demasiado»)
 
 ```text
 wa.commerce.timeout.resumeEnabled: true
 wa.commerce.timeout.maxAttempts: 3
 ```
 
-Gmail: OAuth nativo AFN y/o **Life-ops IMAP** (cuenta Gmail en Ajustes → Life-ops / `lifeops-mail.json`) y/o descriptor MCP `examples/mcp-gmail.descriptor.example.json` → `.afn/mcps/mcp-gmail.json`. El match de comprobantes usa IMAP Life-ops si OAuth API no está listo.
+Si el modelo no responde a tiempo: listar lo que ya hay en sesión y continuar. Tras 3 intentos fallidos → limpiar pedido y pedir empezar de nuevo.
 
-Para Caja / venta: incluí en `itemDefaults` (o traé del catálogo) `gruposProductosId`, `centroDeCostosId`, `usuariosId` (y `centroDeCostosGestionId` si aplica). El runtime enriquece desde `data_find` del producto si el hit trae esos campos; el fallback es el hint.
+Gmail: OAuth nativo AFN (Ajustes → Gmail) y/o Life-ops IMAP (`lifeops-mail.json` / cuenta ya configurada) y/o MCP `mcp-gmail` en `.afn/mcps`. Trazabilidad: `brain_wa_payment_proofs` + ledger de abonos `brain_wa_payment_abonos` (ref + monto + fecha).
 
-Prioridad: skill → Índice (el Índice del workspace gana si redefine). Sin hints → body genérico (`title`/`qty`/`unitPrice`), sin inventar un vertical ajeno.
+`tipoProducto=P` → SKU (`product`); `E` → elaborado (`product_elaborated`). Preferí duplicar las mismas líneas en `.afn/mcp-local-index.json` → `behaviorHint`.
+
+Campos Caja (alineados a `useCajaComandas`):
+- `gruposProductosId` — del catálogo/grupo; fallback hint (SAN QA co=4: COMBOS=`48`).
+- `centroDeCostosId` — del producto/elaborado; fallback cocina de la compañía (SAN QA co=4: `14`).
+- `usuariosId` — mesero/sesión; fallback hint (SAN QA: usuario compañía `10`).
+- `centroDeCostosGestionId` — GESTIONADO del centro (SAN QA co=4 cocina: `550`). Se sembraron filas en `centroDeCostosGestion` (mismo patrón que otras compañías: SIN GESTIONAR + GESTIONADO por centro).
+
+`clientesId` en `itemDefaults` es **fallback** de la compañía (SAN QA co=4: `11`). Si el lookup por teléfono devolvió `clientesId`, el runtime lo usa al armar el body de `persist_order`. `estado=G` = generado (modelo Caja).
 
 Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
 ## Multimodal
-Texto/audio STT; imagen OCR (comprobantes). `AFN_WA_MODALITY: audio|text`. Fotos de menú/producto vía alias `image` o `channel_media`.
+Texto/audio STT; imagen/PDF OCR (comprobantes — galería/cámara/reenvío/PDF). `AFN_WA_MODALITY: audio|text`. Fotos de menú/producto vía alias `image` o `channel_media` (**nunca** para buscar el comprobante de pago en el workspace).
 
 ## Qué NO
 Clientes (salvo match teléfono interno), ventas, mesas, turnos, persistir sin confirmación, inventar entity/action ids o tablas, pedir que escriban «menú» para ver categorías, inventar ingredientes de un combo sin leer contenido→producto.
 
-**Nunca** reenvíes al cliente su propio pedido o saludo («hola… menú…») como si fuera tu respuesta. Tras un «sí / dale» de confirmación de ítem: mostrá el **carrito** (qué quedó sumado + total) y seguí (otro ítem o cierre). Si hay un adicional diferido, buscalo **después** del carrito — no repitas el mensaje original del cliente.
+**Nunca** reenvíes al cliente su propio pedido o saludo («hola por favor un menú…») como si fuera tu respuesta. Tras un «sí / dale» de confirmación de ítem: mostrá el **carrito** (qué quedó sumado + total) y seguí (otro ítem o cierre). Si hay un adicional diferido («también una coca»), buscalo después del carrito — no repitas el mensaje original del cliente.
