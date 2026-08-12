@@ -82,3 +82,5 @@ Si SQLite tiene `orderCodigo`: `data_find` por código. Solo reutilizar si `esta
 wa.commerce.timeout.resumeEnabled: true
 wa.commerce.timeout.maxAttempts: 3
 ```
+
+Caption + imagen: runtime espera archivo → OCR/Gmail; no preguntar monto si la foto ya lo muestra.
