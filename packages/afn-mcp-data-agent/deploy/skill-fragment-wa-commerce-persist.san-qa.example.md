@@ -63,7 +63,7 @@ Tras persist: pedir foto o PDF (galer�a/c�mara/captura/reenv�o). Ventana v
 
 ## Abonos parciales
 
-Con partialEnabled: true: foto/PDF por monto menor al saldo = *abono* (NO responder «monto no encaja»).
-Runtime: 1) leer comprobante 2) cruzar correo entidad 3) registrar abono + saldo 4) preguntar si espera *otros comprobantes* o paga el resto en *efectivo*.
-Misma ref/monto/fecha → «ya registrado»; no sumar dos veces.
+Con partialEnabled: true: monto menor = *abono* (NO «monto no encaja»).
+Mensaje al cliente: corto y único — validó imagen, cruzó o no con correo, abono sí/no y saldo (sin skill/ventana/efectivo).
+Misma ref/monto/fecha → «ya registrado».
 
