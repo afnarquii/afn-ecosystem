@@ -24,13 +24,22 @@ Leé `.afn/mcp-local-index.json` (collections / sources):
 | `fieldAliases.title` / `price` / `taxRate` | Nombre, precio venta, % IVA |
 | `behaviorHint` | Texto libre de la colección |
 
-## Alcance compañía (obligatorio — sin hardcode de valor)
+## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
 
-El Hub WA define el **campo de scope** (típicamente `companiasId` en `.afn/wa-company-scope.json` → `scopeField`) y el **valor** de la sucursal activa.
+El Hub WA define el **campo** y el **valor** de sucursal **antes** del chat:
 
-- **Todas** las `data_find` / upsert / expand deben llevar ese campo en `filter` (el runtime también lo inyecta).
-- No inventes el id de compañía ni consultes otras.
-- Si `data_describe_entity` no lista ese campo en una entity, no lo fuerces; si lo lista, **siempre** va.
+1. `.afn/wa-company-scope.json` → `scopeField` + `defaultScopeValue` + `localLicenses` (preferido).
+2. Hints del skill / Índice: `wa.commerce.scopeField` / `wa.commerce.scopeValue`.
+
+```text
+wa.commerce.scopeField: companiasId
+wa.commerce.scopeValue: <id sucursal>
+```
+
+- **NUNCA** pidas al cliente `companiasId`, «cambiar empresa» ni el id de compañía en un pedido de domicilio mono-sucursal.
+- El runtime inyecta el scope en toda `data_find` / persist (`items[].companiasId`).
+- **Todas** las lecturas/escrituras llevan ese campo. No inventes otra compañía.
+- Solo multi-sucursal con `requireSelection: true` y varias licencias pedí elegir; si hay `defaultScopeValue` o una sola licencia, se auto-aplica.
 
 ## Combos / elaborados (obligatorio — no inventar ingredientes)
 

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "enabled": true,
+  "scopeField": "companiasId",
+  "defaultScopeValue": null,
+  "requireSelection": false,
+  "localLicenses": [
+    {
+      "id": "<scopeValue>",
+      "label": "<sucursal>",
+      "enabled": true
+    }
+  ],
+  "licenseEntity": "",
+  "companyEntity": "company",
+  "companyKeyField": "companiasId",
+  "companyLabelFields": ["nombreCompania", "nombre", "razonSocial"],
+  "companyImageField": "imagen",
+  "_comment": "Mono-sucursal: set defaultScopeValue + 1 localLicense + requireSelection:false. Nunca pedir companiasId al cliente WA."
+}
