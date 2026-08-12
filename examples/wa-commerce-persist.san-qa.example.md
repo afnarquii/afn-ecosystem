@@ -38,11 +38,11 @@ wa.commerce.payment.enabled: true
 wa.commerce.payment.methods: bancolombia,nequi
 wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 5
-wa.commerce.payment.emailWindowMinutes: 3
-wa.commerce.payment.matchTimeoutMinutes: 2
+wa.commerce.payment.emailWindowMinutes: 60
+wa.commerce.payment.matchTimeoutMinutes: 60
 wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com
 wa.commerce.payment.amountTolerance: 1
 wa.commerce.payment.gmailQueryExtra: newer_than:1d
 ```
 
-Ver también `examples/mcp-gmail.descriptor.example.json`.
+QA: ventana y timeout de match = 60 min (vía skill). Ver también `examples/mcp-gmail.descriptor.example.json`.
