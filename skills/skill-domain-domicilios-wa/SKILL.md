@@ -1,4 +1,4 @@
----
+﻿---
 name: skill-domain-domicilios-wa
 description: WhatsApp domicilios — motor carrito genérico AFN (oferta→qty→confirm) + catálogo Índice Hub; combos elaborado→contenido→producto; persist via data_run_action.
 tags: [domicilios, whatsapp, pedidos, carrito, mcp-index, venue, channel-media, data-agent, domain, combos]
@@ -233,7 +233,7 @@ Tras persistir, el bot pide foto del comprobante. Métodos y remitentes **solo**
 wa.commerce.payment.enabled: true
 wa.commerce.payment.methods: bancolombia,nequi
 wa.commerce.payment.askAfterPersist: true
-wa.commerce.payment.emailMaxMessages: 5
+wa.commerce.payment.emailMaxMessages: 10
 wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
 wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com

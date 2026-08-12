@@ -1,4 +1,4 @@
-# Fragmento skill — persist comandas SAN QA (pegar en SKILL.md del agente)
+﻿# Fragmento skill — persist comandas SAN QA (pegar en SKILL.md del agente)
 
 Solo para workspaces cuyo ERP usa este modelo. **No** lo copies a un restaurante con otro esquema.
 
@@ -48,7 +48,7 @@ wa.commerce.notes.maxTotalLen: 240
 wa.commerce.payment.enabled: true
 wa.commerce.payment.methods: bancolombia,nequi
 wa.commerce.payment.askAfterPersist: true
-wa.commerce.payment.emailMaxMessages: 5
+wa.commerce.payment.emailMaxMessages: 10
 wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
 wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com

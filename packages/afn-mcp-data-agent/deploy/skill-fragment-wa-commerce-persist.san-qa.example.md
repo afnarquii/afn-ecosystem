@@ -1,4 +1,4 @@
-# Fragmento skill â€” persist comandas SAN QA (pegar en SKILL.md del agente)
+ï»¿# Fragmento skill â€” persist comandas SAN QA (pegar en SKILL.md del agente)
 
 Solo para workspaces cuyo ERP usa este modelo. **No** lo copies a un restaurante con otro esquema.
 
@@ -48,7 +48,7 @@ wa.commerce.notes.maxTotalLen: 240
 wa.commerce.payment.enabled: true
 wa.commerce.payment.methods: bancolombia,nequi
 wa.commerce.payment.askAfterPersist: true
-wa.commerce.payment.emailMaxMessages: 5
+wa.commerce.payment.emailMaxMessages: 10
 wa.commerce.payment.emailWindowMinutes: 4320
 wa.commerce.payment.matchTimeoutMinutes: 4320
 wa.commerce.payment.senderAllowlist: bancolombia.com,nequi.com
@@ -59,18 +59,18 @@ wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
-Tras persist: pedir foto o PDF (galería/cámara/captura/reenvío). Ventana vía hints (SAN QA: 3 días). Con `partialEnabled`: abono parcial ? saldo (no «pagado»). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenvían la misma).
+Tras persist: pedir foto o PDF (galerï¿½a/cï¿½mara/captura/reenvï¿½o). Ventana vï¿½a hints (SAN QA: 3 dï¿½as). Con `partialEnabled`: abono parcial ? saldo (no ï¿½pagadoï¿½). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenvï¿½an la misma).
 
 ## Abonos parciales
 
 Foto/PDF + mail por monto menor al total ? abono + saldo pendiente. Resto en otra transferencia o efectivo.
-Misma ref/monto/fecha ? «ya registrado»; no sumar dos veces.
+Misma ref/monto/fecha ? ï¿½ya registradoï¿½; no sumar dos veces.
 
-Caption («parte del pago» / «Valida» / «Abono») + media: el runtime **bloquea catálogo MCP** (sin `data_find`/`local_index` ni prefetch), OCR/Gmail.
-**PROHIBIDO** preguntar «¿cuánto abonaste?», buscar la imagen en el workspace, decir «no me llegó la foto», o improvisar «estoy validando» sin `payment_proof`.
-Si la visión falla al primer intento: el runtime deja *matching* y **reintenta OCR + Gmail** (no queda en reposo).
-Si se perdió `payment.status` pero hay `orderCodigo` + foto de comprobante ? soft awaiting (reabre validación). Sin hardcode de banco/vertical: solo hints `wa.commerce.payment.*`.
-**Imagen/PDF sola (sin texto)** también dispara payment_proof.
+Caption (ï¿½parte del pagoï¿½ / ï¿½Validaï¿½ / ï¿½Abonoï¿½) + media: el runtime **bloquea catï¿½logo MCP** (sin `data_find`/`local_index` ni prefetch), OCR/Gmail.
+**PROHIBIDO** preguntar ï¿½ï¿½cuï¿½nto abonaste?ï¿½, buscar la imagen en el workspace, decir ï¿½no me llegï¿½ la fotoï¿½, o improvisar ï¿½estoy validandoï¿½ sin `payment_proof`.
+Si la visiï¿½n falla al primer intento: el runtime deja *matching* y **reintenta OCR + Gmail** (no queda en reposo).
+Si se perdiï¿½ `payment.status` pero hay `orderCodigo` + foto de comprobante ? soft awaiting (reabre validaciï¿½n). Sin hardcode de banco/vertical: solo hints `wa.commerce.payment.*`.
+**Imagen/PDF sola (sin texto)** tambiï¿½n dispara payment_proof.
 ## Reanudar pedido (SQLite â†’ ERP)
 
 ```text
