@@ -242,9 +242,12 @@ wa.commerce.payment.partialEnabled: true
 wa.commerce.payment.minAbono: 100
 wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
+wa.commerce.payment.allowAddItemsWhileAwaiting: true
+wa.commerce.payment.addItemsWindowMinutes: 180
 ```
 
 **Abonos / pago mixto:** con `partialEnabled: true`, monto menor al saldo = *abono* (NO «monto no encaja»). Mensaje al cliente: corto — validó imagen, cruzó o no con correo, abono sí/no y saldo. Un solo mensaje.
+**Agregar productos con pago pendiente:** con `allowAddItemsWhileAwaiting: true`, texto tipo «quiero / agregá / jugo / combo» (sin foto de comprobante) → **catálogo OK** (no digas que falta imagen). Ventana `addItemsWindowMinutes` desde que el pedido quedó pendiente de pago (SAN QA: **180 = 3 h**). Si venció → solo comprobante del saldo / no sumar ítems. Al agregar: actualizar total y saldo pendiente del mismo `orderCodigo`.
 Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo** (sin tools `data_find`/`local_index` — ni prefetch), corre `payment_proof` (OCR con reintentos → Gmail → ledger). Si la visión falla al primer intento, **no** se detiene: deja el pago en *matching* y reintenta OCR+correo. **PROHIBIDO** improvisar «estoy validando» sin `payment_proof`, buscar la imagen en el workspace, o decir «no me llegó la foto». Soft awaiting si hay `orderCodigo` + foto aunque se haya perdido el status.
 Gmail (cruce pago): **Life-ops IMAP primero** (cuerpo con monto), merge con OAuth si aporta más mails, luego MCP gmail. Allowlist vía hints (incluir dominio de alertas del banco, p. ej. `notificacionesbancolombia.com`). Si el gate llega sin allowlist, el runtime la recupera del skill/Índice. Evidencia local del último cruce: `afn-wa-payment-gmail-last.json` (userData AFN). Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
 
@@ -264,7 +267,7 @@ wa.commerce.resume.proposeOnce: true
 ```
 
 - `activeEstados: G` = solo comandas en estado generado/activo (modelo Caja). Otro estado o sin fila → limpiar sesión de ese código y armar pedido **nuevo**.
-- Activo + payment awaiting → proponer foto comprobante **o** agregar productos / nuevo pedido.
+- Activo + payment awaiting → proponer foto comprobante **o** agregar productos / nuevo pedido (si `wa.commerce.payment.allowAddItemsWhileAwaiting` y dentro de `addItemsWindowMinutes`).
 - Entity/campos vienen del skill/Índice (no hardcode en notions).
 
 ### Timeout LLM → retomar pedido (no «Tardé demasiado»)

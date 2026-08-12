@@ -57,10 +57,13 @@ wa.commerce.payment.partialEnabled: true
 wa.commerce.payment.minAbono: 100
 wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
+wa.commerce.payment.allowAddItemsWhileAwaiting: true
+wa.commerce.payment.addItemsWindowMinutes: 180
 ```
 
 Tras persist: pedir foto o PDF (galería/cámara/captura/reenvío). Ventana vía hints (SAN QA: 3 días). Con `partialEnabled`: abono parcial → saldo (no «pagado»). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenvían la misma).
 Cruce correo: **IMAP Life-ops primero** + merge OAuth; si allowlist vacía se recupera del skill/Índice en disco (behaviorHint ya no se trunca a 2k). Evidencia: `afn-wa-payment-gmail-last.json`.
+Con `allowAddItemsWhileAwaiting`: texto «quiero/agregá/jugo…» (sin comprobante) → catálogo OK dentro de `addItemsWindowMinutes` (SAN QA: 180 = 3 h). Si vence → solo foto del saldo.
 
 ## Abonos parciales
 
