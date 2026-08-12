@@ -59,11 +59,11 @@ wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
-Tras persist: pedir foto o PDF (galer�a/c�mara/captura/reenv�o). Ventana v�a hints (SAN QA: 3 d�as). Con `partialEnabled`: abono parcial ? saldo (no �pagado�). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenv�an la misma).
+Tras persist: pedir foto o PDF (galería/cámara/captura/reenvío). Ventana vía hints (SAN QA: 3 días). Con `partialEnabled`: abono parcial → saldo (no «pagado»). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenvían la misma).
+Cruce correo: runtime usa **IMAP Life-ops primero** (monto en cuerpo), OAuth/MCP como fallback. Allowlist debe incluir el dominio real de alertas del banco.
 
 ## Abonos parciales
 
 Con partialEnabled: true: monto menor = *abono* (NO «monto no encaja»).
 Mensaje al cliente: corto y único — validó imagen, cruzó o no con correo, abono sí/no y saldo (sin skill/ventana/efectivo).
 Misma ref/monto/fecha → «ya registrado».
-
