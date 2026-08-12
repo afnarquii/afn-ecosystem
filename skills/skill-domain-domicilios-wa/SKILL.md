@@ -162,6 +162,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección + notas en `addressField`.
 12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana). Match OK o timeout → revisión humana.
 13. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
+14. **Timeout LLM**: no digas «Tardé demasiado». Con `wa.commerce.timeout.*` retomá la sesión (carrito/dirección/pago) hasta `maxAttempts`; si se agotan → limpiar y pedir pedido nuevo.
 
 ### Zona de entrega (hints — sin hardcode en el runtime)
 
@@ -244,6 +245,13 @@ wa.commerce.resume.estadoField: <campo estado>
 wa.commerce.resume.titleField: <campo titulo linea>
 wa.commerce.resume.totalField: <campo total linea>
 wa.commerce.resume.proposeOnce: true
+```
+
+### Timeout → retomar / limpiar
+
+```text
+wa.commerce.timeout.resumeEnabled: true
+wa.commerce.timeout.maxAttempts: 3
 ```
 
 Gmail: OAuth nativo AFN y/o **Life-ops IMAP** (cuenta Gmail en Ajustes → Life-ops / `lifeops-mail.json`) y/o descriptor MCP `examples/mcp-gmail.descriptor.example.json` → `.afn/mcps/mcp-gmail.json`. El match de comprobantes usa IMAP Life-ops si OAuth API no está listo.

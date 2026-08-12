@@ -72,3 +72,10 @@ wa.commerce.resume.proposeOnce: true
 ```
 
 Si SQLite tiene `orderCodigo`: `data_find` por código. Solo reutilizar si `estado` ∈ `activeEstados`. Otro estado / sin fila → pedido nuevo. Activo → proponer comprobante y/o más productos.
+
+## Timeout LLM
+
+```text
+wa.commerce.timeout.resumeEnabled: true
+wa.commerce.timeout.maxAttempts: 3
+```
