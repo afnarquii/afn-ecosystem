@@ -31,6 +31,17 @@ wa.commerce.persist.addressMaxLen: 240
 
 La dirección de entrega va en `comandas.descripcion` (no hay columna `direccion` en comandas).
 
+## Notas de producto → mismo `descripcion`
+
+```text
+wa.commerce.notes.enabled: true
+wa.commerce.notes.field: descripcion
+wa.commerce.notes.separator: | 
+wa.commerce.notes.triggers: sin,con,extra,azucar,azúcar,hielo,alquima,ensalada,tinto,poco,mucho,solo
+wa.commerce.notes.maxNoteLen: 120
+wa.commerce.notes.maxTotalLen: 240
+```
+
 ## Pago / comprobante (Gmail + OCR)
 
 ```text

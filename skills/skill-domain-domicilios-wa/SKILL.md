@@ -156,11 +156,12 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 5. Cotizá con datos MCP: cantidad × `price`; si hay `taxRate`, desglosá IVA y **total**. No inventes precios.
 6. Lead: **nombre = contacto WhatsApp** (o match BD). **NUNCA** lo pidas ni lo tomes de un mensaje libre. Solo pedí **dirección** al checkout si falta. `clientesId` del match (si hay) pisa el default del skill al persistir.
 7. **Dirección de entrega → campo `wa.commerce.persist.addressField`** (p. ej. `descripcion` si el ERP no tiene columna dedicada). Pedí barrio/calle/apto/referencia. NO uses el texto del menú/pedido como dirección. Si la sesión o el cliente ya tienen dirección real, no la pidas de nuevo.
-8. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
-9. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
-10. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección en `addressField`.
-11. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana). Match OK o timeout → revisión humana.
-12. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
+8. **Notas / preferencias de producto** (`wa.commerce.notes.*`): sin X / con N de azúcar / variantes de bebida, etc. No son dirección; concatenar al mismo campo `descripcion` junto a la dirección.
+9. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
+10. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
+11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección + notas en `addressField`.
+12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana). Match OK o timeout → revisión humana.
+13. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
 
 ### Zona de entrega (hints — sin hardcode en el runtime)
 
@@ -205,6 +206,17 @@ wa.commerce.persist.costCenterGestionIdField: <gestión centro>
 wa.commerce.persist.userIdField: <usuario/mesero>
 wa.commerce.persist.addressField: <campo dirección en el pedido, p.ej. descripcion>
 wa.commerce.persist.addressMaxLen: 240
+```
+
+### Notas de producto (hints)
+
+```text
+wa.commerce.notes.enabled: true
+wa.commerce.notes.field: <mismo campo que address, p.ej. descripcion>
+wa.commerce.notes.separator: | 
+wa.commerce.notes.triggers: <sin,con,extra,azucar,...>
+wa.commerce.notes.maxNoteLen: 120
+wa.commerce.notes.maxTotalLen: 240
 ```
 
 ### Pago / comprobante (hints)
