@@ -160,7 +160,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 9. **Zona de domicilio:** validá coherencia. Dirección vaga → pedí referencia. Cobertura vía `wa.commerce.delivery.*` (maxMinutes / maxKm / origen / geocodeMode soft|strict). Fuera de zona (solo si geocode OK en strict o distancia clara) → no persistir; ofrecer otra dirección o pickup.
 10. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + hints `wa.commerce.persist.*` (abajo).
 11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Mostrá la dirección + notas en `addressField`.
-12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana). Match OK o timeout → revisión humana.
+12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente de pago → pedir foto de comprobante (`methods` del skill). Runtime OCR → SQLite → últimos N mails Gmail (allowlist + ventana; SAN QA **3 días = 4320 min**). Si monto OCR ≠ total → pedir foto correcta. Match OK o timeout → revisión humana.
 13. **Reanudar (SQLite → ERP)**: si la sesión tiene `orderCodigo`, `data_find` con `wa.commerce.resume.*`. Solo reutilizar si `estado` ∈ `activeEstados`; si no → pedido nuevo desde cero. Si activo → proponer comprobante y/o agregar productos.
 14. **Timeout LLM**: no digas «Tardé demasiado». Con `wa.commerce.timeout.*` retomá la sesión (carrito/dirección/pago) hasta `maxAttempts`; si se agotan → limpiar y pedir pedido nuevo.
 
@@ -227,11 +227,11 @@ wa.commerce.payment.enabled: true
 wa.commerce.payment.methods: <metodo1,metodo2>
 wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 5
-wa.commerce.payment.emailWindowMinutes: 60
-wa.commerce.payment.matchTimeoutMinutes: 60
+wa.commerce.payment.emailWindowMinutes: 4320
+wa.commerce.payment.matchTimeoutMinutes: 4320
 wa.commerce.payment.senderAllowlist: <dominio1,dominio2>
 wa.commerce.payment.amountTolerance: 1
-wa.commerce.payment.gmailQueryExtra: newer_than:1d
+wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
 ### Reanudar pedido (hints)
