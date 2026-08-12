@@ -33,6 +33,14 @@ Cuando el cliente pide un producto suelto o un combo:
 3. LIKE parcial `{ "like": "…" }` en **cada** campo título — no cruces el título del sku sobre elaborados ni al revés.
 4. El runtime del índice local une ambos; si caés a `data_find`, repetí el find en las dos entities del Hub.
 
+### Índice SQLite (rápido — obligatorio)
+
+1. **Primero** el bot busca en SQLite local (`.afn/mcp-index/local.db`).
+2. **Después** (solo si no hay hits) hace `data_find` remoto.
+3. El sync baja **solo** roles de catálogo/venue/media (+ `syncInclude: true` para grupos). No indexa ventas/comandas.
+4. Cada `data_find` del sync lleva `fields` = key + search + display + scope (ni más ni menos).
+5. Si el índice está vacío o pasó el TTL, el bot lo refresca **antes** de contestar el pedido.
+
 ## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
 
 El Hub WA define el **campo** y el **valor** de sucursal **antes** del chat:
