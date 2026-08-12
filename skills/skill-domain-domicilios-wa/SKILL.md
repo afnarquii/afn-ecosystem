@@ -42,32 +42,50 @@ Cuando el cliente pide un producto suelto (bebida, porción…) o un combo:
 5. Si el índice está vacío o pasó el TTL, el bot lo refresca **antes** de contestar el pedido.
 6. Sync programado: `syncIntervalMinutes` (default 30) refresca SQLite en background (~15s tras arrancar + cada N min) para que el primer mensaje del día no espere.
 
-## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
+## Alcance compañía (obligatorio — config, no notions)
 
-Este workspace (SAN QA · CROKY POLLO PARIS) tiene sucursal fija vía config (no hardcode en notions):
+**Fuente de verdad del scope:** `.afn/wa-company-scope.json` (`scopeField` + `defaultScopeValue` + `localLicenses`).  
+**Espejo para el LLM:** hints `wa.commerce.scopeField` / `wa.commerce.scopeValue` en este skill y en `behaviorHint` del Índice.
+
+- **NUNCA** pidas al cliente el id de compañía ni digas «cambiar empresa» en un pedido normal.
+- El runtime inyecta el scope en find/persist. No inventes otra sucursal.
+- Al cambiar de empresa: editá `wa-company-scope.json` + bloque de hints de este skill/Índice (abajo). **No** parches código notions.
+
+### Playbook ventas (aprendido de chats reales — obligatorio)
+
+El mostrador humano responde **ultra corto**. El bot debe imitar eso (1–2 líneas; sin menú de capacidades).
+
+| Situación en chats | Qué hacer |
+|--------------------|-----------|
+| «Para solicitar un domicilio» | «Hola, ¿qué deseas y la dirección?» (o pedí solo lo que falte). |
+| Pedido + dirección + pago **en un mensaje** | Extraé ítems, notas, dirección, medio de pago. **No** re-preguntes lo ya dicho. |
+| «2 combos con pechuga» + notas salsa/papas | Buscá **composite** (Combo Pechuga…). Notas → `wa.commerce.notes.*` en `descripcion`. |
+| «Medio / cuarto de pollo asado» + papas | Composite o SKU según catálogo. Si es **cuarto/1/4** y no dijo presa → preguntá **pechuga, ala, muslo o contramuslo** (una línea). |
+| «¿El pollo trae ensalada?» | Respondé según **contenido expand** del elaborado; si no está, «no» / «sí, incluye…» sin inventar. |
+| «¿Cuánto es?» | Total del carrito (catálogo). Número claro. |
+| Efectivo + «devuelta de 50/100» | Anotá vueltos en notes (`descripcion`). **No** pidas foto de comprobante. Persistí y dá ETA. |
+| Transferencia / «ya te paso el comprobante» | Mostrá cuenta/`accountHint`; si hay `channel_media` (QR/cuenta) envialo. Pedí **foto/PDF**. Runtime: **OCR + Gmail** (no lo apagues). |
+| Agrega ítem después de cotizar / mientras paga | Recotizá total; con pago pendiente valen `allowAddItemsWhileAwaiting` + ventana. |
+| «¿Cuánto demora?» / «¿cómo van los domicilios?» | ETA corto (`wa.commerce.eta.*`). Sin inventar GPS ni “el domiciliario está en X”. |
+| «¿Aún se demora?» post-pedido | «Ya va en camino» / «te aviso» — breve. No inventes estado ERP si no lo consultaste. |
 
 ```text
-wa.commerce.scopeField: companiasId
-wa.commerce.scopeValue: 40
+wa.commerce.reply.style: ultra_short
+wa.commerce.reply.maxSentences: 2
+wa.commerce.piece.askWhen: cuarto,1/4,1/4 asado,presa
+wa.commerce.piece.options: pechuga,ala,muslo,contramuslo
+wa.commerce.eta.defaultMinutes: 40
+wa.commerce.eta.busyMinutes: 90
+wa.commerce.eta.busyLabel: 1 hora y media-2 horas
+wa.commerce.cash.changeTriggers: devuelta,vuelto,billete,efectivo
+wa.commerce.cash.skipPaymentProof: true
 ```
 
-También en `.afn/wa-company-scope.json`: `defaultScopeValue` + `localLicenses` (misma sucursal), `requireSelection: false`.
-
-- **NUNCA** pidas al cliente `companiasId`, «cambiar empresa» ni que escriba el id.
-- El runtime inyecta el `scopeValue` de `wa-company-scope` / hints en find/persist automáticamente.
-- **Todas** las `data_find` / upsert / expand / `persist_order` llevan ese scope.
-- No inventes otra compañía ni consultes otras.
-
-### Estilo mostrador (transcripciones reales Croky)
-
-Flujo típico: saludo → **qué pide** → **dirección** → total → efectivo (con vueltos) o transferencia Bancolombia → foto comprobante → ETA (~30–40 min / hasta ~2 h si hay cola).
-Pedido a menudo llega en **un solo mensaje**: ítems + nombre + celular + dirección + medio de pago. Extraé todo; no re-preguntes lo ya dicho.
-Notas frecuentes: salsa rosada / piña / paprika / «bastantica» / papas frescas / pechuga|muslo|contramuslo|ala. Van a `descripcion` (notes), no son dirección.
-Transferencia: cuenta del hint `wa.commerce.payment.accountHint` — **no Nequi**.
+**Pago — no perder lo ganador:** transferencia → foto/PDF → OCR local → ledger → cruce Gmail (IMAP/OAuth) → abonos. Eso ya corre en runtime; el skill solo declara `wa.commerce.payment.*`. Efectivo → `skipPaymentProof` (sin foto); transferencia → pipeline completo.
 
 ## Combos / elaborados (obligatorio — no inventar ingredientes)
 
-Los combos suelen llamarse **Combo Pechuga**, **Combo Asado …**, **Combinado …**, etc. El nombre **no** siempre lista lo que trae.
+Los nombres de combo vienen del **catálogo** (Índice / `data_find`), no de este texto. Ejemplos frecuentes en pollo: Combo Pechuga, Combo Asado…, Combinado…. El nombre **no** siempre lista el contenido.
 
 Cadena (ids de entity del manifiesto / Índice Hub; tablas solo como referencia del ERP):
 
@@ -166,7 +184,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 9. **Zona de domicilio:** validá coherencia de la dirección. Si está vaga (solo ciudad/sin referencia), pedí barrio/conjunto/calle. Cobertura según hints (abajo): si claramente supera el tiempo/km en moto, NO registres el pedido — pedí otra dirección o pickup. No inventes coordenadas.
 10. Cierre del pedido completo → confirmación explícita → `data_list_actions` + **`data_run_action`** (id del manifiesto; no hardcodees procedure). Body según `bodyHint` + `wa.commerce.persist.*`.
 11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Dirección + notas en `descripcion`.
-12. **Pago (si `wa.commerce.payment.enabled`)**: pendiente → pedir *foto o PDF* del comprobante (galería, cámara, captura, reenvío/forward o adjunto). Runtime: OCR/PDF (**prioridad OCR local Windows** sobre proxy Cursor — el proxy multimodal suele ir ciego o inventar montos; fallback OpenAI/Groq si hay keys) → ledger SQLite (`brain_wa_payment_abonos`: ref + monto + fecha) → cruza Gmail (allowlist + ventana; SAN QA **4320 min = 3 días**). **Imagen/PDF sola** dispara payment (no catálogo). **PROHIBIDO**: `data_find`/catálogo/`channel_media` para «buscar la imagen en el workspace»; decir que no llegó si el runtime ya la mira; preguntar «¿cuánto abonaste?» si la foto/PDF trae el monto. **Abonos** (`partialEnabled`): foto+mail por monto menor → registrar abono + saldo (no «pagado»). Misma ref/monto/fecha otra vez → «ya registrado». Match saldo/total → OK; timeout → revisión humana.
+12. **Pago (si `wa.commerce.payment.enabled`)**: si eligió **efectivo** (+ vueltos) → no pidas foto (`cash.skipPaymentProof`). Si **transferencia** → pedir *foto o PDF* del comprobante. Runtime: OCR/PDF → ledger → Gmail (hints). **Imagen/PDF sola** dispara payment (no catálogo). **PROHIBIDO**: buscar la imagen en el workspace; decir que no llegó si hay adjunto; preguntar «¿cuánto abonaste?» si la foto trae monto. **Abonos** (`partialEnabled`). **allowAddItemsWhileAwaiting** para sumar ítems con pago pendiente.
 13. **Reanudar pedido (SQLite → ERP)**: si la sesión SQLite ya tiene un `orderCodigo` (p. ej. post-persist / payment), el runtime consulta el ERP (`data_find` entity/campos de `wa.commerce.resume.*`). Solo se reutiliza si el `estado` está en `activeEstados` (SAN QA: `G`). Si no existe o el estado es otro → **pedido nuevo desde cero** (limpiar payment). Si está activo: informar estado y proponer *foto de comprobante* y/o *agregar más productos* / nuevo pedido según corresponda. Sin hardcode de letra de estado en el runtime.
 14. **Si el modelo tarda / falla (timeout)**: NO digas «Tardé demasiado». Validá qué hay en la sesión (carrito, dirección, notas, pago) y **continuá desde ahí**. Hasta `wa.commerce.timeout.maxAttempts` (default 3). Si se agotan → limpiá el pedido y pedí empezar de nuevo.
 
@@ -232,13 +250,17 @@ wa.commerce.notes.maxTotalLen: 240
 Ejemplos: «salsa rosada bastantica», «paprika en las papas», «sin ensalada». Quedan p. ej.  
 `Calle 25a #76-29 apto 201 | salsa rosada y piña | papas frescas`.
 
-### Pago / comprobante (Gmail + OCR — este workspace)
+### Pago / comprobante (Gmail + OCR — preservar; config vía hints)
 
-Tras persistir, el bot pide foto del comprobante. Métodos y remitentes **solo** vía hints (sin hardcode en el runtime):
+Tras persistir:
+- **Transferencia** (método en `wa.commerce.payment.methods` que no sea efectivo): pedí *foto o PDF* del comprobante. Runtime OCR/PDF + Gmail + ledger — **no lo reemplaces con texto inventado**.
+- **Efectivo** (`wa.commerce.cash.skipPaymentProof: true`): no pidas foto; confirmá total + vueltos anotados + ETA.
 
 ```text
+wa.commerce.scopeField: companiasId
+wa.commerce.scopeValue: 40
 wa.commerce.payment.enabled: true
-wa.commerce.payment.methods: bancolombia
+wa.commerce.payment.methods: bancolombia,efectivo
 wa.commerce.payment.accountHint: Bancolombia ahorros 36639307560 (no Nequi)
 wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 10
@@ -255,9 +277,21 @@ wa.commerce.payment.addItemsWindowMinutes: 180
 ```
 
 **Abonos / pago mixto:** con `partialEnabled: true`, monto menor al saldo = *abono* (NO «monto no encaja»). Mensaje al cliente: corto — validó imagen, cruzó o no con correo, abono sí/no y saldo. Un solo mensaje.
-**Agregar productos con pago pendiente:** con `allowAddItemsWhileAwaiting: true`, texto tipo «quiero / agregá / jugo / combo» (sin foto de comprobante) → **catálogo OK** (no digas que falta imagen). Ventana `addItemsWindowMinutes` desde que el pedido quedó pendiente de pago (SAN QA: **180 = 3 h**). Si venció → solo comprobante del saldo / no sumar ítems. Al agregar: actualizar total y saldo pendiente del mismo `orderCodigo`.
-Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo** (sin tools `data_find`/`local_index` — ni prefetch), corre `payment_proof` (OCR con reintentos → Gmail → ledger). Si la visión falla al primer intento, **no** se detiene: deja el pago en *matching* y reintenta OCR+correo. **PROHIBIDO** improvisar «estoy validando» sin `payment_proof`, buscar la imagen en el workspace, o decir «no me llegó la foto». Soft awaiting si hay `orderCodigo` + foto aunque se haya perdido el status.
-Gmail (cruce pago): **Life-ops IMAP primero** (cuerpo con monto), merge con OAuth si aporta más mails, luego MCP gmail. Allowlist vía hints (incluir dominio de alertas del banco, p. ej. `notificacionesbancolombia.com`). Si el gate llega sin allowlist, el runtime la recupera del skill/Índice. Evidencia local del último cruce: `afn-wa-payment-gmail-last.json` (userData AFN). Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
+**Agregar productos con pago pendiente:** con `allowAddItemsWhileAwaiting: true`, texto tipo «quiero / agregá / porción / combo» (sin foto de comprobante) → **catálogo OK**. Ventana `addItemsWindowMinutes` (hints). Al agregar: actualizar total y saldo del mismo `orderCodigo`.
+Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo**, corre `payment_proof` (OCR → Gmail → ledger). **PROHIBIDO** improvisar «estoy validando» sin `payment_proof`, buscar la imagen en el workspace, o decir «no me llegó la foto». Soft awaiting si hay `orderCodigo` + foto.
+Gmail: **Life-ops IMAP primero**, merge OAuth, luego MCP gmail. Allowlist vía hints. Evidencia: `afn-wa-payment-gmail-last.json`. Ledger: `brain_wa_payment_abonos`.
+
+### Workspace config — FKs / sede (solo hints; al cambiar empresa editá esto + wa-company-scope)
+
+Los ids de abajo son **config del workspace** (skill/Índice), no del runtime notions:
+
+```text
+wa.commerce.delivery.origin: CROKY POLLO PARIS (CR 76 NRO 20 E 49, Medellín)
+wa.commerce.delivery.originLat: 6.2348
+wa.commerce.delivery.originLng: -75.5965
+```
+
+`clientesId` / `usuariosId` / `gruposProductosId` / centros: ver `itemDefaults` arriba. Preferí valores del catálogo en `data_find` cuando existan; los defaults son fallback.
 
 ### Reanudar pedido (SQLite → SQL Server)
 
@@ -291,13 +325,7 @@ Gmail: OAuth nativo AFN (Ajustes → Gmail) y/o Life-ops IMAP (`lifeops-mail.jso
 
 `tipoProducto=P` → SKU (`product`); `E` → elaborado (`product_elaborated`). Preferí duplicar las mismas líneas en `.afn/mcp-local-index.json` → `behaviorHint`.
 
-Campos Caja (alineados a `useCajaComandas`):
-- `gruposProductosId` — del catálogo/grupo; fallback hint (este workspace: Combos=`421`).
-- `centroDeCostosId` — del producto/elaborado; fallback cocina (`1` COCINA en catálogo Croky).
-- `usuariosId` — mesero/sesión; fallback hint (`255` General co=40).
-- `centroDeCostosGestionId` — fallback (`1`); preferí el del catálogo si viene en `data_find`.
-
-`clientesId` en `itemDefaults` es **fallback** de la compañía (este workspace: `39627` CONSUMIDOR FINAL co=40). Si el lookup por teléfono devolvió `clientesId`, el runtime lo usa al armar el body de `persist_order`. `estado=G` = generado (modelo Caja).
+Campos Caja (alineados a `useCajaComandas`): ids de fallback solo en `itemDefaults` de este skill/Índice. Preferí grupo/centro/usuario del catálogo cuando `data_find` los traiga. `clientesId` del match por teléfono pisa el default. `estado=G` = generado.
 
 Si el manifiesto no expone actions, solo entonces valorá upsert en entities de pedido que el catálogo permita — nunca sin confirmación.
 
