@@ -24,6 +24,15 @@ Leé `.afn/mcp-local-index.json` (collections / sources):
 | `fieldAliases.title` / `price` / `taxRate` | Nombre, precio venta, % IVA |
 | `behaviorHint` | Texto libre de la colección |
 
+### Búsqueda de ítems (SKU + elaborado — obligatorio)
+
+Cuando el cliente pide un producto suelto o un combo:
+
+1. Buscá en **role=sku** con `fieldAliases.title` de ese source.
+2. Buscá en **role=composite** con `fieldAliases.title` de ese source.
+3. LIKE parcial `{ "like": "…" }` en **cada** campo título — no cruces el título del sku sobre elaborados ni al revés.
+4. El runtime del índice local une ambos; si caés a `data_find`, repetí el find en las dos entities del Hub.
+
 ## Alcance compañía (obligatorio — ya listo, sin pedirlo al cliente)
 
 El Hub WA define el **campo** y el **valor** de sucursal **antes** del chat:
