@@ -165,7 +165,13 @@ wa.commerce.persist.compositeEntitySubstr: <regex sourceEntity>
 wa.commerce.persist.lineTotalField: <total línea>
 wa.commerce.persist.basePriceField: <base>
 wa.commerce.persist.taxField: <impuesto>
+wa.commerce.persist.groupIdField: <grupo producto>
+wa.commerce.persist.costCenterIdField: <centro de costos>
+wa.commerce.persist.costCenterGestionIdField: <gestión centro>
+wa.commerce.persist.userIdField: <usuario/mesero>
 ```
+
+Para Caja / venta: incluí en `itemDefaults` (o traé del catálogo) `gruposProductosId`, `centroDeCostosId`, `usuariosId` (y `centroDeCostosGestionId` si aplica). El runtime enriquece desde `data_find` del producto si el hit trae esos campos; el fallback es el hint.
 
 Prioridad: skill → Índice (el Índice del workspace gana si redefine). Sin hints → body genérico (`title`/`qty`/`unitPrice`), sin inventar un vertical ajeno.
 
