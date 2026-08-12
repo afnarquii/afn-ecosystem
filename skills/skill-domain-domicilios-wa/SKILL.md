@@ -237,7 +237,7 @@ wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
-**Abonos / pago mixto:** con `partialEnabled: true`, foto+mail por menos del total = *abono* (anotá monto y saldo). **No** digas pagado completo. Otra foto o efectivo para el resto.
+**Abonos / pago mixto:** con `partialEnabled: true`, foto+mail por menos del total = *abono* (anotá monto y saldo). **No** digas pagado completo. Otra foto o efectivo para el resto. Caption + imagen: runtime espera archivo → OCR/Gmail; no preguntes el monto si la foto ya lo muestra.
 
 ### Reanudar pedido (hints)
 
