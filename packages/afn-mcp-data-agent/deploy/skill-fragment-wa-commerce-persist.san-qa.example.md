@@ -61,36 +61,4 @@ wa.commerce.payment.gmailQueryExtra: newer_than:3d
 
 Tras persist: pedir foto o PDF (galer�a/c�mara/captura/reenv�o). Ventana v�a hints (SAN QA: 3 d�as). Con `partialEnabled`: abono parcial ? saldo (no �pagado�). Ledger SQLite: `brain_wa_payment_proofs` + `brain_wa_payment_abonos` (ref + monto + fecha; dedupe si reenv�an la misma).
 
-## Abonos parciales
-
-Foto/PDF + mail por monto menor al total ? abono + saldo pendiente. Resto en otra transferencia o efectivo.
-Misma ref/monto/fecha ? �ya registrado�; no sumar dos veces.
-
-Caption (�parte del pago� / �Valida� / �Abono�) + media: el runtime **bloquea cat�logo MCP** (sin `data_find`/`local_index` ni prefetch), OCR/Gmail.
-**PROHIBIDO** preguntar ��cu�nto abonaste?�, buscar la imagen en el workspace, decir �no me lleg� la foto�, o improvisar �estoy validando� sin `payment_proof`.
-Si la visi�n falla al primer intento: el runtime deja *matching* y **reintenta OCR + Gmail** (no queda en reposo).
-Si se perdi� `payment.status` pero hay `orderCodigo` + foto de comprobante ? soft awaiting (reabre validaci�n). Sin hardcode de banco/vertical: solo hints `wa.commerce.payment.*`.
-**Imagen/PDF sola (sin texto)** tambi�n dispara payment_proof.
-## Reanudar pedido (SQLite → ERP)
-
-```text
-wa.commerce.resume.enabled: true
-wa.commerce.resume.activeEstados: G
-wa.commerce.resume.entity: order_line
-wa.commerce.resume.codigoField: codigo
-wa.commerce.resume.estadoField: estado
-wa.commerce.resume.titleField: nombreProducto
-wa.commerce.resume.totalField: valorTotalVenta
-wa.commerce.resume.proposeOnce: true
-```
-
-Solo reutilizar pedido si `estado` ∈ `activeEstados` (`G` en SAN QA). Si no → pedido nuevo desde cero.
-
-## Timeout LLM
-
-```text
-wa.commerce.timeout.resumeEnabled: true
-wa.commerce.timeout.maxAttempts: 3
-```
-
-No �Tard� demasiado�: retomar sesi�n; tras 3 fallos limpiar.
+## Abonos parciales\n\nCon partialEnabled: true: foto/PDF por monto menor al saldo = *abono* (NO responder «monto no encaja»).\nRuntime: 1) leer comprobante 2) cruzar correo entidad 3) registrar abono + saldo 4) preguntar si espera *otros comprobantes* o paga el resto en *efectivo*.\nMisma ref/monto/fecha → «ya registrado»; no sumar dos veces.\n

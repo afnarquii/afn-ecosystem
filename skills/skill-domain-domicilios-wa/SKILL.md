@@ -244,7 +244,7 @@ wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 ```
 
-**Abonos / pago mixto:** con `partialEnabled: true`, un comprobante (foto/PDF + mail) por menos del total se registra como *abono* en SQLite (`brain_wa_payment_abonos`: número de comprobante + valor + proximidad de fecha) y en la sesión. **No** digas que el pedido está pagado. Otra vez la misma imagen/ref → «ya registrado»; pedí el saldo restante. Solo cuando abonos ≥ total → «pago recibido con éxito».
+**Abonos / pago mixto:** con `partialEnabled: true`, un comprobante (foto/PDF) por *menos* del saldo se trata como *abono* (NO digas «monto no encaja»). Flujo runtime: 1) leer comprobante, 2) cruzar con correo de la entidad, 3) registrar abono + saldo pendiente, 4) preguntar si espera *otros comprobantes* o si el resto va en *efectivo*. Misma ref/monto/fecha otra vez → «ya registrado». Solo cuando abonos ≥ total → «pago recibido con éxito».
 Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo** (sin tools `data_find`/`local_index` — ni prefetch), corre `payment_proof` (OCR con reintentos → Gmail → ledger). Si la visión falla al primer intento, **no** se detiene: deja el pago en *matching* y reintenta OCR+correo. **PROHIBIDO** improvisar «estoy validando» sin `payment_proof`, buscar la imagen en el workspace, o decir «no me llegó la foto». Soft awaiting si hay `orderCodigo` + foto aunque se haya perdido el status.
 Gmail: OAuth AFN / Life-ops IMAP / MCP gmail. Trazabilidad: `brain_wa_payment_proofs` + ledger `brain_wa_payment_abonos`.
 
