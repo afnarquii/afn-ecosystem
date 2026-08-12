@@ -220,7 +220,7 @@ wa.commerce.payment.amountTolerance: 1
 wa.commerce.payment.gmailQueryExtra: newer_than:1d
 ```
 
-Gmail: OAuth nativo AFN y/o descriptor MCP `examples/mcp-gmail.descriptor.example.json` → `.afn/mcps/mcp-gmail.json`.
+Gmail: OAuth nativo AFN y/o **Life-ops IMAP** (cuenta Gmail en Ajustes → Life-ops / `lifeops-mail.json`) y/o descriptor MCP `examples/mcp-gmail.descriptor.example.json` → `.afn/mcps/mcp-gmail.json`. El match de comprobantes usa IMAP Life-ops si OAuth API no está listo.
 
 Para Caja / venta: incluí en `itemDefaults` (o traé del catálogo) `gruposProductosId`, `centroDeCostosId`, `usuariosId` (y `centroDeCostosGestionId` si aplica). El runtime enriquece desde `data_find` del producto si el hit trae esos campos; el fallback es el hint.
 
