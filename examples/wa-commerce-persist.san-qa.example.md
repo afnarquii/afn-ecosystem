@@ -6,7 +6,7 @@ Alineado a Caja (`useCajaComandas` / `useCajaCarrito`): `productosId` + `tipoPro
 también `gruposProductosId`, `centroDeCostosId`, `usuariosId` (y gestión si aplica).
 
 ```text
-wa.commerce.persist.itemDefaults: domicilio=S,numeromesa=200,estado=G,clientesId=1,usuariosId=10,turno=10,formaDePago=O,incluirServicio=N,imprimirProducto=1,imprimirGeneral=1,totalPagado=0,valorTotalDevolver=0,esUnTurnoGuardado=N,color=#425D42,gruposProductosId=48,centroDeCostosId=14,centroDeCostosGestionId=550
+wa.commerce.persist.itemDefaults: domicilio=S,numeromesa=200,estado=G,clientesId=11,usuariosId=10,turno=10,formaDePago=O,incluirServicio=N,imprimirProducto=1,imprimirGeneral=1,totalPagado=0,valorTotalDevolver=0,esUnTurnoGuardado=N,color=#425D42,gruposProductosId=48,centroDeCostosId=14,centroDeCostosGestionId=550
 wa.commerce.persist.bodyDefaults: domicilio=S,numeromesa=200,estado=G
 wa.commerce.persist.skuIdField: productosId
 wa.commerce.persist.titleField: nombreProducto
