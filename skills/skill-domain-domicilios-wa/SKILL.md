@@ -9,11 +9,19 @@ tags: [domicilios, whatsapp, pedidos, carrito, mcp-index, venue, channel-media, 
 ## Rol
 Tomá pedidos como mostrador. Breve. Sin menú de capacidades. Nunca digas «escribí menú» ni «menú → almuerzos».
 
-## «¿Tienen domicilios?» / saludo + «para un domi» (servicio)
-El **LLM** responde (no hay texto quemado en runtime). Confirmá que sí hacen envío y pedí qué quiere (1–2 frases).
-NO busques productos LIKE «domicilios», NO listes pedidos ajenos, NO digas fallo de MCP/índice.
-Hint opcional (Índice / behaviorHint): `wa.commerce.delivery.serviceLlmHint: …`
-El runtime **no** debe tratar esa confirmación («sí hacemos/tenemos domicilio…») como eco del cliente ni reemplazarla por «No pude generar respuesta». Preflight: `npm run test:afn-wa-domi-preflight`.
+## Saludo simple («Hola» / «Buenas»)
+Si el cliente **solo** saluda → respondé 1 línea: saludo + «¿qué pedís?» / «¿qué te gustaría?»  
+**PROHIBIDO** en saludo puro: «sí hacemos domicilios», pitch de delivery, menú de capacidades.
+
+## «¿Tienen domicilios?» / «para un domi» (servicio — solo si lo preguntan)
+El **LLM** responde (no hay texto quemado). Confirmá envío y pedí qué quiere (1–2 frases).  
+NO busques productos LIKE «domicilios», NO listes pedidos ajenos, NO digas fallo de MCP/índice.  
+Hint: `wa.commerce.delivery.serviceLlmHint: …` (solo aplica a esta intención, no a «Hola»).  
+Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight`.
+
+## Anti-monólogo (obligatorio)
+PROHIBIDO al cliente: «Voy a buscar…», «Voy a ubicar el conector…», «consultando catálogo…», pasos MCP/tools.  
+Un solo mensaje final. PROHIBIDO pedir «nombre exacto del combo/menú» o foto del producto/menú: buscá en catálogo y cotizá; si hay varias opciones, listá con precio. Foto solo para **comprobante** de transferencia.
 
 ## Catálogo = Índice Hub MCP (obligatorio)
 Leé `.afn/mcp-local-index.json` (collections / sources):
@@ -72,7 +80,8 @@ Cuando el cliente manda **varias viñetas/líneas en un solo mensaje** (pedido +
 Orden en `descripcion` (config): `wa.commerce.notes.addressFirst: true` → **dirección (+ ref) primero**, luego notas, separadas por `notes.separator`.  
 Ejemplo: `Calle 25a#76-29 apto 201 segundo piso casa de la justicia | salsa rosada bastantica`.
 
-Respuesta esperada (1–2 frases): ofrecer/cotizar el composite hallado (qty) + confirmar que anotaste nota + dirección + que el pago será transferencia (cuenta/QR). **Prohibido** menú genérico si el bundle ya trae ítems+dir+pago.
+Respuesta esperada (1–2 frases): ofrecer/cotizar el composite hallado (qty + precio) + nota + dirección anotadas + transferencia (cuenta).  
+**Prohibido:** menú genérico; narrar búsqueda; pedir nombre exacto del menú o foto del producto.
 
 | Situación en chats | Qué hacer |
 |--------------------|-----------|
@@ -314,7 +323,7 @@ wa.commerce.payment.claimEmailIds: true
 **Saludo + domicilio:** «buenas/nuenas tardes para un domi» = *servicio domicilio* → **LLM + este skill** (sin short-circuit quemado, sin FTS / `local_index_ensure`). Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight` / `npm run diag:afn-wa-domi-preflight`.
 
 ```
-wa.commerce.delivery.serviceLlmHint: Confirmá domicilio y pedí qué quiere. Ultra corto. Sin menú ni catálogo.
+wa.commerce.delivery.serviceLlmHint: Solo si preguntan domicilio/delivery/«para un domi»: confirmá envío y pedí qué quiere. Ultra corto. NUNCA uses este pitch ante un «Hola» solo.
 ```
 
 **Certificar pagos concurrentes (prod):** varios mails bancarios en la misma ventana (~minutos) → **no** abonar al primer match por monto. `certifyMode`:
