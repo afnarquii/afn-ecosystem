@@ -320,7 +320,8 @@ wa.commerce.payment.claimEmailIds: true
 
 **Anti-pedido fantasma (E.164 ↔ @lid):** el mismo chat puede tener *dos* filas SQLite (teléfono real + id `@lid`). Runtime **no** debe reinyectar `payment.orderCodigo` de una fila sin scope / otra `companiasId` sobre la sesión scoped activa. Al `resume` si el ERP dice pedido no activo (`clear_stale`): limpiar payment en **todas** las filas con ese código + clones del mismo `chat_id` (no solo la clave del turno). Reset total de prueba: IPC `afn-wa-purge-all-local` (sesiones/proofs/abonos/hilos/media).
 
-**Saludo + domicilio:** «buenas/nuenas tardes para un domi» = *servicio domicilio* → **LLM + este skill** (sin short-circuit quemado, sin FTS / `local_index_ensure`). Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight` / `npm run diag:afn-wa-domi-preflight`.
+**Saludo + domicilio:** «buenas/nuenas tardes para un domi» = *servicio domicilio* → **LLM + este skill** (sin short-circuit quemado, sin FTS / `local_index_ensure`). Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight` / `npm run diag:afn-wa-domi-preflight`.  
+Para validar que el ERP guarda: smoke Lightsail `persist-order-e2e-smoke-qa.cjs` con `SCOPE_COMPANY_ID` = este `wa.commerce.scopeValue` (ver README_SIMULAR).
 
 ```
 wa.commerce.delivery.serviceLlmHint: Solo si preguntan domicilio/delivery/«para un domi»: confirmá envío y pedí qué quiere. Ultra corto. NUNCA uses este pitch ante un «Hola» solo.

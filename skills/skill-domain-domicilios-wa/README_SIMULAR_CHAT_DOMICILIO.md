@@ -97,17 +97,39 @@ Cuanto demora mas o menos?
 
 ### Verificar en SQL (Lightsail)
 
+Scope = `wa.commerce.scopeValue` del skill/Índice (este workspace: `companiasId` = valor del hint; ejemplo abajo con el scope activo).
+
 ```bash
 ssh -i "C:\projects\san\credenciales aws\LightsailDefaultKey-us-east-1.pem" ubuntu@52.0.118.91
 ```
 
+### E2E persist → `comandas` (obligatorio para cerrar “¿guardó?”)
+
+Unit tests de notions **no** insertan. Para probar el PA real:
+
 ```bash
+# en la PC: subir smoke
+scp -i "C:\projects\san\credenciales aws\LightsailDefaultKey-us-east-1.pem" \
+  C:\projects\notions\packages\afn-mcp-data-agent\deploy\persist-order-e2e-smoke-qa.cjs \
+  ubuntu@52.0.118.91:/tmp/persist-order-e2e-smoke-qa.cjs
+
+# en Lightsail: SCOPE = wa.commerce.scopeValue del skill (no hardcode de marca)
+ssh -i "C:\projects\san\credenciales aws\LightsailDefaultKey-us-east-1.pem" ubuntu@52.0.118.91 \
+  "SCOPE_COMPANY_ID=40 node /tmp/persist-order-e2e-smoke-qa.cjs"
+```
+
+OK si imprime `E2E_PERSIST_OK` y `pass: true` con filas `companiasId` = scope, `estado=G`, `domicilio=S`.
+
+Consulta manual (mismo scope):
+
+```bash
+# reemplazá @co por wa.commerce.scopeValue
 sudo docker exec mssql-qa /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "$(cat /home/ubuntu/sql-qa/.sa_password)" -C -d SanColombia_QA -W -s"|" \
   -Q "SET NOCOUNT ON; SELECT TOP 5 codigo, companiasId, estado, nombreProducto, valorTotalVenta, LEFT(descripcion,80) AS desc80, fecha FROM comandas WHERE companiasId=40 ORDER BY comandasId DESC"
 ```
 
-OK si: `companiasId=40`, `estado=G`, `descripcion` con dirección + notas, total coherente.
+OK si: `companiasId` = scope del skill, `estado=G`, `descripcion` con dirección + notas (en flujo WA completo), total coherente.
 
 ---
 
