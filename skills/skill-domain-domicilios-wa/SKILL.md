@@ -286,6 +286,8 @@ wa.commerce.payment.claimEmailIds: true
 
 **Anti-pedido fantasma (E.164 ↔ @lid):** el mismo chat puede tener *dos* filas SQLite (teléfono real + id `@lid`). Runtime **no** debe reinyectar `payment.orderCodigo` de una fila sin scope / otra `companiasId` sobre la sesión scoped activa. Al `resume` si el ERP dice pedido no activo (`clear_stale`): limpiar payment en **todas** las filas con ese código + clones del mismo `chat_id` (no solo la clave del turno). Reset total de prueba: IPC `afn-wa-purge-all-local` (sesiones/proofs/abonos/hilos/media).
 
+**Saludo + domicilio:** «buenas/nuenas tardes para un domi» = *servicio domicilio* (respuesta corta determinística). NO es SKU ni búsqueda de catálogo. Preflight: `npm run test:afn-wa-domi-preflight` / `npm run diag:afn-wa-domi-preflight`.
+
 **Certificar pagos concurrentes (prod):** varios mails bancarios en la misma ventana (~minutos) → **no** abonar al primer match por monto. `certifyMode`:
 - `prefer_strong` (prod): gana cruce con *referencia / cuenta destino / últimos 4*; si solo hay 2+ matches por monto → *ambiguo* (pedir foto nítida con ref).
 - `strict`: exige señal fuerte siempre.
