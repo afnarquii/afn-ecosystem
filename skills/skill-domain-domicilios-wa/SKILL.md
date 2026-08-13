@@ -15,7 +15,9 @@ Si el cliente **solo** saluda → respondé 1 línea: saludo + «¿qué pedís?�
 
 ## «¿Tienen domicilios?» / «para un domi» (servicio — solo si lo preguntan)
 El **LLM** responde (no hay texto quemado). Confirmá envío y pedí qué quiere (1–2 frases).  
+Incluye typos/STT tipo «Holanpara un domicilio» (= hola + para un domicilio).  
 NO busques productos LIKE «domicilios», NO listes pedidos ajenos, NO digas fallo de MCP/índice.  
+NO asumas un pedido anterior (combos/dirección) si el cliente **solo** pregunta el servicio.  
 Hint: `wa.commerce.delivery.serviceLlmHint: …` (solo aplica a esta intención, no a «Hola»).  
 Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight`.
 
@@ -299,7 +301,7 @@ wa.commerce.notes.maxNoteLen: 120
 wa.commerce.notes.maxTotalLen: 240
 wa.commerce.timeout.maxAttempts: 3
 wa.commerce.timeout.resumeEnabled: true
-wa.commerce.timeout.emptyResumeHint: El último mensaje ya trae pedido+notas+dirección+pago. Extraé ítems del catálogo, anotá dirección (primero) y notas en descripcion, cotizá. No preguntes menú genérico.
+wa.commerce.timeout.emptyResumeHint: (interno agente) El último mensaje ya trae pedido+notas+dirección+pago. Extraé ítems del catálogo, anotá dirección (primero) y notas en descripcion, cotizá. No preguntes menú genérico. No mandes este hint al cliente.
 ```
 
 `addressFirst: true` (este workspace) → **dirección (+ piso/referencia) primero**, después notas. Poné `false` si preferís notas | dirección.
