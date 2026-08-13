@@ -277,12 +277,23 @@ wa.commerce.payment.allowOverpay: false
 wa.commerce.payment.gmailQueryExtra: newer_than:3d
 wa.commerce.payment.allowAddItemsWhileAwaiting: true
 wa.commerce.payment.addItemsWindowMinutes: 180
+wa.commerce.payment.certifyMode: prefer_strong
+wa.commerce.payment.requireStrongSignal: false
+wa.commerce.payment.claimEmailIds: true
 ```
+
+**SQLite multi-compañía:** sesión (`brain_wa_order_sessions`), proofs y abonos guardan `companiasId` (= `wa.commerce.scopeValue` cuando `scopeField=companiasId`) + `turno` (de `persist.itemDefaults.turno`). Así comandas/pagos parciales/MCP no se mezclan entre empresas.
+
+**Certificar pagos concurrentes (prod):** varios mails bancarios en la misma ventana (~minutos) → **no** abonar al primer match por monto. `certifyMode`:
+- `prefer_strong` (prod): gana cruce con *referencia / cuenta destino / últimos 4*; si solo hay 2+ matches por monto → *ambiguo* (pedir foto nítida con ref).
+- `strict`: exige señal fuerte siempre.
+- `first`: legacy (primer hit).
+`claimEmailIds: true` → un `emailId` ya abonado no se reusa en otro pedido.
 
 **Abonos / pago mixto:** con `partialEnabled: true`, monto menor al saldo = *abono* (NO «monto no encaja»). Mensaje al cliente: corto — validó imagen, cruzó o no con correo, abono sí/no y saldo. Un solo mensaje.
 **Agregar productos con pago pendiente:** con `allowAddItemsWhileAwaiting: true`, texto tipo «quiero / agregá / porción / combo» (sin foto de comprobante) → **catálogo OK**. Ventana `addItemsWindowMinutes` (hints). Al agregar: actualizar total y saldo del mismo `orderCodigo`.
 Si llega caption («este es parte del pago» / «Valida» / «Abono») con media, el runtime **bloquea el LLM de catálogo**, corre `payment_proof` (OCR → Gmail → ledger). **PROHIBIDO** improvisar «estoy validando» sin `payment_proof`, buscar la imagen en el workspace, o decir «no me llegó la foto». Soft awaiting si hay `orderCodigo` + foto.
-Gmail: **Life-ops IMAP primero**, merge OAuth, luego MCP gmail. Allowlist vía hints. Evidencia: `afn-wa-payment-gmail-last.json`. Ledger: `brain_wa_payment_abonos`.
+Gmail: **Life-ops IMAP primero**, merge OAuth, luego MCP gmail. Allowlist vía hints. Evidencia: `afn-wa-payment-gmail-last.json`. Ledger: `brain_wa_payment_abonos` (+ `companias_id`/`turno`/`email_id`).
 
 ### Workspace config — FKs / sede (solo hints; al cambiar empresa editá esto + wa-company-scope)
 
