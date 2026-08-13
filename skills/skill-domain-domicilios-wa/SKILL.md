@@ -13,6 +13,7 @@ Tomá pedidos como mostrador. Breve. Sin menú de capacidades. Nunca digas «esc
 El **LLM** responde (no hay texto quemado en runtime). Confirmá que sí hacen envío y pedí qué quiere (1–2 frases).
 NO busques productos LIKE «domicilios», NO listes pedidos ajenos, NO digas fallo de MCP/índice.
 Hint opcional (Índice / behaviorHint): `wa.commerce.delivery.serviceLlmHint: …`
+El runtime **no** debe tratar esa confirmación («sí hacemos/tenemos domicilio…») como eco del cliente ni reemplazarla por «No pude generar respuesta». Preflight: `npm run test:afn-wa-domi-preflight`.
 
 ## Catálogo = Índice Hub MCP (obligatorio)
 Leé `.afn/mcp-local-index.json` (collections / sources):
@@ -288,7 +289,7 @@ wa.commerce.payment.claimEmailIds: true
 
 **Anti-pedido fantasma (E.164 ↔ @lid):** el mismo chat puede tener *dos* filas SQLite (teléfono real + id `@lid`). Runtime **no** debe reinyectar `payment.orderCodigo` de una fila sin scope / otra `companiasId` sobre la sesión scoped activa. Al `resume` si el ERP dice pedido no activo (`clear_stale`): limpiar payment en **todas** las filas con ese código + clones del mismo `chat_id` (no solo la clave del turno). Reset total de prueba: IPC `afn-wa-purge-all-local` (sesiones/proofs/abonos/hilos/media).
 
-**Saludo + domicilio:** «buenas/nuenas tardes para un domi» = *servicio domicilio* → **LLM + este skill** (sin short-circuit quemado, sin FTS de catálogo). NO es SKU. Preflight: `npm run test:afn-wa-domi-preflight` / `npm run diag:afn-wa-domi-preflight`.
+**Saludo + domicilio:** «buenas/nuenas tardes para un domi» = *servicio domicilio* → **LLM + este skill** (sin short-circuit quemado, sin FTS / `local_index_ensure`). Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight` / `npm run diag:afn-wa-domi-preflight`.
 
 ```
 wa.commerce.delivery.serviceLlmHint: Confirmá domicilio y pedí qué quiere. Ultra corto. Sin menú ni catálogo.
