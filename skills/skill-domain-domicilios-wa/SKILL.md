@@ -20,8 +20,27 @@ Hint: `wa.commerce.delivery.serviceLlmHint: …` (solo aplica a esta intención,
 Confirmación de servicio ≠ eco del cliente. Preflight: `npm run test:afn-wa-domi-preflight`.
 
 ## Anti-monólogo (obligatorio)
-PROHIBIDO al cliente: «Voy a buscar…», «Voy a ubicar el conector…», «consultando catálogo…», pasos MCP/tools.  
-Un solo mensaje final. PROHIBIDO pedir «nombre exacto del combo/menú» o foto del producto/menú: buscá en catálogo y cotizá; si hay varias opciones, listá con precio. Foto solo para **comprobante** de transferencia.
+PROHIBIDO al cliente (plan interno / tools):  
+«Voy a buscar/ubicar/consultar…», «Voy a (1)(2)(3)…», «armo el pedido… busco… calculo precio…»,  
+«Estoy viendo que no aparece el conector MCP…», «índice local…», «herramientas MCP…», pasos de sync.  
+Un **solo** mensaje final de cara al cliente.  
+PROHIBIDO pedir «nombre exacto del combo/menú» o foto del producto/menú: buscá en catálogo y cotizá; si hay varias opciones, listá con precio. Foto solo para **comprobante** de transferencia.
+
+### Sin índice / sin hits de catálogo
+Si no hay `.afn/mcp-index/local.db` o no hay match: **no** narres el fallo técnico.  
+Resumí qty+notas+dir+pago entendidos y pedí confirmación o Sync Índice Hub (1 línea).  
+Seguí con `data_find` remoto si el MCP responde; precios **solo** del catálogo (nunca inventados).
+
+### Cierre → `comandas` (obligatorio)
+Las filas en ERP **no** salen del diag LLM. Salen solo cuando:
+
+1. Cotizás con catálogo (índice o `data_find`) → precio + IVA.
+2. Pedís confirmación explícita (**sí / dale / confirmo**).
+3. Al confirmar → `data_list_actions` + **`data_run_action`** con el **id del manifiesto** (p. ej. el action de persist del Hub). **No** hardcodees procedure/SQL/tabla.
+4. Body según `bodyHint` + hints `wa.commerce.persist.*` / scope `wa.commerce.scope*` de este skill.
+5. Tras OK: código/Uuid + total + pedir comprobante si transferencia.
+
+Smoke sin WA (ops): `persist-order-e2e-smoke-qa.cjs` + `SCOPE_COMPANY_ID` del workspace — no es el bot.
 
 ## Catálogo = Índice Hub MCP (obligatorio)
 Leé `.afn/mcp-local-index.json` (collections / sources):
