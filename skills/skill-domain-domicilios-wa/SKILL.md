@@ -72,7 +72,7 @@ Cuando el cliente manda **varias viñetas/líneas en un solo mensaje** (pedido +
 
 | Tipo de línea | Ejemplo | Destino |
 |---------------|---------|---------|
-| **Producto / qty** | «serian dos combos con pechuga» | Catálogo **composite/sku** → carrito (qty=2). NO va en `descripcion` como texto suelto. |
+| **Producto / qty** | «serian dos combos con pechuga» | Catálogo **composite/sku** → carrito (qty=2; plural *combos* OK). NO va en `descripcion` como texto suelto. |
 | **Nota de producto** | «salsa rosada bastabtica/bastantica please» | `wa.commerce.notes.*` → parte de `descripcion` (preferencias). NO es ítem ni dirección. |
 | **Dirección** | «calle 25a#76-29 apto 201» + «segundo piso casa de la justicia» | Lead `address` → **mismo** `descripcion` (campo `persist.addressField`). Referencias/piso van **con** la dirección. |
 | **Pago** | «te pago por transferencia» | Método **transferencia** (válido). Tras cotizar/persist: cuenta/`accountHint` + pedir **foto/PDF**. NO pidas efectivo ni menú. |
@@ -81,7 +81,8 @@ Orden en `descripcion` (config): `wa.commerce.notes.addressFirst: true` → **di
 Ejemplo: `Calle 25a#76-29 apto 201 segundo piso casa de la justicia | salsa rosada bastantica`.
 
 Respuesta esperada (1–2 frases): ofrecer/cotizar el composite hallado (qty + precio) + nota + dirección anotadas + transferencia (cuenta).  
-**Prohibido:** menú genérico; narrar búsqueda; pedir nombre exacto del menú o foto del producto.
+**Prohibido:** menú genérico; narrar búsqueda; pedir nombre exacto del menú o foto del producto.  
+**Runtime:** plural `combos`/`menus` cuenta como pedido; qty en palabras (`dos`…); `local_index_ensure` no puede colgar el turno (>~12s sigue al LLM/MCP).
 
 | Situación en chats | Qué hacer |
 |--------------------|-----------|
