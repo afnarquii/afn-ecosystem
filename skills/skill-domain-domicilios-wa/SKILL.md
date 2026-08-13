@@ -284,6 +284,8 @@ wa.commerce.payment.claimEmailIds: true
 
 **SQLite multi-compañía:** sesión (`brain_wa_order_sessions`), proofs y abonos guardan `companiasId` (= `wa.commerce.scopeValue` cuando `scopeField=companiasId`) + `turno` (de `persist.itemDefaults.turno`). Así comandas/pagos parciales/MCP no se mezclan entre empresas.
 
+**Anti-pedido fantasma (E.164 ↔ @lid):** el mismo chat puede tener *dos* filas SQLite (teléfono real + id `@lid`). Runtime **no** debe reinyectar `payment.orderCodigo` de una fila sin scope / otra `companiasId` sobre la sesión scoped activa. Al `resume` si el ERP dice pedido no activo (`clear_stale`): limpiar payment en **todas** las filas con ese código + clones del mismo `chat_id` (no solo la clave del turno). Reset total de prueba: IPC `afn-wa-purge-all-local` (sesiones/proofs/abonos/hilos/media).
+
 **Certificar pagos concurrentes (prod):** varios mails bancarios en la misma ventana (~minutos) → **no** abonar al primer match por monto. `certifyMode`:
 - `prefer_strong` (prod): gana cruce con *referencia / cuenta destino / últimos 4*; si solo hay 2+ matches por monto → *ambiguo* (pedir foto nítida con ref).
 - `strict`: exige señal fuerte siempre.
