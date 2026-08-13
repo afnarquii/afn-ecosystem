@@ -64,12 +64,15 @@ Te pago por transferencia
 ```
 
 **Esperado bot:**
+- Clasifica: productos (2× Combo Pechuga) | nota salsa | dirección+piso | pago transferencia.
 - Busca **Combo Pechuga** (composite) en catálogo co=40.
-- Anota notas (salsa…) + dirección en `descripcion`.
+- `descripcion` con **dirección primero** (`notes.addressFirst`) + notas:  
+  `Calle 25a#76-29 apto 201 segundo piso Casa de la justicia | salsa rosada bastantica`
 - Cotiza total (~2 × precio catálogo; no inventar).
 - Pide confirmación breve → al confirmar: `persist_order` / `data_run_action`.
 - Muestra cuenta (`accountHint`) y/o media QR si hay `channel_media`.
 - Pide **foto o PDF** del comprobante.
+- **Prohibido:** «Retomo / menú / cómo seguimos» si el bundle ya traía todo.
 
 **③ Confirmación**
 ```text

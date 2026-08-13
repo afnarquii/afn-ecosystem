@@ -58,6 +58,22 @@ Cuando el cliente pide un producto suelto (bebida, porción…) o un combo:
 
 El mostrador humano responde **ultra corto**. El bot debe imitar eso (1–2 líneas; sin menú de capacidades).
 
+#### Mensaje multi-línea (bundle) — clasificar ANTES de contestar
+
+Cuando el cliente manda **varias viñetas/líneas en un solo mensaje** (pedido + notas + dirección + pago), **NO** digas «Retomo / menú / cómo seguimos». Extraé y actuá:
+
+| Tipo de línea | Ejemplo | Destino |
+|---------------|---------|---------|
+| **Producto / qty** | «serian dos combos con pechuga» | Catálogo **composite/sku** → carrito (qty=2). NO va en `descripcion` como texto suelto. |
+| **Nota de producto** | «salsa rosada bastabtica/bastantica please» | `wa.commerce.notes.*` → parte de `descripcion` (preferencias). NO es ítem ni dirección. |
+| **Dirección** | «calle 25a#76-29 apto 201» + «segundo piso casa de la justicia» | Lead `address` → **mismo** `descripcion` (campo `persist.addressField`). Referencias/piso van **con** la dirección. |
+| **Pago** | «te pago por transferencia» | Método **transferencia** (válido). Tras cotizar/persist: cuenta/`accountHint` + pedir **foto/PDF**. NO pidas efectivo ni menú. |
+
+Orden en `descripcion` (config): `wa.commerce.notes.addressFirst: true` → **dirección (+ ref) primero**, luego notas, separadas por `notes.separator`.  
+Ejemplo: `Calle 25a#76-29 apto 201 segundo piso casa de la justicia | salsa rosada bastantica`.
+
+Respuesta esperada (1–2 frases): ofrecer/cotizar el composite hallado (qty) + confirmar que anotaste nota + dirección + que el pago será transferencia (cuenta/QR). **Prohibido** menú genérico si el bundle ya trae ítems+dir+pago.
+
 | Situación en chats | Qué hacer |
 |--------------------|-----------|
 | «Para solicitar un domicilio» | «Hola, ¿qué deseas y la dirección?» (o pedí solo lo que falte). |
@@ -192,7 +208,7 @@ Motor genérico en AFN (sesión proposed → qty → confirm → cart). Este ski
 11. Devolvé: qué se guardó, total, **estado** según skill. Scope compañía. Dirección + notas en `descripcion`.
 12. **Pago (si `wa.commerce.payment.enabled`)**: si eligió **efectivo** (+ vueltos) → no pidas foto (`cash.skipPaymentProof`). Si **transferencia** → pedir *foto o PDF* del comprobante. Runtime: OCR/PDF → ledger → Gmail (hints). **Imagen/PDF sola** dispara payment (no catálogo). **PROHIBIDO**: buscar la imagen en el workspace; decir que no llegó si hay adjunto; preguntar «¿cuánto abonaste?» si la foto trae monto. **Abonos** (`partialEnabled`). **allowAddItemsWhileAwaiting** para sumar ítems con pago pendiente.
 13. **Reanudar pedido (SQLite → ERP)**: si la sesión SQLite ya tiene un `orderCodigo` (p. ej. post-persist / payment), el runtime consulta el ERP (`data_find` entity/campos de `wa.commerce.resume.*`). Solo se reutiliza si el `estado` está en `activeEstados` (SAN QA: `G`). Si no existe o el estado es otro → **pedido nuevo desde cero** (limpiar payment). Si está activo: informar estado y proponer *foto de comprobante* y/o *agregar más productos* / nuevo pedido según corresponda. Sin hardcode de letra de estado en el runtime.
-14. **Si el modelo tarda / falla (timeout)**: NO digas «Tardé demasiado». Validá qué hay en la sesión (carrito, dirección, notas, pago) y **continuá desde ahí**. Hasta `wa.commerce.timeout.maxAttempts` (default 3). Si se agotan → limpiá el pedido y pedí empezar de nuevo.
+14. **Si el modelo tarda / falla (timeout)**: NO digas «Tardé demasiado». Si la sesión está vacía pero el **último mensaje del cliente** ya trae bundle (ítems+dir+pago), **re-extraé ese mensaje** (no menú genérico). Hint: `wa.commerce.timeout.emptyResumeHint`. Si hay sesión → continuá desde ahí. Hasta `wa.commerce.timeout.maxAttempts` (default 3). Si se agotan → limpiá y pedí empezar de nuevo.
 
 ### Zona de entrega (este workspace — tips en Índice/skill)
 
@@ -248,13 +264,19 @@ Preferencias del cliente (no son dirección). El runtime las concatena a `descri
 wa.commerce.notes.enabled: true
 wa.commerce.notes.field: descripcion
 wa.commerce.notes.separator: | 
-wa.commerce.notes.triggers: sin,con,extra,salsa,rosada,paprika,piña,pina,frescas,bastantica,pechuga,muslo,contramuslo,ala,ensalada,arepa
+wa.commerce.notes.addressFirst: true
+wa.commerce.notes.triggers: sin,con,extra,salsa,rosada,paprika,piña,pina,frescas,bastantica,bastabtica,pechuga,muslo,contramuslo,ala,ensalada,arepa,please
 wa.commerce.notes.maxNoteLen: 120
 wa.commerce.notes.maxTotalLen: 240
+wa.commerce.timeout.maxAttempts: 3
+wa.commerce.timeout.resumeEnabled: true
+wa.commerce.timeout.emptyResumeHint: El último mensaje ya trae pedido+notas+dirección+pago. Extraé ítems del catálogo, anotá dirección (primero) y notas en descripcion, cotizá. No preguntes menú genérico.
 ```
 
+`addressFirst: true` (este workspace) → **dirección (+ piso/referencia) primero**, después notas. Poné `false` si preferís notas | dirección.
+
 Ejemplos: «salsa rosada bastantica», «paprika en las papas», «sin ensalada». Quedan p. ej.  
-`Calle 25a #76-29 apto 201 | salsa rosada y piña | papas frescas`.
+`Calle 25a #76-29 apto 201 segundo piso casa de la justicia | salsa rosada bastantica`.
 
 ### Pago / comprobante (Gmail + OCR — preservar; config vía hints)
 
@@ -266,7 +288,7 @@ Tras persistir:
 wa.commerce.scopeField: companiasId
 wa.commerce.scopeValue: 40
 wa.commerce.payment.enabled: true
-wa.commerce.payment.methods: bancolombia,efectivo
+wa.commerce.payment.methods: transferencia,bancolombia,efectivo
 wa.commerce.payment.accountHint: Bancolombia ahorros 36639307560 (no Nequi)
 wa.commerce.payment.askAfterPersist: true
 wa.commerce.payment.emailMaxMessages: 10
