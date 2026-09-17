@@ -73,6 +73,7 @@ en el producto → `docs/README_CLOUD_DELIVERY_INTEGRACION_AFN.md` (san-core-fro
 | Pieza | Ruta |
 |-------|------|
 | Go profesional | [`skills/golang-professional/`](skills/golang-professional/) |
+| Skills de proceso (caja, temas, …) | [`skills/skill-project-process-skills/`](skills/skill-project-process-skills/) · pack [`packs/pack-project-process-skills/`](packs/pack-project-process-skills/) |
 | Agente Go | [`agents/agent-golang.md`](agents/agent-golang.md) |
 | MCP SQL Server (plantilla) | [`mcps/sql-server/`](mcps/sql-server/) |
 | Stub Bitbucket + schema | [`mcps/bitbucket-cloud-delivery/`](mcps/bitbucket-cloud-delivery/) |
