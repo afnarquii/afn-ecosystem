@@ -29,12 +29,29 @@ export function listDiagramIrs(root) {
   for (const name of names.slice(0, 24)) {
     const ir = readJson(path.join(dir, name));
     if (!ir || typeof ir !== 'object' || ir.kind === 'workspace-flow') continue;
+    const slug = ir.slug || name.replace(/\.architecture\.json$/i, '').replace(/\.json$/i, '');
+    const mermaid = irToMermaid(ir);
+    let markdown = '';
+    const mdCandidates = [
+      path.join(dir, `${slug}.architecture.md`),
+      path.join(dir, name.replace(/\.json$/i, '.md')),
+    ];
+    for (const mdFile of mdCandidates) {
+      try {
+        markdown = fs.readFileSync(mdFile, 'utf8');
+        break;
+      } catch {
+        /* siguiente */
+      }
+    }
+    if (!markdown) markdown = `# ${ir.meta?.title || slug}\n\n\`\`\`mermaid\n${mermaid}\n\`\`\`\n`;
     out.push({
       file: name,
-      slug: ir.slug || name.replace(/\.architecture\.json$/i, '').replace(/\.json$/i, ''),
+      slug,
       title: ir.meta?.title || ir.slug || name,
       type: ir.diagramType || 'architecture',
-      mermaid: irToMermaid(ir),
+      mermaid,
+      markdown,
       nodes: Array.isArray(ir.nodes) ? ir.nodes.length : 0,
       edges: Array.isArray(ir.edges) ? ir.edges.length : 0,
     });
@@ -50,7 +67,11 @@ function writeIr(dir, built, recreate) {
   }
   const ir = { ...built.ir, mermaid: built.mermaid };
   fs.writeFileSync(jsonFile, `${JSON.stringify(ir, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(mdFile, `# ${ir.meta?.title || ir.slug}\n\n\`\`\`mermaid\n${built.mermaid}\`\`\`\n`, 'utf8');
+  fs.writeFileSync(
+    mdFile,
+    `# ${ir.meta?.title || ir.slug}\n\nFuente: disco (sin puertos inventados).\n\n\`\`\`mermaid\n${built.mermaid}\n\`\`\`\n`,
+    'utf8',
+  );
   return { ok: true, skipped: false, wrote: true, slug: ir.slug, file: jsonFile };
 }
 

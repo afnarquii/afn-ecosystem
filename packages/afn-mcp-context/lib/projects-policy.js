@@ -52,6 +52,8 @@ export function normalizeProjectsConfig(raw = {}) {
       path: projectPath.startsWith('.') || projectPath.startsWith('/') ? projectPath : `./${projectPath}`,
       type: String(p.type || 'unknown').toLowerCase() || 'unknown',
       port: p.port,
+      portSource: String(p.portSource || '').trim(),
+      portFile: String(p.portFile || '').trim(),
       entryPoint: String(p.entryPoint || '').trim(),
       framework: String(p.framework || '').trim(),
       role: String(p.role || '').trim(),

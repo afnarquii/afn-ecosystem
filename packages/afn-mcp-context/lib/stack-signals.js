@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { findPortEvidence } from './port-evidence.js';
 
 const MAX_READ = 48_000;
 
@@ -36,7 +37,14 @@ function depBlob(pkg) {
 }
 
 function envExample(dir) {
-  const file = firstExisting(dir, ['.env.example', '.env.sample', '.env.template', '.env.local.example']);
+  const file = firstExisting(dir, [
+    '.env.example',
+    '.env.sample',
+    '.env.template',
+    '.env.local.example',
+    '.env.local',
+    '.env',
+  ]);
   return file ? readText(file, 12_000) : '';
 }
 
@@ -105,7 +113,19 @@ export function inferFramework(dir, pkg) {
   if (/\bhono\b/.test(deps)) return 'hono';
   if (/\bkoa\b/.test(deps)) return 'koa';
   if (exists(dir, 'go.mod')) return 'go';
-  if (exists(dir, 'pyproject.toml') || exists(dir, 'requirements.txt')) return 'python';
+  const pyBlob = [
+    readText(path.join(dir, 'pyproject.toml'), 8_000),
+    readText(path.join(dir, 'requirements.txt'), 8_000),
+    readText(path.join(dir, 'requirements-dev.txt'), 4_000),
+  ].join(' ').toLowerCase();
+  if (exists(dir, 'pyproject.toml') || exists(dir, 'requirements.txt') || /\bfastapi\b|\bflask\b|\bdjango\b|\buvicorn\b/.test(pyBlob)) {
+    if (/\bfastapi\b/.test(pyBlob)) return 'fastapi';
+    if (/\bflask\b/.test(pyBlob)) return 'flask';
+    if (/\bdjango\b/.test(pyBlob)) return 'django';
+    if (/\buvicorn\b/.test(pyBlob)) return 'uvicorn';
+    return 'python';
+  }
+  if (exists(dir, 'serverless.yml') || exists(dir, 'serverless.yaml')) return 'serverless';
   if (exists(dir, 'Cargo.toml')) return 'rust';
   if (listNames(dir).some((n) => n.endsWith('.csproj'))) return 'dotnet';
   if (exists(dir, 'pom.xml') || exists(dir, 'build.gradle')) return 'jvm';
@@ -164,21 +184,9 @@ export function inferProxyTargets(dir) {
   return out.slice(0, 8);
 }
 
-function inferPortExtra(dir, pkg, type, env) {
-  const fromEnv = Number(pickEnv(env, ['PORT', 'VITE_PORT', 'DEV_PORT']) || 0);
-  if (fromEnv >= 1) return fromEnv;
-  const launch = firstExisting(dir, [
-    path.join('Properties', 'launchSettings.json'),
-    'launchSettings.json',
-  ]);
-  if (launch) {
-    const u = readText(launch).match(/https?:\/\/[^"'\s]+:(\d{2,5})/);
-    if (u) return Number(u[1]);
-  }
-  const scripts = Object.values(pkg?.scripts || {}).join(' ');
-  const m = scripts.match(/--port(?:\s|=)(\d{2,5})/i) || scripts.match(/-p\s+(\d{2,5})/);
-  if (m) return Number(m[1]);
-  return undefined;
+function inferPortExtra(dir, pkg) {
+  const ev = findPortEvidence(dir, pkg);
+  return ev.port || undefined;
 }
 
 function inferDb(dir, pkg, env) {
@@ -217,11 +225,19 @@ function inferLayer(type, framework, hasLambda) {
   return 'api';
 }
 
-function inferCommands(pkg) {
+function inferCommands(pkg, dir) {
   const s = pkg?.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {};
   const dev = s.dev || s.start || s.serve || '';
   const test = s.test || s['test:unit'] || s['test:e2e'] || '';
-  return { devCommand: String(dev).slice(0, 80), testCommand: String(test).slice(0, 80) };
+  if (dev || test) {
+    return { devCommand: String(dev).slice(0, 80), testCommand: String(test).slice(0, 80) };
+  }
+  const make = readText(firstExisting(dir, ['Makefile', 'makefile']) || '', 12_000);
+  const uv = make.match(/uvicorn[^\n]+/i);
+  if (uv) return { devCommand: uv[0].trim().slice(0, 80), testCommand: '' };
+  const sls = exists(dir, 'serverless.yml') || exists(dir, 'serverless.yaml');
+  if (sls) return { devCommand: 'serverless offline', testCommand: '' };
+  return { devCommand: '', testCommand: '' };
 }
 
 function inferLambdas(dir) {
@@ -272,8 +288,9 @@ export function scanProjectSignals(abs, hint = {}) {
   const prefix = inferPrefixFromDisk(abs, type, env);
   const db = inferDb(abs, pkg, env);
   const lambdas = inferLambdas(abs);
-  const cmds = inferCommands(pkg);
-  const port = inferPortExtra(abs, pkg, type, env);
+  const cmds = inferCommands(pkg, abs);
+  const portEv = findPortEvidence(abs, pkg);
+  const port = portEv.port;
   const technologies = inferTechnologies(abs, pkg, framework, db);
   const layer = inferLayer(type, framework, lambdas.length > 0);
   return {
@@ -282,6 +299,8 @@ export function scanProjectSignals(abs, hint = {}) {
     db,
     prefix,
     port,
+    portSource: portEv.portSource || '',
+    portFile: portEv.portFile || '',
     proxies,
     lambdas,
     technologies,
@@ -313,4 +332,4 @@ export function scanComposeServices(root) {
   return out;
 }
 
-export { inferPortExtra, envExample, pickEnv, urlPort };
+export { inferPortExtra, envExample, pickEnv, urlPort, findPortEvidence };

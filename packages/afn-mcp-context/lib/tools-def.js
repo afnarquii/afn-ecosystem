@@ -78,7 +78,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_dashboard',
     description:
-      'HTML local: inicio, mapa, diagramas (se abren con un clic), memoria, reglas y buscador. Por defecto abre el navegador (Kiro no embebe UI).',
+      'HTML local profesional: mapa, puertos con evidencia, diagramas (ampliar y descargar .md), memoria y reglas. Abre el navegador.',
     inputSchema: {
       type: 'object',
       properties: {

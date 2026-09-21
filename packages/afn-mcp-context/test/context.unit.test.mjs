@@ -15,6 +15,7 @@ import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js
 import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard } from '../lib/dashboard.js';
+import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -320,6 +321,10 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /id="q"/);
   assert.match(html, /data-q=/);
   assert.match(html, /applySearch|coincidencias/);
+  assert.match(html, /data-expand/);
+  assert.match(html, /data-dl/);
+  assert.match(html, /Descargar \.md/);
+  assert.match(html, /Ampliar/);
 });
 
 test('regenerar arquitectura usa el .afn del workspace, no el padre ni uno anidado', async () => {
@@ -532,4 +537,94 @@ test('mapa cross-project infiere proxy, prefix, db y capas', () => {
   const capas = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'workspace-capas.architecture.json'), 'utf8');
   assert.match(capas, /Presentaci|datos|proxy/i);
 });
+
+test('puertos solo con evidencia: python, serverless, docker, env', () => {
+  assert.equal(extractPortFromText('uvicorn app.main:app --host 0.0.0.0 --port 8080').port, 8080);
+  assert.equal(extractPortFromText('EXPOSE 9000\nCMD uvicorn x').port, 9000);
+  assert.equal(extractPortFromText('custom:\n  serverless-offline:\n    httpPort: 3002').port, 3002);
+  assert.equal(extractPortFromText('PORT=7777\nSECRET=abc').port, 7777);
+  assert.equal(extractPortFromText('hola sin puerto'), null);
+
+  const py = tmp();
+  fs.writeFileSync(path.join(py, 'requirements.txt'), 'fastapi==0.115.0\nuvicorn==0.30.0\n');
+  fs.writeFileSync(path.join(py, 'Makefile'), 'run:\n\tuvicorn app.main:app --host 0.0.0.0 --port 8080\n');
+  const pyEv = findPortEvidence(py);
+  assert.equal(pyEv.port, 8080);
+  assert.match(pyEv.portSource, /makefile/i);
+
+  const sls = tmp();
+  fs.writeFileSync(
+    path.join(sls, 'serverless.yml'),
+    'service: demo\nprovider:\n  name: aws\n  runtime: python3.11\ncustom:\n  serverless-offline:\n    httpPort: 3002\n',
+  );
+  assert.equal(findPortEvidence(sls).port, 3002);
+
+  const dock = tmp();
+  fs.writeFileSync(path.join(dock, 'Dockerfile'), 'FROM python:3.11\nEXPOSE 8001\nCMD ["uvicorn","app:app","--port","8001"]\n');
+  assert.equal(findPortEvidence(dock).port, 8001);
+
+  const envDir = tmp();
+  fs.writeFileSync(path.join(envDir, '.env.example'), 'PORT=9100\nAPI_KEY=changeme\n');
+  assert.equal(findPortEvidence(envDir).port, 9100);
+
+  const local = tmp();
+  fs.writeFileSync(path.join(local, '.env.local'), 'UVICORN_PORT=9200\nTOKEN=secret\n');
+  assert.equal(findPortEvidence(local).port, 9200);
+
+  const compose = tmp();
+  fs.writeFileSync(
+    path.join(compose, 'docker-compose.yml'),
+    'services:\n  api:\n    image: api\n    ports:\n      - "8088:80"\n',
+  );
+  assert.equal(findPortEvidence(compose).port, 8088);
+});
+
+test('detectProjects python fastapi + no inventa puerto', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'api'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'api', 'requirements.txt'), 'fastapi\nuvicorn\n');
+  fs.writeFileSync(path.join(root, 'api', 'Makefile'), 'serve:\n\tuvicorn app.main:app --port 8080\n');
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  const d = detectProjects(root);
+  const api = d.projects.find((p) => p.name === 'api');
+  assert.ok(api);
+  assert.equal(api.framework, 'fastapi');
+  assert.equal(api.port, 8080);
+  assert.match(String(api.portSource), /makefile/i);
+  const web = d.projects.find((p) => p.name === 'web');
+  assert.equal(web.port, undefined);
+});
+
+test('afn_architecture_commit rechaza puerto inventado', async () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  await handleContextTool(root, 'afn_bootstrap', {});
+  const bad = await handleContextTool(root, 'afn_architecture_commit', {
+    projects: [{ name: 'api', path: './api', port: 9999 }],
+  });
+  assert.equal(bad.ok, true);
+  assert.ok(bad.rejected.some((r) => r.reason === 'puerto-sin-evidencia' || r.reason === 'puerto-no-coincide-disco'));
+  const api = (bad.projects || []).find((p) => p.name === 'api');
+  assert.notEqual(Number(api?.port), 9999);
+
+  fs.writeFileSync(path.join(root, 'api', '.env.example'), 'PORT=4000\n');
+  const ok = await handleContextTool(root, 'afn_architecture_commit', {
+    projects: [{ name: 'api', path: './api', port: 4000 }],
+  });
+  const api2 = (ok.projects || []).find((p) => p.name === 'api');
+  assert.equal(Number(api2.port), 4000);
+  assert.match(String(api2.portSource), /env/i);
+});
+
+test('snapshot prioriza mapa, puertos evidentes y cerebro', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { vite: '5' }, scripts: { dev: 'vite --port 5173' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' }, scripts: { dev: 'node --port 4000' } });
+  bootstrapAfn(root);
+  const snap = buildSnapshot(root);
+  assert.match(snap.markdown, /Mapa \(quién llama a quién\)/);
+  assert.match(snap.markdown, /Cómo correr|sin puerto en disco|:5173|:4000/);
+  assert.ok(snap.markdown.length <= 3200);
+});
+
 

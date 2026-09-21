@@ -6,14 +6,17 @@ import { normalizeProjectsConfig, activeProjects, activeRelationships } from './
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { withPreservedMemory } from './cerebro.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
+import { findPortEvidence } from './port-evidence.js';
 
 export const LLM_ARCHITECTURE_PROMPT = `Mapa AFN: leé evidencia de disco, no inventes.
 
 1. Llamá afn_architecture_evidence.
-2. Leé SOLO los archivos de filesToRead (existen en este workspace).
-3. Llamá afn_architecture_commit con projects/relationships que hayas visto en esos archivos (proxy, compose, env.example, manifiestos).
+2. Leé SOLO los archivos de filesToRead (existen en este workspace): proxy, compose, Makefile, Dockerfile, serverless.yml, uvicorn, .env.example.
+3. Llamá afn_architecture_commit con projects/relationships que hayas visto en esos archivos.
+
 Prohibido inventar: puertos, prefix /api, flechas front→back, BDs, lambdas o paquetes que no estén en el disco.
-Si no hay evidencia de una conexión, omitila. No completes huecos.`;
+Un puerto solo si aparece en Makefile / Dockerfile EXPOSE / compose ports / uvicorn --port / serverless provider.port|httpPort / scripts / .env*.
+Si no hay evidencia de una conexión, omitila. No completes huecos. El diagrama debe reflejar el flujo real.`;
 
 function readJson(file) {
   try {
@@ -37,6 +40,37 @@ function existingFile(root, rel) {
   return String(rel).replace(/\\/g, '/');
 }
 
+const EVIDENCE_FILES = [
+  ['package.json', 'manifiesto'],
+  ['vite.config.js', 'proxy'],
+  ['vite.config.ts', 'proxy'],
+  ['vite.config.mjs', 'proxy'],
+  ['next.config.js', 'proxy'],
+  ['next.config.mjs', 'proxy'],
+  ['next.config.ts', 'proxy'],
+  ['webpack.config.js', 'proxy'],
+  ['.env.example', 'puertos / URLs (sin secretos)'],
+  ['.env.sample', 'puertos / URLs'],
+  ['.env.local.example', 'puertos / URLs'],
+  ['Makefile', 'uvicorn / PORT'],
+  ['makefile', 'uvicorn / PORT'],
+  ['Dockerfile', 'EXPOSE / CMD'],
+  ['docker-compose.yml', 'ports'],
+  ['docker-compose.yaml', 'ports'],
+  ['compose.yml', 'ports'],
+  ['serverless.yml', 'provider.port / httpPort / lambda'],
+  ['serverless.yaml', 'provider.port / httpPort / lambda'],
+  ['serverless.ts', 'lambda'],
+  ['pyproject.toml', 'manifiesto python'],
+  ['requirements.txt', 'stack python'],
+  ['main.py', 'fastapi / uvicorn'],
+  ['app.py', 'fastapi / uvicorn'],
+  ['src/main.py', 'fastapi / uvicorn'],
+  ['app/main.py', 'fastapi / uvicorn'],
+  ['prisma/schema.prisma', 'BD'],
+  ['go.mod', 'manifiesto'],
+];
+
 /**
  * Inventario + conexiones con evidencia. Sin defaults inventados.
  * @param {string} root
@@ -51,25 +85,18 @@ export function collectArchitectureEvidence(root) {
     if (n && !filesToRead.some((f) => f.path === n)) filesToRead.push({ path: n, why });
   };
 
-  addFile('docker-compose.yml', 'servicios de datos');
-  addFile('docker-compose.yaml', 'servicios de datos');
-  addFile('compose.yml', 'servicios de datos');
+  addFile('docker-compose.yml', 'servicios y ports');
+  addFile('docker-compose.yaml', 'servicios y ports');
+  addFile('compose.yml', 'servicios y ports');
+  addFile('Makefile', 'uvicorn / PORT del workspace');
 
   const projects = (detected.projects.length ? detected.projects : activeProjects(cfg)).map((p) => {
     const rel = String(p.path || '.').replace(/\\/g, '/');
     const base = rel === '.' || rel === './' ? '' : rel.replace(/^\.\//, '');
     const join = (name) => (base ? `${base}/${name}` : name);
-    addFile(join('package.json'), `manifiesto ${p.name}`);
-    addFile(join('vite.config.js'), 'proxy');
-    addFile(join('vite.config.ts'), 'proxy');
-    addFile(join('vite.config.mjs'), 'proxy');
-    addFile(join('next.config.js'), 'proxy');
-    addFile(join('next.config.mjs'), 'proxy');
-    addFile(join('.env.example'), 'puertos / URLs');
-    addFile(join('prisma/schema.prisma'), 'BD');
-    addFile(join('serverless.yml'), 'lambda');
-    addFile(join('go.mod'), 'manifiesto');
-    addFile(join('pyproject.toml'), 'manifiesto');
+    for (const [name, why] of EVIDENCE_FILES) {
+      addFile(join(name), `${why} · ${p.name}`);
+    }
     const unknowns = [];
     if (!p.port) unknowns.push('puerto');
     if ((p.type === 'frontend' || p.layer === 'presentation') && !(p.proxies || []).length) {
@@ -81,6 +108,7 @@ export function collectArchitectureEvidence(root) {
       type: p.type,
       framework: p.framework || '',
       port: p.port || null,
+      portSource: p.portSource || '',
       db: p.db || '',
       prefix: p.prefix || '',
       proxies: p.proxies || [],
@@ -112,14 +140,34 @@ export function collectArchitectureEvidence(root) {
     needsLlm: flow?.llmReviewed !== true,
     projects,
     relationships,
-    filesToRead: filesToRead.slice(0, 16),
+    filesToRead: filesToRead.slice(0, 36),
     unknowns,
     prompt: LLM_ARCHITECTURE_PROMPT,
   };
 }
 
+function applyDiskPort(root, rel, incomingPort, rejected, name) {
+  const abs = path.resolve(root, rel || '.');
+  const disk = findPortEvidence(abs);
+  if (incomingPort) {
+    const n = Number(incomingPort);
+    if (!disk.port) {
+      rejected.push({ name, port: n, reason: 'puerto-sin-evidencia' });
+      return { port: undefined, portSource: '', portFile: '' };
+    }
+    if (Number(disk.port) !== n) {
+      rejected.push({ name, port: n, reason: 'puerto-no-coincide-disco', used: disk.port, source: disk.portSource });
+    }
+    return { port: disk.port, portSource: disk.portSource || '', portFile: disk.portFile || '' };
+  }
+  if (disk.port) {
+    return { port: disk.port, portSource: disk.portSource || '', portFile: disk.portFile || '' };
+  }
+  return { port: undefined, portSource: '', portFile: '' };
+}
+
 /**
- * El LLM entrega solo nodos/flechas verificados. Path debe existir. No se inventan nodos.
+ * El LLM entrega solo nodos/flechas verificados. Path debe existir. No se inventan nodos ni puertos.
  * @param {string} root
  * @param {{ projects?: object[], relationships?: object[] }} input
  */
@@ -145,13 +193,35 @@ export function commitArchitecture(root, input = {}) {
       const cur = byName.get(name) || { name, path: rel, type: p.type || 'unknown', status: 'active', enabled: true };
       if (p.type) cur.type = p.type;
       if (p.framework) cur.framework = p.framework;
-      if (p.port) cur.port = p.port;
+      const portHit = applyDiskPort(root, rel, p.port, rejected, name);
+      if (portHit.port) {
+        cur.port = portHit.port;
+        cur.portSource = portHit.portSource;
+        cur.portFile = portHit.portFile;
+      } else if (!cur.port) {
+        cur.port = undefined;
+        cur.portSource = '';
+      }
       if (p.db) cur.db = p.db;
       if (p.prefix) cur.prefix = p.prefix;
       if (p.role) cur.role = p.role;
       if (p.layer) cur.layer = p.layer;
       cur.path = rel;
       byName.set(name, cur);
+    }
+
+    for (const [name, cur] of byName) {
+      if (cur.port && !cur.portSource) {
+        const hit = findPortEvidence(path.resolve(root, cur.path || '.'));
+        if (hit.port && Number(hit.port) === Number(cur.port)) {
+          cur.portSource = hit.portSource || '';
+          cur.portFile = hit.portFile || '';
+        } else if (!hit.port) {
+          rejected.push({ name, port: cur.port, reason: 'puerto-sin-evidencia' });
+          cur.port = undefined;
+          cur.portSource = '';
+        }
+      }
     }
 
     const names = new Set(byName.keys());
@@ -199,7 +269,7 @@ export function commitArchitecture(root, input = {}) {
       relationships: cfg.relationships,
       diagram,
       hint: rejected.length
-        ? `Guardé lo verificado. Rechacé ${rejected.length} ítem(s) sin disco (no se inventan).`
+        ? `Guardé lo verificado. Rechacé ${rejected.length} ítem(s) sin disco (no se inventan puertos ni nodos).`
         : 'Arquitectura guardada solo con lo verificado. El cerebro no se tocó.',
     };
   });

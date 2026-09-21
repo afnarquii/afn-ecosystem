@@ -50,8 +50,9 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (HTML con buscador). No regeneres nada para verlo.
-- Regenerar o crear arquitectura: el disco solo lista repos y flechas **evidentes** (proxy/compose). **El LLM** lee esos archivos y hace \`afn_architecture_commit\`. **No inventes** puertos, \`/api\`, flechas front→back ni BDs.
+- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (HTML profesional: ampliar diagrama, descargar .md). No regeneres nada para verlo.
+- Regenerar o crear arquitectura: el disco lista repos y flechas **evidentes** (proxy, compose, Makefile, Dockerfile, serverless, uvicorn, .env.example). **El LLM** lee \`filesToRead\` y hace \`afn_architecture_commit\`. **No inventes** puertos, \`/api\`, flechas ni BDs. Un puerto solo si hay evidencia.
+- El snapshot y el cerebro (\`.afn/memory/cerebro.json\`) deben alcanzar para preguntar: mapa, puertos evidentes, cómo correr, hechos. No reexplores el repo.
 - Primera vez (falta mapa verificado) o el usuario pide “regenerá la arquitectura”: \`afn_diagram_generate\` recreate → \`afn_architecture_evidence\` → leer \`filesToRead\` → \`afn_architecture_commit\`.
 - Si el snapshot dice \`llmReviewed\` / mapa verificado y nadie pidió regenerar: no toques el mapa.
 - Regenerar no borra observaciones ni \`MEMORY.md\`.

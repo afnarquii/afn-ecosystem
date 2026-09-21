@@ -17,6 +17,48 @@ function readJson(file) {
   }
 }
 
+function portBit(p) {
+  if (!p?.port) return 'sin puerto en disco';
+  return `:${p.port}${p.portSource ? ` (${p.portSource})` : ''}`;
+}
+
+/**
+ * Lo que sirve al preguntar: mapa, puertos evidentes, cómo correr, hechos del cerebro.
+ * @param {string} root
+ */
+export function buildAskBrief(root) {
+  const lines = [];
+  const pj = readJson(afnPath(root, 'projects.json'));
+  if (!pj) return '';
+  const cfg = normalizeProjectsConfig(pj);
+  const active = activeProjects(cfg);
+  const rels = activeRelationships(cfg);
+  const flow = loadWorkspaceFlow(root);
+  const projects = flow?.projects?.length ? flow.projects.filter((p) => active.some((a) => a.name === p.name) || p.type === 'database' || p.type === 'cloud') : active;
+
+  lines.push('Mapa (quién llama a quién):');
+  if (rels.length) {
+    for (const r of rels) {
+      const from = projects.find((p) => p.name === r.from);
+      const to = projects.find((p) => p.name === r.to);
+      lines.push(`- ${r.from} ${from ? portBit(from) : ''} → ${r.to} ${to ? portBit(to) : ''}`.replace(/\s+/g, ' ').trim() + (r.endpoint ? ` · ${r.endpoint}` : r.via ? ` · ${r.via}` : ''));
+    }
+  } else {
+    lines.push('- (sin flechas evidentes; no inventes conexiones)');
+  }
+  lines.push('Componentes:');
+  for (const p of projects.slice(0, 12)) {
+    const extra = [p.role || p.type, p.framework, p.db, p.prefix, portBit(p)].filter(Boolean).join(' · ');
+    lines.push(`- **${p.name}** ${extra} \`${p.path || ''}\``);
+  }
+  const how = flow?.how?.local || [];
+  if (how.length) {
+    lines.push('Cómo correr:');
+    for (const x of how.slice(0, 8)) lines.push(`- ${x}`);
+  }
+  return lines.join('\n');
+}
+
 /**
  * Bloque compacto para inyectar al prompt (ahorro de tokens).
  * @param {string} root
@@ -38,34 +80,24 @@ export function buildSnapshot(root) {
   const active = activeProjects(cfg);
   const rels = activeRelationships(cfg);
   const weak = isWeakProjectsMap(cfg);
-  lines.push(`Workspace: \`${root}\``);
   const flow = loadWorkspaceFlow(root);
+  lines.push(`Workspace: \`${root}\``);
   if (flow?.llmReviewed !== true) {
     lines.push('ARQUITECTURA PENDIENTE: `afn_architecture_evidence` → leer filesToRead → `afn_architecture_commit`. No inventes puertos, prefix, flechas ni BDs.');
+  } else {
+    lines.push('Arquitectura verificada (disco + LLM). Puertos solo con evidencia.');
   }
   lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura cerrada' : ''));
   if (weak) {
     lines.push('_Mapa pobre (un proyecto genérico tipo mcp-context). Corré `afn_bootstrap` con force desde el workspace del producto, no desde afn-ecosystem._');
   }
-  for (const p of active) {
-    const port = p.port ? `:${p.port}` : '';
-    const extra = [p.role || p.type, p.framework, p.db, p.prefix, port].filter(Boolean).join(' · ');
-    lines.push(`- **${p.name}** (${extra}) \`${p.path}\`${p.entryPoint ? ` · ${p.entryPoint}` : ''}`);
-  }
-  if (!active.length) lines.push('- _(ninguno activo)_');
   lines.push('');
-  if (rels.length) {
-    lines.push('Flujo:');
-    for (const r of rels) {
-      lines.push(`- ${r.from} → ${r.to}` + (r.type ? ` · ${r.type}` : '') + (r.endpoint ? ` \`${r.endpoint}\`` : ''));
-    }
-    lines.push('');
-  }
+  const brief = buildAskBrief(root);
+  if (brief) lines.push(brief, '');
 
   const diagrams = listDiagramIrs(root);
   if (diagrams.length) {
-    lines.push(`Diagramas (.afn/diagrams): ${diagrams.map((d) => d.slug).join(', ')}`);
-    lines.push('Para verlos: `afn_dashboard` (se abren en esa página). Recrear flujo: `afn_diagram_generate` recreate.');
+    lines.push(`Diagramas: ${diagrams.map((d) => d.slug).join(', ')} — ver/ampliar/descargar .md: \`afn_dashboard\`.`);
     lines.push('');
   }
 
@@ -80,7 +112,7 @@ export function buildSnapshot(root) {
   if (ctx && typeof ctx === 'object') {
     const safe = redactSecrets(ctx);
     lines.push('--- context.json (redactado, recorte) ---');
-    lines.push(JSON.stringify(safe, null, 2).slice(0, 800));
+    lines.push(JSON.stringify(safe, null, 2).slice(0, 400));
     lines.push('');
   }
 
@@ -101,7 +133,7 @@ export function buildSnapshot(root) {
       }
       lines.push('');
     } else if (mem) {
-      lines.push(mem.slice(0, 600), '');
+      lines.push(mem.slice(0, 400), '');
     }
   }
 

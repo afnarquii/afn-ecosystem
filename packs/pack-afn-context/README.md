@@ -94,7 +94,7 @@ Un producto distinto = otro `cd` + `setup kiro`. No hace falta que estén en la 
 | Pedís “regenerá la arquitectura” | inventario de disco + LLM evidencia → commit | Redibuja solo lo verificado |
 | Redetectar repos | `bootstrap --force` | Inventario; el LLM completa flechas |
 
-El disco **no** inventa `localhost:4000/api` ni flechas front→back. El LLM **solo** escribe lo que vio en `filesToRead`. La regeneración usa el `.afn` de **este** workspace.
+El disco **no** inventa `localhost:4000/api` ni flechas front→back. Un puerto solo si aparece en Makefile, Dockerfile `EXPOSE`/`CMD`, compose `ports`, serverless `provider.port`/`httpPort`, `uvicorn --port`, scripts o `.env*` (`PORT`/`UVICORN_PORT`). El LLM **solo** escribe lo que vio en `filesToRead`. La regeneración usa el `.afn` de **este** workspace.
 
 Actualizar en la empresa:
 
@@ -149,7 +149,7 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → **no pisa los nombres de repo** (`--force` para redetectar).
 
-Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard` (HTML con buscador de proyectos, diagramas, reglas y memoria). No regenera nada.
+Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard` (HTML profesional: buscador, puertos con evidencia, ampliar diagrama y descargar `.md`). No regenera nada.
 
 ### 5. Hechos
 
@@ -200,13 +200,15 @@ node …/index.js setup generic
 | Tool | Para qué |
 |------|----------|
 | `afn_bootstrap` | Crea `.afn/` si falta. Si la arquitectura existe, no la toca. |
-| `afn_context_snapshot` | Bloque ≤3200 chars (mapa + trabajo reciente) |
+| `afn_context_snapshot` | Mapa, puertos evidentes, cómo correr, hechos del cerebro |
 | `afn_projects_flow` | Activos + relationships |
 | `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
 | `afn_mem_search` / `afn_mem_save` | Buscar / guardar en el cerebro `.afn/memory/cerebro.json` |
 | `afn_session_start` / `afn_session_summary` | Abrir / cerrar sesión de trabajo |
-| `afn_dashboard` | HTML: inicio, mapa, diagramas (se abren con un clic), memoria, reglas. Abre el navegador. |
-| `afn_diagram_generate` | Comando “regenerá la arquitectura”. Sin LLM. Si existe y no hay recreate, no hace nada. |
+| `afn_dashboard` | HTML profesional: mapa, ampliar diagrama, descargar `.md`, memoria, reglas |
+| `afn_diagram_generate` | Inventario de disco (sin inventar puertos). Luego evidence → commit. |
+| `afn_architecture_evidence` | Archivos reales a leer (Makefile, compose, serverless, uvicorn, env.example). |
+| `afn_architecture_commit` | Guarda solo nodos/flechas/puertos verificados. Rechaza inventos. |
 | `afn_agent_assets` | Listar/asociar steering, skills, Copilot, Cursor al mapa. |
 | `afn_project_ignore` | Deprecados |
 | `afn_doctor` | Salud de `.afn/` |

@@ -229,6 +229,8 @@ export function hasProjectSignal(dir) {
       'pubspec.yaml',
       'docker-compose.yml',
       'docker-compose.yaml',
+      'serverless.yml',
+      'serverless.yaml',
     ];
     if (names.some((f) => fs.existsSync(path.join(dir, f)))) return true;
     return fs.readdirSync(dir).some((n) => n.endsWith('.csproj') || n.endsWith('.sln'));

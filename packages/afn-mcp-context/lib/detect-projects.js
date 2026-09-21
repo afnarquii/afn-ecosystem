@@ -35,6 +35,8 @@ const MANIFEST_FILES = Object.freeze([
   'pubspec.yaml',
   'pom.xml',
   'angular.json',
+  'serverless.yml',
+  'serverless.yaml',
 ]);
 
 function hasManifest(dir) {
@@ -148,6 +150,8 @@ export function detectProjects(root, opts = {}) {
       path: rel.replace(/\\/g, '/'),
       type,
       port: sig.port || inferPort(pkg, type),
+      portSource: sig.portSource || '',
+      portFile: sig.portFile || '',
       entryPoint: entryPoint(pkg),
       framework: sig.framework,
       role: sig.role,

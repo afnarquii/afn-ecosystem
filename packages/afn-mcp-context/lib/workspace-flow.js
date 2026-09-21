@@ -41,6 +41,8 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
       db: p.db || sig.db,
       prefix: p.prefix || sig.prefix,
       port: p.port || sig.port,
+      portSource: p.portSource || sig.portSource || '',
+      portFile: p.portFile || sig.portFile || '',
       technologies: Array.isArray(p.technologies) && p.technologies.length ? p.technologies : sig.technologies,
       layer: p.layer || sig.layer,
       devCommand: p.devCommand || sig.devCommand,
@@ -234,6 +236,8 @@ export function flowToProjectsConfig(flow, baseCfg) {
     cur.db = cur.db || p.db;
     cur.prefix = cur.prefix || p.prefix;
     cur.port = cur.port || p.port;
+    cur.portSource = cur.portSource || p.portSource;
+    cur.portFile = cur.portFile || p.portFile;
     cur.layer = cur.layer || p.layer;
     cur.devCommand = cur.devCommand || p.devCommand;
     cur.testCommand = cur.testCommand || p.testCommand;
@@ -390,16 +394,21 @@ export function workspaceFlowMarkdown(flow) {
     '',
     '## Proyectos',
     '',
-    '| Proyecto | Rol | Framework | BD | Puerto | Prefix | Skills |',
-    '|----------|-----|-----------|----|--------|--------|--------|',
+    '| Proyecto | Rol | Framework | BD | Puerto | Evidencia | Prefix | Skills |',
+    '|----------|-----|-----------|----|--------|-----------|--------|--------|',
   ];
   for (const p of flow.projects) {
-    lines.push(`| ${p.name} | ${p.role || ''} | ${p.framework || ''} | ${p.db || ''} | ${p.port || ''} | ${p.prefix || ''} | ${(p.skills || []).join(', ')} |`);
+    lines.push(`| ${p.name} | ${p.role || ''} | ${p.framework || ''} | ${p.db || ''} | ${p.port || '—'} | ${p.portSource || ''} | ${p.prefix || ''} | ${(p.skills || []).join(', ')} |`);
   }
   lines.push('', '## Conexiones', '');
   for (const r of flow.relationships) {
     lines.push(`- **${r.from}** → **${r.to}** (${r.via || r.type}) ${r.endpoint || ''}`);
   }
+  if (!flow.relationships.length) {
+    lines.push('- _(sin flechas con evidencia de disco)_');
+  }
+  lines.push('', '## Diagrama (quién llama qué)', '', '```mermaid', buildEndpointsMermaid(flow).trim(), '```');
+  lines.push('', '## Diagrama (capas)', '', '```mermaid', buildLayersMermaid(flow).trim(), '```');
   lines.push('', '## Cómo agregar funcionalidad', '');
   for (const x of flow.how.addFeature) lines.push(`- ${x}`);
   lines.push('', 'Se toca:', '');
