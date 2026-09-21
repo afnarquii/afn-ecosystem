@@ -156,20 +156,48 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   fs.mkdirSync(path.join(home, '.kiro', 'settings'), { recursive: true });
   fs.writeFileSync(
     path.join(home, '.kiro', 'settings', 'mcp.json'),
-    JSON.stringify({ mcpServers: { engram: { command: 'engram', args: ['mcp'] } } }),
+    JSON.stringify({ mcpServers: { engram: { command: 'engram', args: ['mcp'] }, 'afn-context': { command: 'old' } } }),
   );
   const r = setupAgent('kiro', { home, projectRoot: project });
   assert.equal(r.ok, true);
-  const mcp = JSON.parse(fs.readFileSync(path.join(home, '.kiro', 'settings', 'mcp.json'), 'utf8'));
-  assert.ok(mcp.mcpServers.engram);
+  const userMcp = JSON.parse(fs.readFileSync(path.join(home, '.kiro', 'settings', 'mcp.json'), 'utf8'));
+  assert.ok(userMcp.mcpServers.engram);
+  assert.equal(userMcp.mcpServers['afn-context'], undefined);
+  const mcpFile = path.join(project, '.kiro', 'settings', 'mcp.json');
+  assert.equal(r.mcpFile, mcpFile);
+  const mcp = JSON.parse(fs.readFileSync(mcpFile, 'utf8'));
   assert.ok(mcp.mcpServers['afn-context']);
   assert.ok(mcp.mcpServers['afn-context'].args?.length);
   assert.equal(mcp.mcpServers['afn-context'].env?.AFN_PROJECT_ROOT, project);
-  assert.ok(fs.existsSync(path.join(home, '.kiro', 'steering', 'afn-context.md')));
+  assert.ok(fs.existsSync(path.join(project, '.kiro', 'steering', 'afn-context.md')));
   const hook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json'), 'utf8'));
   assert.match(JSON.stringify(hook), /bootstrap/);
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
   assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
+  const gi = fs.readFileSync(path.join(project, '.gitignore'), 'utf8');
+  assert.match(gi, /\.kiro\/settings\/mcp\.json/);
+});
+
+test('setup kiro deja un AFN_PROJECT_ROOT distinto por workspace', () => {
+  const home = tmp();
+  const a = tmp();
+  const b = tmp();
+  writePkg(path.join(a, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(a, 'api'), 'api', { dependencies: { express: '4' } });
+  writePkg(path.join(b, 'app'), 'app', { dependencies: { vue: '3' } });
+  writePkg(path.join(b, 'svc'), 'svc', { dependencies: { express: '4' } });
+  setupAgent('kiro', { home, projectRoot: a });
+  setupAgent('kiro', { home, projectRoot: b });
+  const mcpA = JSON.parse(fs.readFileSync(path.join(a, '.kiro', 'settings', 'mcp.json'), 'utf8'));
+  const mcpB = JSON.parse(fs.readFileSync(path.join(b, '.kiro', 'settings', 'mcp.json'), 'utf8'));
+  assert.equal(mcpA.mcpServers['afn-context'].env.AFN_PROJECT_ROOT, a);
+  assert.equal(mcpB.mcpServers['afn-context'].env.AFN_PROJECT_ROOT, b);
+  assert.notEqual(mcpA.mcpServers['afn-context'].env.AFN_PROJECT_ROOT, mcpB.mcpServers['afn-context'].env.AFN_PROJECT_ROOT);
+  const userFile = path.join(home, '.kiro', 'settings', 'mcp.json');
+  if (fs.existsSync(userFile)) {
+    const userMcp = JSON.parse(fs.readFileSync(userFile, 'utf8'));
+    assert.equal(userMcp.mcpServers?.['afn-context'], undefined);
+  }
 });
 
 test('detectProjects ve hermanos, packages/ y repos solo-git', () => {

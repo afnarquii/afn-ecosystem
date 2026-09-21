@@ -46,7 +46,7 @@ node C:\projects\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 
 El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. Arma el **flujo cross-project**: rol, framework, BD, puerto, prefix, proxy, lambda, capas, quién llama qué, cómo desarrollar y probar. **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
 
-Si Kiro arranca el MCP con cwd del paquete, `AFN_PROJECT_ROOT` queda anclado al workspace donde corriste `setup`.
+Si Kiro arranca el MCP con cwd del paquete, `AFN_PROJECT_ROOT` queda anclado **en ese workspace** (`.kiro/settings/mcp.json` del producto). Cada producto tiene el suyo; no se comparte la ruta del usuario.
 
 Otros hosts:
 
@@ -75,13 +75,15 @@ cd C:\work\mi-monorepo
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 ```
 
-Eso crea/mezcla:
+Eso crea/mezcla **en ese producto**:
 
-- `%USERPROFILE%\.kiro\settings\mcp.json` → server `afn-context`
-- `%USERPROFILE%\.kiro\steering\afn-context.md`
-- `.kiro\hooks\afn-session-start.json` (bootstrap **al entrar**)
-- `.kiro\hooks\afn-prompt-submit.json` (snapshot a stdout)
-- `.kiro\hooks\afn-agent-stop.json` (pide `afn_mem_save` si hubo decisión)
+- `{workspace}/.kiro/settings/mcp.json` → server `afn-context` con `AFN_PROJECT_ROOT` de **este** repo
+- `{workspace}/.kiro/steering/afn-context.md`
+- `{workspace}/.kiro/hooks/…` (bootstrap, snapshot, save)
+
+Si había `afn-context` en `%USERPROFILE%\.kiro\settings\mcp.json`, **lo saca** (deja Engram y el resto). Si no, al abrir otro repo Kiro seguiría usando la ruta vieja.
+
+Un producto distinto = otro `cd` + `setup kiro`. No hace falta que estén en la misma carpeta padre.
 
 `setup kiro` **no es** “regenerar el mapa cada vez”. Es instalar MCP + hooks. El mapa se genera:
 
@@ -111,9 +113,9 @@ node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js architecture --rec
 
 ### 3. Activar MCP en Kiro
 
-Settings → MCP support ON. Command Palette → **Kiro: Open user MCP config** y comprobá `afn-context`. Recargá. Pestaña MCP = connected.
+Settings → MCP support ON. Command Palette → **Kiro: Open workspace MCP config** y comprobá `afn-context` en `.kiro/settings/mcp.json` **de este repo**. Recargá. Pestaña MCP = connected.
 
-Ejemplo de `mcp.json` (el setup ya lo escribe con tu `node.exe` y path real):
+Ejemplo (el setup ya lo escribe con tu `node.exe`, el pack y la raíz de **este** producto):
 
 ```json
 {
@@ -221,7 +223,7 @@ node index.js diagram [--recreate]
 node index.js doctor
 ```
 
-`AFN_PROJECT_ROOT` = workspace del producto (lo fija `setup`). El detector sube al padre si hay varios repos.
+`AFN_PROJECT_ROOT` = raíz de **ese** producto (`.kiro/settings/mcp.json` del workspace). Otro repo → otro `setup kiro`.
 
 ---
 

@@ -50,7 +50,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
 - Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (HTML con buscador). No regeneres nada para verlo.
-- Regenerar arquitectura escribe en el \`.afn\` de **AFN_PROJECT_ROOT** (raíz del workspace), no en un \`.afn\` anidado ni en el padre de varios clones.
+- Regenerar arquitectura escribe en el \`.afn\` de **este** workspace (\`AFN_PROJECT_ROOT\` en \`.kiro/settings/mcp.json\`), no en un \`.afn\` anidado ni en el de otro producto.
 - **No** regeneres arquitectura vos. No inventes el flujo con el LLM. No llames \`afn_diagram_generate\` ni \`bootstrap refresh\` salvo que el usuario lo pida explícito (“regenerá la arquitectura”, “regenerá el mapa”).
 - Si lo pide: \`afn_diagram_generate\` con \`recreate=true\` (comando, sin LLM). Si ya existe y no lo pidió: no toques.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
@@ -74,6 +74,35 @@ function mergeMcpServers(file, extra) {
   cur.mcpServers['afn-context'] = extra;
   writeJson(file, cur);
 }
+
+function afnContextServer(pinRoot) {
+  return {
+    command: process.execPath,
+    args: [ENTRY],
+    ...(pinRoot ? { env: { AFN_PROJECT_ROOT: pinRoot } } : {}),
+    disabled: false,
+    autoApprove: mcpServerBlock().autoApprove,
+  };
+}
+
+/** El MCP de usuario aplica a todos los workspaces; AFN tiene que vivir en el proyecto. */
+function stripUserAfnContext(file) {
+  const cur = readJson(file);
+  if (!cur?.mcpServers || typeof cur.mcpServers !== 'object') return { stripped: false, file };
+  if (!Object.prototype.hasOwnProperty.call(cur.mcpServers, 'afn-context')) {
+    return { stripped: false, file };
+  }
+  delete cur.mcpServers['afn-context'];
+  writeJson(file, cur);
+  return { stripped: true, file };
+}
+
+const USER_STEERING = `# AFN context (usuario)
+
+Cada producto tiene su propio MCP en \`.kiro/settings/mcp.json\` de **ese** workspace (\`AFN_PROJECT_ROOT\`). No hay un \`.afn\` único para todos los repos.
+
+Si abrís un proyecto y no hay mapa: en la raíz de **ese** producto corré \`node …/packages/afn-mcp-context/index.js setup kiro\`.
+`;
 
 function writeHooks(projectRoot, nodeCmd) {
   const dir = path.join(projectRoot, '.kiro', 'hooks');
@@ -143,45 +172,43 @@ export function setupAgent(agent, opts = {}) {
   const pinRoot = isCatalogish(workspace) ? '' : workspace;
   const nodeEntry = `"${process.execPath}" "${ENTRY}"`;
   const written = [];
-  const mcpEnv = pinRoot ? { AFN_PROJECT_ROOT: pinRoot } : undefined;
 
   if (kind === 'kiro') {
-    const mcpFile = path.join(home, '.kiro', 'settings', 'mcp.json');
-    mergeMcpServers(mcpFile, {
-      command: process.execPath,
-      args: [ENTRY],
-      ...(mcpEnv ? { env: mcpEnv } : {}),
-      disabled: false,
-      autoApprove: mcpServerBlock().autoApprove,
-    });
+    const hookRoot = pinRoot || setupCwd;
+    const mcpFile = path.join(hookRoot, '.kiro', 'settings', 'mcp.json');
+    mergeMcpServers(mcpFile, afnContextServer(pinRoot));
     written.push(mcpFile);
-    const steering = path.join(home, '.kiro', 'steering', 'afn-context.md');
+    const steering = path.join(hookRoot, '.kiro', 'steering', 'afn-context.md');
     fs.mkdirSync(path.dirname(steering), { recursive: true });
     fs.writeFileSync(steering, STEERING, 'utf8');
     written.push(steering);
-    writeHooks(setupCwd, nodeEntry);
-    written.push(path.join(setupCwd, '.kiro', 'hooks'));
-    const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+    writeHooks(hookRoot, nodeEntry);
+    written.push(path.join(hookRoot, '.kiro', 'hooks'));
+    const userMcp = path.join(home, '.kiro', 'settings', 'mcp.json');
+    const stripped = stripUserAfnContext(userMcp);
+    const userSteering = path.join(home, '.kiro', 'steering', 'afn-context.md');
+    fs.mkdirSync(path.dirname(userSteering), { recursive: true });
+    fs.writeFileSync(userSteering, USER_STEERING, 'utf8');
+    written.push(userSteering);
+    const boot = pinRoot ? bootstrapAfn(pinRoot, { ceiling: pinRoot }) : { ok: false, reason: 'raiz-catalogo' };
     return {
       ok: true,
       agent: 'kiro',
       written,
       workspace: pinRoot || workspace,
+      mcpFile,
+      userMcpStripped: stripped.stripped,
       bootstrap: boot,
       note: pinRoot
-        ? 'Reiniciá Kiro o recargá MCP. El mapa está en .afn/projects.json del workspace.'
+        ? `MCP de este workspace: ${mcpFile}. Abrí otro producto → setup kiro ahí (no comparte la ruta).`
         : 'Corré setup otra vez desde el workspace del producto, no desde afn-ecosystem.',
     };
   }
 
   if (kind === 'cursor') {
-    const mcpFile = path.join(setupCwd, '.cursor', 'mcp.json');
-    mergeMcpServers(mcpFile, {
-      command: process.execPath,
-      args: [ENTRY],
-      ...(mcpEnv ? { env: mcpEnv } : {}),
-    });
-    const rules = path.join(setupCwd, '.cursor', 'rules', 'afn-context.mdc');
+    const mcpFile = path.join(pinRoot || setupCwd, '.cursor', 'mcp.json');
+    mergeMcpServers(mcpFile, afnContextServer(pinRoot));
+    const rules = path.join(pinRoot || setupCwd, '.cursor', 'rules', 'afn-context.mdc');
     fs.mkdirSync(path.dirname(rules), { recursive: true });
     fs.writeFileSync(rules, `---\ndescription: Mapa y memoria AFN (.afn)\nglobs:\nalwaysApply: true\n---\n\n${STEERING}`, 'utf8');
     written.push(mcpFile, rules);
@@ -191,11 +218,7 @@ export function setupAgent(agent, opts = {}) {
 
   if (kind === 'claude') {
     const mcpFile = path.join(home, '.claude', 'mcp.json');
-    mergeMcpServers(mcpFile, {
-      command: process.execPath,
-      args: [ENTRY],
-      ...(mcpEnv ? { env: mcpEnv } : {}),
-    });
+    mergeMcpServers(mcpFile, afnContextServer(pinRoot));
     const md = path.join(setupCwd, 'CLAUDE.md');
     const block = `\n\n## AFN context\n\n${STEERING}\n`;
     let cur = '';
@@ -210,12 +233,8 @@ export function setupAgent(agent, opts = {}) {
     return { ok: true, agent: 'claude', written, workspace: pinRoot || workspace, bootstrap: boot };
   }
 
-  const generic = path.join(setupCwd, '.mcp.json');
-  mergeMcpServers(generic, {
-    command: process.execPath,
-    args: [ENTRY],
-    ...(mcpEnv ? { env: mcpEnv } : {}),
-  });
+  const generic = path.join(pinRoot || setupCwd, '.mcp.json');
+  mergeMcpServers(generic, afnContextServer(pinRoot));
   const agents = path.join(setupCwd, 'AGENTS.md');
   let ag = '';
   try {

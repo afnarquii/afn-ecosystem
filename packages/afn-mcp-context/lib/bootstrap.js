@@ -27,6 +27,7 @@ const GITIGNORE_BLOCK = `${GITIGNORE_MARKER}
 !.afn/diagrams/**
 !.afn/notes/
 !.afn/notes/**
+.kiro/settings/mcp.json
 `;
 
 function readJson(file) {
@@ -184,7 +185,14 @@ function ensureGitignore(root) {
   } catch {
     cur = '';
   }
-  if (cur.includes(GITIGNORE_MARKER) || cur.includes('!.afn/MEMORY.md')) return;
+  const hasBlock = cur.includes(GITIGNORE_MARKER) || cur.includes('!.afn/MEMORY.md');
+  if (hasBlock) {
+    if (!cur.includes('.kiro/settings/mcp.json')) {
+      const next = `${cur.trimEnd()}\n.kiro/settings/mcp.json\n`;
+      fs.writeFileSync(gi, next, 'utf8');
+    }
+    return;
+  }
   const next = cur.trimEnd() ? `${cur.trimEnd()}\n\n${GITIGNORE_BLOCK}` : GITIGNORE_BLOCK;
   fs.writeFileSync(gi, next.endsWith('\n') ? next : `${next}\n`, 'utf8');
 }
