@@ -8,6 +8,7 @@ import { saveObservation, searchCerebro, startSession, endSession, getMemContext
 import { writeDashboard } from './dashboard.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
+import { loadWorkspaceFlow } from './workspace-flow.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import {
   activeProjects,
@@ -43,11 +44,24 @@ export async function handleContextTool(root, name, args = {}) {
       return buildSnapshot(base);
     case 'afn_projects_flow': {
       const cfg = readProjects(base);
+      const flow = loadWorkspaceFlow(base);
+      const active = activeProjects(cfg);
+      const names = new Set(active.map((p) => p.name));
+      const projects = (flow?.projects || active).filter(
+        (p) => names.has(p.name) || p.type === 'database' || p.type === 'cloud',
+      );
+      const rels = (flow?.relationships || activeRelationships(cfg)).filter(
+        (r) => projects.some((p) => p.name === r.from) && projects.some((p) => p.name === r.to),
+      );
       return {
         ok: true,
         root: base,
-        projects: activeProjects(cfg),
-        relationships: activeRelationships(cfg),
+        mode: flow?.mode,
+        projects,
+        relationships: rels,
+        layers: flow?.layers || null,
+        e2e: flow?.e2e || [],
+        how: flow?.how || null,
         ignorePaths: cfg.ignorePaths,
       };
     }
@@ -66,8 +80,11 @@ export async function handleContextTool(root, name, args = {}) {
       return endSession(base, args);
     case 'afn_dashboard':
       return writeDashboard(base, { open: args.open !== false, slug: args.slug });
-    case 'afn_diagram_generate':
-      return persistWorkspaceFlowDiagram(base, readProjects(base), { recreate: args.recreate === true });
+    case 'afn_diagram_generate': {
+      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate: args.recreate === true });
+      if (r.config) writeProjects(base, r.config);
+      return r;
+    }
     case 'afn_agent_assets':
       return persistAgentAssets(base);
     case 'afn_doctor':
@@ -77,6 +94,7 @@ export async function handleContextTool(root, name, args = {}) {
       if (!rel) return { ok: false, error: 'path requerido' };
       const next = applyIgnorePath(readProjects(base), rel, args.reason || 'deprecated');
       writeProjects(base, next);
+      persistWorkspaceFlowDiagram(base, next, { recreate: true });
       return { ok: true, ignorePaths: next.ignorePaths, projects: next.projects };
     }
     default:

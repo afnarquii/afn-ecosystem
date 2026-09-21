@@ -13,7 +13,7 @@
 import { startMcpStdioServer } from './lib/stdio-server.js';
 import { CONTEXT_TOOLS } from './lib/tools-def.js';
 import { handleContextTool } from './lib/handle-tool.js';
-import { resolveProjectRoot } from './lib/paths.js';
+import { resolveProjectRoot, afnPath } from './lib/paths.js';
 import { buildSnapshot } from './lib/snapshot.js';
 import { bootstrapAfn } from './lib/bootstrap.js';
 import { doctorAfn } from './lib/snapshot.js';
@@ -21,8 +21,9 @@ import { startSession } from './lib/cerebro.js';
 import { writeDashboard } from './lib/dashboard.js';
 import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent } from './lib/setup.js';
+import fs from 'node:fs';
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -79,7 +80,11 @@ async function main() {
   if (cmd === 'diagram') {
     const recreate = argv.includes('--recreate');
     const r = persistWorkspaceFlowDiagram(root, undefined, { recreate });
-    process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
+    if (r.config) {
+      fs.mkdirSync(afnPath(root), { recursive: true });
+      fs.writeFileSync(afnPath(root, 'projects.json'), `${JSON.stringify(r.config, null, 2)}\n`, 'utf8');
+    }
+    process.stdout.write(`${JSON.stringify({ ok: r.ok, skipped: r.skipped, files: r.files }, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
   }

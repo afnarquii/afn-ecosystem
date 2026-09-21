@@ -24,6 +24,8 @@ const GITIGNORE_BLOCK = `${GITIGNORE_MARKER}
 !.afn/odd/**
 !.afn/diagrams/
 !.afn/diagrams/**
+!.afn/notes/
+!.afn/notes/**
 `;
 
 function readJson(file) {
@@ -79,7 +81,7 @@ export function bootstrapAfn(root, opts = {}) {
       skipped: true,
       wrote: false,
       root: base,
-      config: existingNorm,
+      config: extra.config || existingNorm,
       reason: 'projects.json ya existe',
       diagram: extra.diagram,
       assets: extra.assets,
@@ -98,7 +100,7 @@ export function bootstrapAfn(root, opts = {}) {
     skipped: false,
     wrote: true,
     root: base,
-    config,
+    config: extra.config || config,
     reason: force ? 'force' : weakExisting ? 'mapa-pobre-reescrito' : 'detectado',
     diagram: extra.diagram,
     assets: extra.assets,
@@ -109,19 +111,33 @@ function enrichAfn(base, config, opts = {}) {
   ensureAfnDirs(base);
   ensureMemoryStub(base);
   ensureGitignore(base);
-  let diagram = { ok: false };
-  try {
-    diagram = persistWorkspaceFlowDiagram(base, config, { recreate: opts.recreateDiagram === true });
-  } catch {
-    diagram = { ok: false };
-  }
-  let assets = { ok: false, count: 0 };
+  let assets = { ok: false, count: 0, assets: [] };
   try {
     assets = persistAgentAssets(base);
   } catch {
-    assets = { ok: false, count: 0 };
+    assets = { ok: false, count: 0, assets: [] };
   }
-  return { diagram, assets };
+  let diagram = { ok: false };
+  try {
+    diagram = persistWorkspaceFlowDiagram(base, config, {
+      recreate: opts.recreateDiagram === true,
+      assets,
+    });
+  } catch {
+    diagram = { ok: false };
+  }
+  if (diagram.config) {
+    const pjFile = afnPath(base, 'projects.json');
+    const next = `${JSON.stringify(diagram.config, null, 2)}\n`;
+    let prev = '';
+    try {
+      prev = fs.readFileSync(pjFile, 'utf8');
+    } catch {
+      prev = '';
+    }
+    if (next !== prev) fs.writeFileSync(pjFile, next, 'utf8');
+  }
+  return { diagram, assets, config: diagram.config || config };
 }
 
 function ensureMemoryStub(root) {

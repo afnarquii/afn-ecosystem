@@ -54,6 +54,23 @@ export function normalizeProjectsConfig(raw = {}) {
       port: p.port,
       entryPoint: String(p.entryPoint || '').trim(),
       framework: String(p.framework || '').trim(),
+      role: String(p.role || '').trim(),
+      db: String(p.db || '').trim(),
+      prefix: String(p.prefix || '').trim(),
+      layer: String(p.layer || '').trim(),
+      devCommand: String(p.devCommand || '').trim(),
+      testCommand: String(p.testCommand || '').trim(),
+      technologies: Array.isArray(p.technologies) ? p.technologies.map((x) => String(x)).filter(Boolean).slice(0, 12) : [],
+      endpoints: Array.isArray(p.endpoints)
+        ? p.endpoints
+            .filter((e) => e && (e.path || e.method))
+            .map((e) => ({
+              method: String(e.method || 'ANY').slice(0, 8),
+              path: String(e.path || '').slice(0, 80),
+              via: String(e.via || '').slice(0, 16),
+            }))
+            .slice(0, 12)
+        : [],
       status: String(p.status || (p.enabled === false ? 'ignored' : 'active')).toLowerCase() || 'active',
       enabled: p.enabled !== false,
     });
@@ -65,6 +82,8 @@ export function normalizeProjectsConfig(raw = {}) {
       to: String(r.to),
       type: String(r.type || 'api').trim() || 'api',
       endpoint: String(r.endpoint || '').trim(),
+      via: String(r.via || '').trim(),
+      tech: String(r.tech || '').trim(),
     }));
   return {
     isMultiProject: projects.length > 1 || src.isMultiProject === true,

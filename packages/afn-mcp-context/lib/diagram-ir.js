@@ -29,6 +29,8 @@ function mermaidLabel(s) {
     .slice(0, 48);
 }
 
+export { mermaidId, mermaidLabel };
+
 /**
  * IR de flujo entre proyectos (mismo espíritu que `/diagrama` en AFN IDE).
  * @param {ReturnType<import('./projects-policy.js').normalizeProjectsConfig>} cfg
@@ -38,8 +40,8 @@ export function buildFlowDiagramIr(cfg) {
   if (!selected.length) return { ok: false, error: 'sin proyectos activos' };
   const nodes = selected.map((p) => ({
     id: slugify(p.name),
-    type: diagramKindFromProjectType(p.type),
-    label: p.port ? `${p.name}:${p.port}` : p.name,
+    type: diagramKindFromProjectType(p.type || p.layer),
+    label: [p.name, p.port && `:${p.port}`, p.framework, p.prefix, p.db].filter(Boolean).join(' '),
     path: p.path,
   }));
   const idSet = new Set(nodes.map((n) => n.id));
@@ -96,6 +98,17 @@ export function buildFlowDiagramIr(cfg) {
  * @param {object} ir
  */
 export function irToMermaid(ir) {
+  if (ir?.mermaid && String(ir.mermaid).trim()) return String(ir.mermaid).endsWith('\n') ? ir.mermaid : `${ir.mermaid}\n`;
+  if (ir?.diagramType === 'sequence') {
+    const lines = ['sequenceDiagram'];
+    for (const n of ir.nodes || []) {
+      lines.push(`  participant ${mermaidId(n.id)} as ${mermaidLabel(n.label || n.id)}`);
+    }
+    for (const e of ir.edges || []) {
+      lines.push(`  ${mermaidId(e.from)}->>${mermaidId(e.to)}: ${mermaidLabel(e.label || '')}`);
+    }
+    return `${lines.join('\n')}\n`;
+  }
   const lines = ['flowchart LR'];
   for (const n of ir.nodes || []) {
     lines.push(`  ${mermaidId(n.id || n.label)}["${mermaidLabel(n.label || n.id)}"]`);

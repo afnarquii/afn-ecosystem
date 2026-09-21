@@ -287,6 +287,8 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /data-view="inicio"/);
   assert.match(html, /Reglas/);
   assert.match(html, /id="overlay"/);
+  assert.match(html, /Capas y E2E|Cómo se trabaja/);
+  assert.match(html, /prefix|presentaci|express|react/i);
 });
 
 test('bootstrap escribe diagrama de flujo y no lo pisa si ya existe', () => {
@@ -298,12 +300,16 @@ test('bootstrap escribe diagrama de flujo y no lo pisa si ya existe', () => {
   assert.equal(a.diagram?.skipped, false);
   const dir = path.join(root, '.afn', 'diagrams');
   const files = fs.readdirSync(dir).filter((n) => n.endsWith('.architecture.json'));
-  assert.equal(files.length, 1);
-  const first = fs.readFileSync(path.join(dir, files[0]), 'utf8');
+  assert.ok(files.some((n) => n.startsWith('workspace-flujo')));
+  assert.ok(files.some((n) => n.startsWith('workspace-capas')));
+  assert.ok(files.some((n) => n.startsWith('workspace-endpoints')));
+  assert.ok(fs.existsSync(path.join(dir, 'workspace-flow.md')));
+  const sample = files.find((n) => n.startsWith('workspace-flujo'));
+  const first = fs.readFileSync(path.join(dir, sample), 'utf8');
   const b = bootstrapAfn(root);
   assert.equal(b.skipped, true);
   assert.equal(b.diagram?.skipped, true);
-  assert.equal(fs.readFileSync(path.join(dir, files[0]), 'utf8'), first);
+  assert.equal(fs.readFileSync(path.join(dir, sample), 'utf8'), first);
 });
 
 test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {
@@ -328,5 +334,50 @@ test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {
   const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
   assert.equal(gen.ok, true);
   assert.equal(gen.skipped, false);
+});
+
+test('mapa cross-project infiere proxy, prefix, db y capas', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', {
+    dependencies: { vite: '5', react: '18' },
+    scripts: { dev: 'vite --port 5173', test: 'vitest' },
+  });
+  fs.writeFileSync(
+    path.join(root, 'web', 'vite.config.js'),
+    "export default { server: { proxy: { '/api': 'http://localhost:4000' } } }\n",
+  );
+  writePkg(path.join(root, 'api'), 'api', {
+    dependencies: { express: '4', pg: '8' },
+    scripts: { dev: 'node server.js --port 4000', test: 'node --test' },
+  });
+  fs.mkdirSync(path.join(root, 'api', 'prisma'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'api', 'prisma', 'schema.prisma'),
+    'datasource db { provider = "postgresql" url = env("DATABASE_URL") }\n',
+  );
+  fs.writeFileSync(
+    path.join(root, 'docker-compose.yml'),
+    'services:\n  postgres:\n    image: postgres:16\n    ports:\n      - "5432:5432"\n',
+  );
+  const d = detectProjects(root);
+  const web = d.projects.find((p) => p.name === 'web');
+  const api = d.projects.find((p) => p.name === 'api');
+  assert.ok(web.framework === 'react' || web.framework === 'vite');
+  assert.equal(api.framework, 'express');
+  assert.equal(api.db, 'postgresql');
+  assert.ok(d.relationships.some((r) => r.via === 'proxy' && /\/api/.test(r.endpoint)));
+  const boot = bootstrapAfn(root);
+  assert.equal(boot.ok, true);
+  const flow = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'diagrams', 'workspace-flow.json'), 'utf8'));
+  assert.equal(flow.mode, 'cross');
+  assert.ok(flow.layers.presentation.includes('web'));
+  assert.ok(flow.layers.api.includes('api'));
+  assert.ok(flow.layers.data.length >= 1);
+  assert.ok(flow.how.local.some((x) => /web|api/.test(x)));
+  assert.ok(flow.how.test.some((x) => /vitest|test/.test(x)));
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /subgraph|Presentaci|postgresql|proxy/i);
+  const capas = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'workspace-capas.architecture.json'), 'utf8');
+  assert.match(capas, /Presentaci|datos|proxy/i);
 });
 

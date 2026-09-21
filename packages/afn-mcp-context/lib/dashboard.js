@@ -10,6 +10,7 @@ import { redactSecrets } from './redact.js';
 import { listDiagramIrs } from './diagram-store.js';
 import { loadAgentAssets } from './agent-assets.js';
 import { irToMermaid } from './diagram-ir.js';
+import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid } from './workspace-flow.js';
 
 function readJson(file) {
   try {
@@ -27,10 +28,14 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-function flowMermaid(projects, rels) {
+function flowMermaid(projects, rels, flow) {
+  if (flow) return buildEndpointsMermaid(flow);
   const ir = {
-    nodes: projects.map((p) => ({ id: p.name, label: p.port ? `${p.name}:${p.port}` : p.name })),
-    edges: rels.map((r) => ({ from: r.from, to: r.to, label: r.endpoint || r.type || '' })),
+    nodes: projects.map((p) => ({
+      id: p.name,
+      label: [p.name, p.port && `:${p.port}`, p.framework, p.prefix].filter(Boolean).join(' '),
+    })),
+    edges: rels.map((r) => ({ from: r.from, to: r.to, label: r.via || r.endpoint || r.type || '' })),
   };
   return irToMermaid(ir);
 }
@@ -43,6 +48,7 @@ function collectDashboard(root) {
   const cerebro = loadCerebro(root);
   const ctx = readJson(afnPath(root, 'context.json'));
   const assetsPack = loadAgentAssets(root);
+  const flow = loadWorkspaceFlow(root);
   return {
     root,
     projects,
@@ -53,6 +59,7 @@ function collectDashboard(root) {
     diagrams: listDiagramIrs(root),
     assets: Array.isArray(assetsPack.assets) ? assetsPack.assets : [],
     contextSafe: ctx && typeof ctx === 'object' ? redactSecrets(ctx) : null,
+    flow,
   };
 }
 
@@ -73,7 +80,7 @@ function kindLabel(kind) {
 }
 
 function buildHtml(data) {
-  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets } = data;
+  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow } = data;
   const obs = [...(cerebro.observations || [])].slice(-10).reverse();
   const sess = [...(cerebro.sessions || [])].slice(-6).reverse();
   const lastSess = sess[0];
@@ -89,11 +96,12 @@ function buildHtml(data) {
     })),
   );
 
-  const projCards = projects
-    .map(
-      (p) =>
-        `<button type="button" class="tile" data-go="mapa"><span class="k">${esc(p.type)}</span><strong>${esc(p.name)}</strong><code>${esc(p.path)}</code>${p.port ? `<span class="muted">:${esc(p.port)}</span>` : ''}</button>`,
-    )
+  const projCards = (flow?.projects || projects)
+    .map((p) => {
+      const bits = [p.role, p.framework, p.db, p.prefix, p.port && `:${p.port}`].filter(Boolean).join(' · ');
+      const skills = (p.skills || []).slice(0, 3).join(', ');
+      return `<button type="button" class="tile" data-go="mapa"><span class="k">${esc(p.layer || p.type)}</span><strong>${esc(p.name)}</strong><span class="muted">${esc(bits)}</span>${skills ? `<span class="muted">${esc(skills)}</span>` : ''}<code>${esc(p.path || '')}</code></button>`;
+    })
     .join('');
 
   const diagramCards = diagrams.length
@@ -162,6 +170,8 @@ function buildHtml(data) {
     document.querySelectorAll("[data-view]").forEach((n) => n.hidden = n.getAttribute("data-view") !== id);
     document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.go === id));
     if (id === "mapa") render(document.getElementById("flow-mermaid"), document.getElementById("flow-src").textContent);
+    if (id === "capas") render(document.getElementById("layers-mermaid"), document.getElementById("layers-src").textContent);
+    if (id === "howto") render(document.getElementById("e2e-mermaid"), document.getElementById("e2e-src").textContent);
   }
 
   function openDiagram(slug) {
@@ -196,7 +206,7 @@ function buildHtml(data) {
   });
   const boot = location.hash.replace("#", "") || "inicio";
   if (boot.startsWith("d-")) openDiagram(boot.slice(2));
-  else showView(["inicio","mapa","diagramas","cerebro","reglas"].includes(boot) ? boot : "inicio");
+  else showView(["inicio","mapa","diagramas","capas","howto","cerebro","reglas"].includes(boot) ? boot : "inicio");
 </script>
 <style>
   :root { --bg:#0c0f14; --panel:#151b24; --ink:#eef3f8; --muted:#8b9cb0; --acc:#4adeb8; --line:#243044; --warn:#fbbf24; }
@@ -218,7 +228,8 @@ function buildHtml(data) {
   .k { font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--acc); }
   .cta { color:var(--acc); font-size:.8rem; margin-top:.4rem; }
   .muted { color:var(--muted); font-size:.82rem; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:.7rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:.7rem; }
+  #flow-src, #layers-src, #e2e-src { display:none; }
   .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:1rem 1.1rem; color:var(--muted); }
   table { width:100%; border-collapse:collapse; font-size:.85rem; }
   th,td { padding:.55rem .4rem; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
@@ -243,6 +254,8 @@ function buildHtml(data) {
       <button type="button" data-go="inicio">Inicio</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
       <button type="button" data-go="diagramas">Diagramas (${diagrams.length})</button>
+      <button type="button" data-go="capas">Capas y E2E</button>
+      <button type="button" data-go="howto">Cómo se trabaja</button>
       <button type="button" data-go="cerebro">Memoria</button>
       <button type="button" data-go="reglas">Reglas (${assets.length})</button>
     </nav>
@@ -255,16 +268,39 @@ function buildHtml(data) {
       <div class="hero">
         <button type="button" data-go="mapa"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
         <button type="button" data-go="diagramas"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Clic para abrir el flujo</span></button>
+        <button type="button" data-go="capas"><span class="k">Capas</span><strong>Presentación · API · datos</strong><span class="muted">Quién llama qué</span></button>
+        <button type="button" data-go="howto"><span class="k">Local / test</span><strong>Cómo agregar y probar</strong><span class="muted">Qué se toca y qué no</span></button>
         <button type="button" data-go="cerebro"><span class="k">Memoria</span><strong>${lastSess ? esc(lastSess.goal || 'Sesión') : 'Sin sesiones'}</strong><span class="muted">${obs.length} hechos recientes</span></button>
         <button type="button" data-go="reglas"><span class="k">Kiro · Copilot</span><strong>${assets.length} reglas / skills</strong><span class="muted">Asociadas al workspace</span></button>
       </div>
     </section>
     <section data-view="mapa" hidden>
       <h2>Cómo se conectan</h2>
-      <p class="lead">Mismo contrato que <code>/diagrama</code> y el botón mapa del @ en AFN IDE.</p>
+      <p class="lead">Rol, framework, BD, puerto, prefix y skills por componente. Las flechas son proxy, API, lambda o datos — no solo el nombre del repo.</p>
       <div class="grid">${projCards || '<div class="empty">Corrê bootstrap desde el workspace del producto.</div>'}</div>
       <div id="flow-mermaid" class="mermaid" style="margin-top:1rem"></div>
-      <pre id="flow-src">${esc(flowMermaid(projects, rels))}</pre>
+      <pre id="flow-src">${esc(flowMermaid(projects, rels, flow))}</pre>
+    </section>
+    <section data-view="capas" hidden>
+      <h2>Capas y trazabilidad</h2>
+      <p class="lead">Presentación, API, datos, cloud. El E2E es el camino usuario → UI → proxy → API → persistencia.</p>
+      <div id="layers-mermaid" class="mermaid"></div>
+      <pre id="layers-src">${esc(flow ? buildLayersMermaid(flow) : flowMermaid(projects, rels))}</pre>
+    </section>
+    <section data-view="howto" hidden>
+      <h2>Cómo se desarrolla y se prueba</h2>
+      <p class="lead">Inferido de manifiestos y scripts. No es un producto concreto: aplica a un repo o a varios conectados.</p>
+      ${(flow?.how?.addFeature || []).map((x) => `<p>${esc(x)}</p>`).join('') || '<p class="muted">Generá el mapa (bootstrap) para ver esta guía.</p>'}
+      <h3>Se toca</h3>
+      <ul>${(flow?.how?.touch || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">—</li>'}</ul>
+      <h3>Qué no</h3>
+      <ul>${(flow?.how?.ignore || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <h3>Local</h3>
+      <ul>${(flow?.how?.local || []).map((x) => `<li><code>${esc(x)}</code></li>`).join('') || '<li class="muted">Sin scripts dev en los manifiestos.</li>'}</ul>
+      <h3>Probar un flujo</h3>
+      <ul>${(flow?.how?.test || []).map((x) => `<li><code>${esc(x)}</code></li>`).join('')}</ul>
+      <div id="e2e-mermaid" class="mermaid" style="margin-top:1rem"></div>
+      <pre id="e2e-src">${esc(flow ? buildE2eMermaid(flow) : '')}</pre>
     </section>
     <section data-view="diagramas" hidden>
       <h2>Diagramas</h2>

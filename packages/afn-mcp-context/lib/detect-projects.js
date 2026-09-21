@@ -3,6 +3,7 @@ import path from 'node:path';
 import { MAX_PROJECTS, pathKeyOf, slugify } from './paths.js';
 import { isIgnoredPath } from './projects-policy.js';
 import { hasProjectSignal } from './resolve-root.js';
+import { scanProjectSignals } from './stack-signals.js';
 
 export const DEFAULT_SKIP_DIRS = Object.freeze([
   'node_modules',
@@ -143,12 +144,23 @@ export function detectProjects(root, opts = {}) {
       .replace(/^@[^/]+\//, '')
       .trim() || folder;
     const type = refineType(abs, inferProjectType(name, pkg), folder, pkg);
+    const sig = scanProjectSignals(abs, { name, type, pkg });
     projects.push({
       name,
       path: rel.replace(/\\/g, '/'),
       type,
-      port: inferPort(pkg, type),
+      port: sig.port || inferPort(pkg, type),
       entryPoint: entryPoint(pkg),
+      framework: sig.framework,
+      role: sig.role,
+      db: sig.db,
+      prefix: sig.prefix,
+      layer: sig.layer,
+      technologies: sig.technologies,
+      endpoints: sig.endpoints,
+      proxies: sig.proxies,
+      devCommand: sig.devCommand,
+      testCommand: sig.testCommand,
       status: 'active',
       enabled: true,
     });
@@ -202,15 +214,29 @@ export function detectProjects(root, opts = {}) {
   const fronts = projects.filter((p) => p.type === 'frontend' || p.type === 'mobile');
   const backs = projects.filter((p) => p.type === 'backend');
   const relationships = [];
+  const seenRel = new Set();
+  const addRel = (from, to, type, endpoint, via) => {
+    if (!from || !to || from === to) return;
+    const key = `${from}|${to}`;
+    if (seenRel.has(key)) return;
+    seenRel.add(key);
+    relationships.push({ from, to, type, endpoint: endpoint || '', via: via || 'direct' });
+  };
   for (const f of fronts) {
+    let matched = false;
+    for (const proxy of f.proxies || []) {
+      const byPort = backs.find((b) => b.port && proxy.port && Number(b.port) === Number(proxy.port));
+      const target = byPort || backs[0];
+      if (target) {
+        addRel(f.name, target.name, 'proxy', `${proxy.path} → ${proxy.target}`, 'proxy');
+        matched = true;
+      }
+    }
+    if (matched) continue;
     for (const b of backs) {
       const port = b.port || 4000;
-      relationships.push({
-        from: f.name,
-        to: b.name,
-        type: 'api-communication',
-        endpoint: `http://localhost:${port}/api`,
-      });
+      const prefix = b.prefix || '/api';
+      addRel(f.name, b.name, 'api-communication', `http://localhost:${port}${prefix}`, 'direct');
     }
   }
 

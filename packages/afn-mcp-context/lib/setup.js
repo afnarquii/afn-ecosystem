@@ -59,7 +59,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM). El bootstrap **también** genera el diagrama de flujo si no existe y escanea steering/skills de Kiro, Copilot (\`.github\`) y Cursor, asociándolos al proyecto si el nombre coincide. Un diagrama ya versionado **no** se pisa.
+- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM). El bootstrap arma el **flujo cross-project** (rol, framework, BD, puerto, prefix, proxy, lambda, capas, E2E, cómo desarrollar/probar) y lo dibuja. Un diagrama ya versionado **no** se pisa.
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia

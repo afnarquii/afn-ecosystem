@@ -43,8 +43,9 @@ export function buildSnapshot(root) {
     lines.push('_Mapa pobre (un proyecto genérico tipo mcp-context). Corré `afn_bootstrap` con force desde el workspace del producto, no desde afn-ecosystem._');
   }
   for (const p of active) {
-    const port = p.port ? ` :${p.port}` : '';
-    lines.push(`- **${p.name}** (${p.type}${port}) \`${p.path}\`${p.entryPoint ? ` · ${p.entryPoint}` : ''}`);
+    const port = p.port ? `:${p.port}` : '';
+    const extra = [p.role || p.type, p.framework, p.db, p.prefix, port].filter(Boolean).join(' · ');
+    lines.push(`- **${p.name}** (${extra}) \`${p.path}\`${p.entryPoint ? ` · ${p.entryPoint}` : ''}`);
   }
   if (!active.length) lines.push('- _(ninguno activo)_');
   lines.push('');

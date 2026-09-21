@@ -7,7 +7,7 @@ export const CONTEXT_TOOLS = [
   },
   {
     name: 'afn_projects_flow',
-    description: 'Proyectos activos y relationships (omite deprecated/ignorePaths).',
+    description: 'Mapa cross-project: rol, framework, BD, puerto, prefix, skills, capas, quién llama qué, cómo desarrollar y probar.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -90,7 +90,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_diagram_generate',
     description:
-      'Genera o recrea el diagrama de flujo del workspace (proyectos, nombres, enlaces) en .afn/diagrams, igual que el botón mapa del @ en AFN IDE. No pisa un diagrama existente salvo recreate=true.',
+      'Genera (o recrea) el mapa de flujo del workspace: capas, endpoints, proxy/lambda, E2E y guía local/test. Escribe .afn/diagrams. No pisa un IR existente salvo recreate=true.',
     inputSchema: {
       type: 'object',
       properties: {

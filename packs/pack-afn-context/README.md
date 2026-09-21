@@ -44,7 +44,7 @@ node C:\projects\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 
 `setup` escribe rutas **absolutas** a `index.js` (Windows/macOS/Linux). Engram, si existía en `mcp.json`, **se deja**.
 
-El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
+El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. Arma el **flujo cross-project**: rol, framework, BD, puerto, prefix, proxy, lambda, capas, quién llama qué, cómo desarrollar y probar. **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
 
 Si Kiro arranca el MCP con cwd del paquete, `AFN_PROJECT_ROOT` queda anclado al workspace donde corriste `setup`.
 
@@ -120,7 +120,7 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Sin `.afn/projects.json` → detecta repos del workspace (`web/` + `api/`, hermanos, `packages/`) y escribe el mapa **sin gastar tokens del LLM**.
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → no pisa (`force` para rehacer).
-- Si falta el diagrama de flujo → lo genera en `.afn/diagrams` (mismos nodos/enlaces que `/diagrama` y el botón mapa del `@` en AFN IDE). **No pisa** un diagrama ya versionado.
+- Si falta el diagrama de flujo → genera **cuatro** mapas en `.afn/diagrams` (flujo, capas, endpoints, E2E) más `workspace-flow.md` (cómo agregar, local, tests). **No pisa** un diagrama ya versionado.
 - Escanea steering/skills de Kiro, Copilot (`.github/copilot-instructions.md`, `.github/skills`) y Cursor, y los asocia a un proyecto si el nombre coincide.
 
 El primer prompt recibe el snapshot (proyectos, `web → api`, trabajo reciente). Si ves un solo proyecto genérico, pedí `afn_bootstrap` con `force=true`.

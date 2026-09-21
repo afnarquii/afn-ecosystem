@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
 import { normalizeProjectsConfig } from './projects-policy.js';
-import { buildFlowDiagramIr, irToMermaid } from './diagram-ir.js';
+import { irToMermaid } from './diagram-ir.js';
+import { persistWorkspaceFlow, buildWorkspaceDiagrams } from './workspace-flow.js';
 
 function readJson(file) {
   try {
@@ -19,14 +20,14 @@ export function listDiagramIrs(root) {
   const dir = afnPath(root, 'diagrams');
   let names = [];
   try {
-    names = fs.readdirSync(dir).filter((n) => n.endsWith('.json') && !n.includes('.delta.') && !n.includes('.deliver.'));
+    names = fs.readdirSync(dir).filter((n) => n.endsWith('.json') && !n.includes('.delta.') && !n.includes('.deliver.') && n !== 'workspace-flow.json');
   } catch {
     return [];
   }
   const out = [];
   for (const name of names.slice(0, 24)) {
     const ir = readJson(path.join(dir, name));
-    if (!ir || typeof ir !== 'object') continue;
+    if (!ir || typeof ir !== 'object' || ir.kind === 'workspace-flow') continue;
     out.push({
       file: name,
       slug: ir.slug || name.replace(/\.architecture\.json$/i, '').replace(/\.json$/i, ''),
@@ -40,24 +41,42 @@ export function listDiagramIrs(root) {
   return out;
 }
 
+function writeIr(dir, built, recreate) {
+  const jsonFile = path.join(dir, `${built.ir.slug}.architecture.json`);
+  const mdFile = path.join(dir, `${built.ir.slug}.architecture.md`);
+  if (!recreate && fs.existsSync(jsonFile)) {
+    return { ok: true, skipped: true, slug: built.ir.slug, file: jsonFile };
+  }
+  const ir = { ...built.ir, mermaid: built.mermaid };
+  fs.writeFileSync(jsonFile, `${JSON.stringify(ir, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(mdFile, `# ${ir.meta?.title || ir.slug}\n\n\`\`\`mermaid\n${built.mermaid}\`\`\`\n`, 'utf8');
+  return { ok: true, skipped: false, wrote: true, slug: ir.slug, file: jsonFile };
+}
+
 /**
- * Persiste el flujo del workspace (como el botón mapa del `@` / `/diagrama`).
+ * Persiste flujo + capas + endpoints + e2e (gráficas que reflejan el mapa cross-project).
+ * No pisa un IR existente salvo recreate.
  * @param {string} root
  * @param {object} [cfg]
- * @param {{ recreate?: boolean }} [opts]
+ * @param {{ recreate?: boolean, assets?: object }} [opts]
  */
 export function persistWorkspaceFlowDiagram(root, cfg, opts = {}) {
   const config = cfg || normalizeProjectsConfig(readJson(afnPath(root, 'projects.json')) || {});
-  const built = buildFlowDiagramIr(config);
-  if (!built.ok) return built;
+  const persisted = persistWorkspaceFlow(root, config, opts);
+  if (!persisted.ok) return persisted;
   const dir = afnPath(root, 'diagrams');
   fs.mkdirSync(dir, { recursive: true });
-  const jsonFile = path.join(dir, `${built.ir.slug}.architecture.json`);
-  const mdFile = path.join(dir, `${built.ir.slug}.architecture.md`);
-  if (!opts.recreate && fs.existsSync(jsonFile)) {
-    return { ok: true, skipped: true, ir: built.ir, file: jsonFile, mermaid: built.mermaid };
-  }
-  fs.writeFileSync(jsonFile, `${JSON.stringify(built.ir, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(mdFile, `# ${built.ir.meta.title}\n\n\`\`\`mermaid\n${built.mermaid}\`\`\`\n`, 'utf8');
-  return { ok: true, skipped: false, wrote: true, ir: built.ir, file: jsonFile, mermaid: built.mermaid };
+  const maps = buildWorkspaceDiagrams(persisted.flow);
+  const files = maps.map((built) => writeIr(dir, built, opts.recreate === true));
+  const wrote = files.some((f) => f.wrote);
+  return {
+    ok: true,
+    skipped: !wrote,
+    wrote,
+    files,
+    flow: persisted.flow,
+    config: persisted.config,
+    mermaid: maps[0]?.mermaid || '',
+    ir: maps[0]?.ir || null,
+  };
 }
