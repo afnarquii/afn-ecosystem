@@ -14,6 +14,7 @@ const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 const GITIGNORE_BLOCK = `${GITIGNORE_MARKER}
 .afn/*
 !.afn/MEMORY.md
+!.afn/ARQUITECTURA.md
 !.afn/projects.json
 !.afn/projects.json.example
 !.afn/skills/

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { afnPath, MAX_SNAPSHOT_CHARS } from './paths.js';
 import { redactSecrets } from './redact.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
@@ -32,7 +33,9 @@ function readText(file) {
 export function buildAskBrief(root) {
   const flow = loadWorkspaceFlow(root);
   if (flow) return architectureReadmeBrief(flow, 1600);
-  const disk = readText(afnPath(root, 'diagrams', 'arquitectura.md'))
+  const disk = readText(path.join(root, 'ARQUITECTURA.md'))
+    || readText(afnPath(root, 'ARQUITECTURA.md'))
+    || readText(afnPath(root, 'diagrams', 'arquitectura.md'))
     || readText(afnPath(root, 'diagrams', 'workspace-flow.md'));
   if (disk) return disk.slice(0, 1600);
   return '';
@@ -45,7 +48,7 @@ export function buildAskBrief(root) {
 export function buildSnapshot(root) {
   const lines = [
     '=== AFN CONTEXT (README de arquitectura — no reexplores el repo si esto alcanza) ===',
-    'Usá nombres, rutas y quién llama a quién. Completo: `.afn/diagrams/arquitectura.md`. No uses mermaid como fuente.',
+    'Usá nombres, rutas y quién llama a quién. Completo: `ARQUITECTURA.md` en la raíz del workspace.',
     '',
   ];
 
@@ -64,7 +67,7 @@ export function buildSnapshot(root) {
   if (flow?.llmReviewed !== true) {
     lines.push('ARQUITECTURA PENDIENTE: `afn_architecture_evidence` → leer filesToRead → `afn_architecture_commit`. No inventes puertos, prefix, flechas ni BDs.');
   } else {
-    lines.push('Arquitectura verificada. Documento: `.afn/diagrams/arquitectura.md`.');
+    lines.push('Arquitectura verificada. Documento: `ARQUITECTURA.md` (raíz del workspace).');
   }
   lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura cerrada' : ''));
   if (weak) {

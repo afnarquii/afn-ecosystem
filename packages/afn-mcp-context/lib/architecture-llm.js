@@ -14,7 +14,7 @@ export const LLM_ARCHITECTURE_PROMPT = `Arquitectura AFN (C4 + arc42, texto): in
 2. Leé filesToRead: proxy, compose, rutas, prisma/SQL/ORM, OpenAPI. Completá huecos SOLO si el archivo lo dice.
 3. afn_architecture_commit: projects (endpoints, prefix, port con evidencia) + relationships (from, to, via, endpoint).
 
-El artefacto es \`.afn/diagrams/arquitectura.md\`: contexto, contenedores (1 repo o varios), comunicación, flujo E2E, rutas, esquemas.
+El artefacto visible es \`ARQUITECTURA.md\` en la raíz del workspace (copia en \`.afn/ARQUITECTURA.md\`).
 Prohibido inventar puertos, /api, flechas, tablas o mermaid. Si no hay evidencia, omití.`;
 
 function readJson(file) {
@@ -297,7 +297,7 @@ export function commitArchitecture(root, input = {}) {
       diagram,
       hint: rejected.length
         ? `Guardé lo verificado. Rechacé ${rejected.length} ítem(s) sin disco (no se inventan puertos ni nodos).`
-        : 'Arquitectura README guardada (.afn/diagrams/arquitectura.md). El cerebro no se tocó.',
+        : `README para el LLM: ARQUITECTURA.md en la raíz. El cerebro no se tocó.`,
     };
   });
 }

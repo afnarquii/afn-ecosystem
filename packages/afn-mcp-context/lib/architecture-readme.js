@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 /**
  * README C4 + arc42 en texto (lo que un LLM entiende de punta a punta).
  * Contexto → contenedores → comunicación → runtime E2E → rutas → esquema.
@@ -150,5 +153,26 @@ export function architectureReadmeBrief(flow, max = 1800) {
   const picked = parts.filter((p, i) => i === 0 || keep.some((k) => p.startsWith(k)));
   const text = (picked.length ? picked.join('\n') : md).replace(/\n{3,}/g, '\n\n');
   if (text.length <= max) return text;
-  return `${text.slice(0, max - 48).trimEnd()}\n\n_(completo: .afn/diagrams/arquitectura.md)_`;
+  return `${text.slice(0, max - 48).trimEnd()}\n\n_(completo: ARQUITECTURA.md en la raíz del workspace)_`;
+}
+
+const BANNER = '<!-- generado-por-afn: regenerá la arquitectura para actualizar este archivo -->\n';
+
+/**
+ * Escribe el README donde se ve: raíz del workspace + .afn (el IDE oculta .afn/diagrams).
+ * @param {string} root
+ * @param {string} markdown
+ */
+export function writeArchitectureReadmeFiles(root, markdown) {
+  const body = String(markdown || '').startsWith('<!-- generado-por-afn')
+    ? String(markdown)
+    : `${BANNER}\n${String(markdown || '').trimStart()}`;
+  const rootFile = path.join(root, 'ARQUITECTURA.md');
+  const afnFile = path.join(root, '.afn', 'ARQUITECTURA.md');
+  const diagramsFile = path.join(root, '.afn', 'diagrams', 'arquitectura.md');
+  fs.mkdirSync(path.join(root, '.afn', 'diagrams'), { recursive: true });
+  fs.writeFileSync(rootFile, body.endsWith('\n') ? body : `${body}\n`, 'utf8');
+  fs.writeFileSync(afnFile, body.endsWith('\n') ? body : `${body}\n`, 'utf8');
+  fs.writeFileSync(diagramsFile, body.endsWith('\n') ? body : `${body}\n`, 'utf8');
+  return { rootFile, afnFile, diagramsFile };
 }

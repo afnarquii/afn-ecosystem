@@ -5,7 +5,7 @@ import { FLOW_GENERATOR_VERSION } from './version.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
 import { scanProjectSignals, scanComposeServices } from './stack-signals.js';
 import { irToMermaid, mermaidId, mermaidLabel } from './diagram-ir.js';
-import { workspaceFlowMarkdown } from './architecture-readme.js';
+import { workspaceFlowMarkdown, writeArchitectureReadmeFiles } from './architecture-readme.js';
 
 export { workspaceFlowMarkdown };
 
@@ -407,13 +407,11 @@ export function persistWorkspaceFlow(root, cfg, opts = {}) {
   const dir = afnPath(root, 'diagrams');
   fs.mkdirSync(dir, { recursive: true });
   const jsonFile = path.join(dir, 'workspace-flow.json');
-  const mdFile = path.join(dir, 'workspace-flow.md');
-  const readmeFile = path.join(dir, 'arquitectura.md');
   const md = workspaceFlowMarkdown(flow);
+  const readmes = writeArchitectureReadmeFiles(root, md);
   fs.writeFileSync(jsonFile, `${JSON.stringify(flow, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(mdFile, md, 'utf8');
-  fs.writeFileSync(readmeFile, md, 'utf8');
-  return { ok: true, flow, jsonFile, mdFile, readmeFile, config: flowToProjectsConfig(flow, cfg) };
+  fs.writeFileSync(path.join(dir, 'workspace-flow.md'), md.endsWith('\n') ? md : `${md}\n`, 'utf8');
+  return { ok: true, flow, jsonFile, mdFile: readmes.diagramsFile, readmeFile: readmes.rootFile, readmes, config: flowToProjectsConfig(flow, cfg) };
 }
 
 export function loadWorkspaceFlow(root) {

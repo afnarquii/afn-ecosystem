@@ -101,9 +101,10 @@ export async function handleContextTool(root, name, args = {}) {
         llmReviewed: needsLlm ? false : evidence.llmReviewed,
         evidence,
         prompt: needsLlm ? LLM_ARCHITECTURE_PROMPT : undefined,
+        readme: r.readmeFile || path.join(base, 'ARQUITECTURA.md'),
         hint: r.skipped && !recreate
-          ? `Ya hay arquitectura en ${base}. Pedí “regenerá la arquitectura” (recreate).`
-          : `Inventario en ${base}${path.sep}.afn (sin inventar). Ahora leé filesToRead y afn_architecture_commit.`,
+          ? `README: ${r.readmeFile || path.join(base, 'ARQUITECTURA.md')}. Si querés rehacer el inventario, pedí regenerar con recreate.`
+          : `README para el LLM (abrilo): ${r.readmeFile || path.join(base, 'ARQUITECTURA.md')}. Luego filesToRead → afn_architecture_commit.`,
       };
     }
     case 'afn_architecture_evidence':

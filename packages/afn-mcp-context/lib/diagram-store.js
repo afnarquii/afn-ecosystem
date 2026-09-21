@@ -4,6 +4,7 @@ import { afnPath } from './paths.js';
 import { normalizeProjectsConfig } from './projects-policy.js';
 import { irToMermaid } from './diagram-ir.js';
 import { persistWorkspaceFlow, buildWorkspaceDiagrams, architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
+import { workspaceFlowMarkdown, writeArchitectureReadmeFiles } from './architecture-readme.js';
 import { withPreservedMemory } from './cerebro.js';
 
 function readJson(file) {
@@ -90,13 +91,18 @@ export function persistWorkspaceFlowDiagram(root, cfg, opts = {}) {
 function persistWorkspaceFlowDiagramUnprotected(root, cfg, opts = {}) {
   const config = cfg || normalizeProjectsConfig(readJson(afnPath(root, 'projects.json')) || {});
   if (!opts.recreate && architectureExists(root)) {
+    const flow = loadWorkspaceFlow(root);
+    const readmes = flow ? writeArchitectureReadmeFiles(root, workspaceFlowMarkdown(flow)) : null;
     return {
       ok: true,
       skipped: true,
       wrote: false,
-      flow: loadWorkspaceFlow(root),
+      flow,
       config,
-      hint: 'La arquitectura ya existe. Para regenerarla usá el comando (recreate=true). No gasta el LLM.',
+      readmeFile: readmes?.rootFile || '',
+      hint: readmes?.rootFile
+        ? `La arquitectura ya existía. README visible: ${readmes.rootFile}`
+        : 'La arquitectura ya existe. Para regenerarla usá recreate=true.',
     };
   }
   const persisted = persistWorkspaceFlow(root, config, opts);
@@ -114,12 +120,15 @@ function persistWorkspaceFlowDiagramUnprotected(root, cfg, opts = {}) {
     files,
     flow: persisted.flow,
     config: persisted.config,
+    readmeFile: persisted.readmeFile || '',
     mermaid: maps[0]?.mermaid || '',
     ir: maps[0]?.ir || null,
     llmReviewed,
     needsLlm: !llmReviewed,
-    hint: llmReviewed
-      ? 'Arquitectura verificada (LLM + disco).'
-      : 'Inventario de disco (sin inventar flechas). El LLM debe leer filesToRead y afn_architecture_commit.',
+    hint: persisted.readmeFile
+      ? `README para el LLM: ${persisted.readmeFile}`
+      : (llmReviewed
+        ? 'Arquitectura verificada (LLM + disco).'
+        : 'Inventario de disco. El LLM debe leer filesToRead y afn_architecture_commit.'),
   };
 }

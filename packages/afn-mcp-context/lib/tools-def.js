@@ -2,7 +2,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_context_snapshot',
     description:
-      'Bloque compacto: nombres, rutas, quién llama a quién, hechos. El documento completo es .afn/diagrams/arquitectura.md.',
+      'Bloque compacto: nombres, rutas, quién llama a quién, hechos. El documento completo es ARQUITECTURA.md en la raíz del workspace.',
     inputSchema: { type: 'object', properties: {} },
   },
   {

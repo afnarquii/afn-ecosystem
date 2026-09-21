@@ -149,7 +149,7 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → **no pisa los nombres de repo** (`--force` para redetectar).
 
-Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard` (README de arquitectura: nombres, rutas, flujo; diagrama opcional). No regenera nada.
+Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o abrí **`ARQUITECTURA.md` en la raíz del workspace** (también `.afn/ARQUITECTURA.md`). No regenera nada.
 
 ### 5. Hechos
 

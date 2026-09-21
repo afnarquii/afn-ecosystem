@@ -394,8 +394,13 @@ test('afn_diagram_generate sin recreate no pisa; con recreate sí', async () => 
   writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
   await handleContextTool(root, 'afn_bootstrap', {});
+  const visible = path.join(root, 'ARQUITECTURA.md');
+  assert.equal(fs.existsSync(visible), true);
+  fs.unlinkSync(visible);
   const skip = await handleContextTool(root, 'afn_diagram_generate', {});
   assert.equal(skip.skipped, true);
+  assert.equal(fs.existsSync(visible), true);
+  assert.match(fs.readFileSync(visible, 'utf8'), /Arquitectura|Contenedores/);
   const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
   assert.equal(gen.ok, true);
   assert.equal(gen.skipped, false);
@@ -656,7 +661,8 @@ test('README de arquitectura lista rutas reales, no mermaid como fuente', () => 
   fs.writeFileSync(path.join(py, 'Makefile'), 'run:\n\tuvicorn app:app --port 8080\n');
   const boot = bootstrapAfn(root);
   assert.equal(boot.ok, true);
-  const md = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'arquitectura.md'), 'utf8');
+  assert.equal(fs.existsSync(path.join(root, 'ARQUITECTURA.md')), true);
+  const md = fs.readFileSync(path.join(root, 'ARQUITECTURA.md'), 'utf8');
   assert.match(md, /## 2\. Contenedores|## Contenedores/);
   assert.match(md, /## 3\. Comunicación|Quién llama/);
   assert.match(md, /## 5\. Rutas/);
