@@ -38,7 +38,7 @@ export function buildSnapshot(root) {
   const rels = activeRelationships(cfg);
   const weak = isWeakProjectsMap(cfg);
   lines.push(`Workspace: \`${root}\``);
-  lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura **cerrada** (no regenera al entrar)' : ' · mapa **abierto** (al entrar redibuja)'));
+  lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura cerrada' : ''));
   if (weak) {
     lines.push('_Mapa pobre (un proyecto genérico tipo mcp-context). Corré `afn_bootstrap` con force desde el workspace del producto, no desde afn-ecosystem._');
   }

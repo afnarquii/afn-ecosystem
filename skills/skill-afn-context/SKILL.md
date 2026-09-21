@@ -12,11 +12,11 @@ Usar el MCP **afn-context** para no reexplorar el repo. Fuente: `.afn/projects.j
 
 ## Flujo
 
-1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true`.
-   Tras `git pull` del pack, al entrar (SessionStart) bootstrap **regenera las gráficas** mientras la arquitectura no esté locked. Cuando el flujo ya está: `lock=true`. `unlock` vuelve a iterar.
+1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true` (sin LLM).
+   Si el mapa **ya existe**, no lo regeneres. Solo si el usuario pide “regenerá la arquitectura”: `afn_diagram_generate` `recreate=true` (comando, no lo inventes).
 2. Al empezar → `afn_context_snapshot` + `afn_mem_context`. Si alcanza, **no** listés el árbol.
 3. Trabajo nuevo → `afn_session_start` (goal).
-4. Flujo entre paquetes → `afn_projects_flow` (rol, framework, BD, prefix, capas, E2E, cómo desarrollar). Recrear los mapas visuales → `afn_diagram_generate` `recreate=true`.
+4. Flujo entre paquetes → `afn_projects_flow`. Recrear mapas **solo si el usuario lo pide** → `afn_diagram_generate` `recreate=true` (comando, sin LLM).
 5. ¿Ya lo decidimos? → `afn_mem_search`.
 6. Decisión / bugfix / hallazgo → `afn_mem_save` (title, type, What/Why/Where/Learned).
 7. Ver mapa, diagramas y cerebro → `afn_dashboard`. Los diagramas se **abren en esa página**.

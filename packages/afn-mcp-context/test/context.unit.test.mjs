@@ -291,49 +291,33 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /prefix|presentaci|express|react/i);
 });
 
-test('bootstrap escribe diagrama; sin lock redibuja; con lock ya no', () => {
+test('si la arquitectura existe, bootstrap no regenera; el comando --refresh sí', () => {
   const root = tmp();
   writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
   const a = bootstrapAfn(root);
   assert.equal(a.diagram?.ok, true);
-  assert.equal(a.architectureLocked, false);
   const dir = path.join(root, '.afn', 'diagrams');
-  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.architecture.json'));
-  assert.ok(files.some((n) => n.startsWith('workspace-flujo')));
-  assert.ok(fs.existsSync(path.join(dir, 'workspace-flow.md')));
+  const sample = fs.readdirSync(dir).find((n) => n.startsWith('workspace-flujo') && n.endsWith('.json'));
+  const first = fs.readFileSync(path.join(dir, sample), 'utf8');
   const b = bootstrapAfn(root);
   assert.equal(b.skipped, true);
-  assert.equal(b.refreshed, true);
-  assert.equal(b.diagram?.skipped, false);
-  const locked = bootstrapAfn(root, { lock: true });
-  assert.equal(locked.architectureLocked, true);
-  const sample = files.find((n) => n.startsWith('workspace-flujo'));
-  const first = fs.readFileSync(path.join(dir, sample), 'utf8');
-  const c = bootstrapAfn(root);
-  assert.equal(c.architectureLocked, true);
-  assert.equal(c.reason, 'arquitectura-cerrada');
-  assert.equal(c.diagram?.skipped, true);
+  assert.equal(b.diagram?.skipped, true);
   assert.equal(fs.readFileSync(path.join(dir, sample), 'utf8'), first);
-  const d = bootstrapAfn(root, { refresh: true });
-  assert.equal(d.diagram?.skipped, false);
+  const c = bootstrapAfn(root, { refresh: true });
+  assert.equal(c.diagram?.skipped, false);
 });
 
-test('lock impide regenerar aunque el pack sea más nuevo; unlock vuelve a redibujar', () => {
+test('afn_diagram_generate sin recreate no pisa; con recreate sí', async () => {
   const root = tmp();
   writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
-  bootstrapAfn(root, { lock: true });
-  const flowFile = path.join(root, '.afn', 'diagrams', 'workspace-flow.json');
-  const flow = JSON.parse(fs.readFileSync(flowFile, 'utf8'));
-  flow.generatorVersion = '1.0.0';
-  fs.writeFileSync(flowFile, `${JSON.stringify(flow, null, 2)}\n`);
-  const b = bootstrapAfn(root);
-  assert.equal(b.architectureLocked, true);
-  assert.equal(b.diagram?.skipped, true);
-  const c = bootstrapAfn(root, { unlock: true });
-  assert.equal(c.architectureLocked, false);
-  assert.equal(c.diagram?.skipped, false);
+  await handleContextTool(root, 'afn_bootstrap', {});
+  const skip = await handleContextTool(root, 'afn_diagram_generate', {});
+  assert.equal(skip.skipped, true);
+  const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
+  assert.equal(gen.ok, true);
+  assert.equal(gen.skipped, false);
 });
 
 test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {

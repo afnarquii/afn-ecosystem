@@ -90,7 +90,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_diagram_generate',
     description:
-      'Genera (o recrea) el mapa de flujo del workspace: capas, endpoints, proxy/lambda, E2E y guía local/test. Escribe .afn/diagrams. No pisa un IR existente salvo recreate=true.',
+      'Comando para regenerar arquitectura (capas, endpoints, E2E). Sin LLM. Si ya existe y recreate=false, no hace nada (ahorra tokens). Solo usalo si el usuario lo pidió.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -112,7 +112,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_bootstrap',
     description:
-      'Detecta repos y actualiza .afn/. Mientras architectureLocked=false, al entrar redibuja capas/E2E (etapa de cambios). Cuando la arquitectura está cerrada: lock=true y ya no regenera solo. force redetecta repos. refresh redibuja aunque esté locked.',
+      'Crea .afn/ si falta (sin LLM). Si la arquitectura ya existe, no la regenera. refresh/force solo cuando el usuario pide regenerar o redetectar repos.',
     inputSchema: {
       type: 'object',
       properties: {

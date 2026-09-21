@@ -5,7 +5,7 @@
  *   node index.js snapshot     → markdown a stdout (hook PromptSubmit)
  *   node index.js bootstrap    → .afn/ sin LLM
  *   node index.js dashboard    → HTML cerebro/mapa (navegador)
- *   node index.js diagram      → IR de flujo en .afn/diagrams
+ *   node index.js architecture [--recreate]  → mapa (si existe, no toca; --recreate redibuja, sin LLM)
  *   node index.js session-start
  *   node index.js setup kiro|cursor|claude|generic
  */
@@ -81,14 +81,14 @@ async function main() {
     return;
   }
 
-  if (cmd === 'diagram') {
-    const recreate = argv.includes('--recreate');
+  if (cmd === 'architecture' || cmd === 'diagram') {
+    const recreate = argv.includes('--recreate') || argv.includes('--refresh');
     const r = persistWorkspaceFlowDiagram(root, undefined, { recreate });
-    if (r.config) {
+    if (r.config && !r.skipped) {
       fs.mkdirSync(afnPath(root), { recursive: true });
       fs.writeFileSync(afnPath(root, 'projects.json'), `${JSON.stringify(r.config, null, 2)}\n`, 'utf8');
     }
-    process.stdout.write(`${JSON.stringify({ ok: r.ok, skipped: r.skipped, files: r.files }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: r.ok, skipped: r.skipped, files: r.files, hint: r.hint }, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
   }
@@ -102,7 +102,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh|--lock|--unlock]|doctor|dashboard|diagram [--recreate]|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh]|architecture [--recreate]|doctor|dashboard|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

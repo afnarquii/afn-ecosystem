@@ -6,6 +6,7 @@ import { normalizeProjectsConfig } from './projects-policy.js';
 import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
+import { architectureExists } from './workspace-flow.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -65,7 +66,8 @@ export function bootstrapAfn(root, opts = {}) {
   let locked = existingNorm?.architectureLocked === true;
   if (opts.lock === true) locked = true;
   if (opts.unlock === true) locked = false;
-  const recreateDiagram = force || refresh || !locked || !existingCount;
+  const missingArch = !architectureExists(base);
+  const recreateDiagram = force || refresh || missingArch;
 
   if (isCatalogish(base)) {
     return {
@@ -88,7 +90,7 @@ export function bootstrapAfn(root, opts = {}) {
       wrote: false,
       root: base,
       config: extra.config || cfg,
-      reason: locked && !refresh && !force ? 'arquitectura-cerrada' : 'mapa-actualizado',
+      reason: recreateDiagram ? 'mapa-actualizado' : 'arquitectura-existe',
       diagram: extra.diagram,
       assets: extra.assets,
       refreshed: extra.diagram?.skipped === false,
@@ -122,6 +124,13 @@ function enrichAfn(base, config, opts = {}) {
   ensureAfnDirs(base);
   ensureMemoryStub(base);
   ensureGitignore(base);
+  if (!opts.recreateDiagram && architectureExists(base)) {
+    return {
+      diagram: { ok: true, skipped: true },
+      assets: { ok: true, skipped: true, count: 0 },
+      config,
+    };
+  }
   let assets = { ok: false, count: 0, assets: [] };
   try {
     assets = persistAgentAssets(base);

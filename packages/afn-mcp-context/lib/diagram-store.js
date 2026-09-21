@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afnPath } from './paths.js';
 import { normalizeProjectsConfig } from './projects-policy.js';
 import { irToMermaid } from './diagram-ir.js';
-import { persistWorkspaceFlow, buildWorkspaceDiagrams } from './workspace-flow.js';
+import { persistWorkspaceFlow, buildWorkspaceDiagrams, architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
 
 function readJson(file) {
   try {
@@ -62,6 +62,16 @@ function writeIr(dir, built, recreate) {
  */
 export function persistWorkspaceFlowDiagram(root, cfg, opts = {}) {
   const config = cfg || normalizeProjectsConfig(readJson(afnPath(root, 'projects.json')) || {});
+  if (!opts.recreate && architectureExists(root)) {
+    return {
+      ok: true,
+      skipped: true,
+      wrote: false,
+      flow: loadWorkspaceFlow(root),
+      config,
+      hint: 'La arquitectura ya existe. Para regenerarla usá el comando (recreate=true). No gasta el LLM.',
+    };
+  }
   const persisted = persistWorkspaceFlow(root, config, opts);
   if (!persisted.ok) return persisted;
   const dir = afnPath(root, 'diagrams');

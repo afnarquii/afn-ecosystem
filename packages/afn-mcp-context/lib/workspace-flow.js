@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath, slugify } from './paths.js';
-import { FLOW_GENERATOR_VERSION, compareSemver } from './version.js';
+import { FLOW_GENERATOR_VERSION } from './version.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
 import { scanProjectSignals, scanComposeServices } from './stack-signals.js';
 import { irToMermaid, mermaidId, mermaidLabel } from './diagram-ir.js';
@@ -461,17 +461,15 @@ export function loadWorkspaceFlow(root) {
 }
 
 /**
- * True si falta el mapa o lo generó un pack más viejo (tras `git pull` hay que redibujar).
+ * Hay mapa de arquitectura en disco (no regenerar salvo comando explícito).
  * @param {string} root
- * @param {string} [current]
  */
-export function isFlowStale(root, current = FLOW_GENERATOR_VERSION) {
-  const flow = loadWorkspaceFlow(root);
-  if (!flow) return true;
+export function architectureExists(root) {
   try {
+    fs.accessSync(afnPath(root, 'diagrams', 'workspace-flow.json'));
     fs.accessSync(path.join(afnPath(root, 'diagrams'), 'workspace-capas.architecture.json'));
-  } catch {
     return true;
+  } catch {
+    return false;
   }
-  return compareSemver(flow.generatorVersion || '0.0.0', current) < 0;
 }

@@ -86,9 +86,15 @@ export async function handleContextTool(root, name, args = {}) {
     case 'afn_dashboard':
       return writeDashboard(base, { open: args.open !== false, slug: args.slug });
     case 'afn_diagram_generate': {
-      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate: args.recreate === true });
-      if (r.config) writeProjects(base, r.config);
-      return r;
+      const recreate = args.recreate === true;
+      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate });
+      if (r.config && !r.skipped) writeProjects(base, r.config);
+      return {
+        ...r,
+        hint: r.skipped
+          ? 'Ya hay arquitectura. Pedí “regenerá la arquitectura” (recreate) — es un comando, no lo inventa el LLM.'
+          : r.hint,
+      };
     }
     case 'afn_agent_assets':
       return persistAgentAssets(base);

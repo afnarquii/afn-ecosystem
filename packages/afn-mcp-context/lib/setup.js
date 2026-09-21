@@ -35,8 +35,6 @@ function mcpServerBlock() {
       'afn_bootstrap',
       'afn_doctor',
       'afn_dashboard',
-      'afn_diagram_generate',
-      'afn_agent_assets',
     ],
   };
 }
@@ -51,16 +49,17 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide ver el mapa, diagramas o el cerebro: \`afn_dashboard\` (abre HTML; los diagramas se abren **en esa página** con un clic).
-- Si pide recrear el diagrama de todo el workspace (como el botón mapa del \`@\` en AFN IDE): \`afn_diagram_generate\` con \`recreate=true\`.
+- Si el usuario pide **ver** el mapa: \`afn_dashboard\` (HTML). No regeneres nada para verlo.
+- **No** regeneres arquitectura vos. No inventes el flujo con el LLM. No llames \`afn_diagram_generate\` ni \`bootstrap refresh\` salvo que el usuario lo pida explícito (“regenerá la arquitectura”, “regenerá el mapa”).
+- Si lo pide: \`afn_diagram_generate\` con \`recreate=true\` (comando, sin LLM). Si ya existe y no lo pidió: no toques.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
 ## Proyectos
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM).
-- Al **entrar** (SessionStart) corre bootstrap. **Mientras la arquitectura no está cerrada**, redibuja el mapa (estamos iterando el pack y el flujo). Cuando el usuario diga que la arquitectura ya está: \`afn_bootstrap\` \`lock=true\`. Ahí deja de regenerar solo. \`unlock\` vuelve a la etapa de cambios. \`refresh\` redibuja aunque esté locked. \`force\` redetecta repos.
+- Si falta \`.afn/\` o el mapa es un solo \`mcp-context\`: \`afn_bootstrap\` con \`force=true\` (sin LLM).
+- Al entrar, SessionStart corre bootstrap: **crea** el mapa si no existe; **si ya existe, no lo regenera**.
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia
@@ -83,7 +82,7 @@ function writeHooks(projectRoot, nodeCmd) {
     hooks: [
       {
         name: 'AFN bootstrap',
-        description: 'Al entrar: si la arquitectura no está cerrada, regenera el mapa. Si está locked, no toca las gráficas.',
+        description: 'Crea .afn/ si falta. Si la arquitectura ya existe, no la regenera (ahorra tokens).',
         trigger: 'SessionStart',
         action: { type: 'command', command: `${nodeCmd} bootstrap` },
         timeout: 30,
@@ -124,7 +123,7 @@ function writeHooks(projectRoot, nodeCmd) {
         action: {
           type: 'agent',
           prompt:
-            'Si este turno cambió arquitectura, APIs, un bugfix o una decisión, llamá afn_mem_save (title + type + What/Why/Where). Si cerrás el trabajo, afn_session_summary. Si el usuario pidió ver el mapa o el cerebro, afn_dashboard. Si pidió recrear el diagrama del workspace, afn_diagram_generate con recreate=true.',
+            'Si este turno cambió arquitectura, APIs, un bugfix o una decisión, llamá afn_mem_save (title + type + What/Why/Where). Si cerrás el trabajo, afn_session_summary. No regeneres el mapa a menos que el usuario lo haya pedido en este turno.',
         },
       },
     ],

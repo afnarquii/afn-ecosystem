@@ -87,11 +87,12 @@ Eso crea/mezcla:
 
 | Cuándo | Qué corre | Regenera gráficas |
 |--------|-----------|-------------------|
-| Primera vez / no hay `.afn/` | `setup` y SessionStart → `bootstrap` | Sí |
-| Abrís Kiro de nuevo | SessionStart → `bootstrap` | **Sí**, mientras `architectureLocked` sea false (etapa de cambios del pack/flujo). **No**, cuando la arquitectura ya está cerrada (`--lock`). |
-| Arquitectura lista | `bootstrap --lock` o en el chat “cerrá la arquitectura AFN” | Deja de regenerar al entrar |
-| Querés redibujar ya (aunque esté locked) | `bootstrap --refresh` | Sí |
-| Querés redetectar repos | `bootstrap --force` | Sí, reescribe el listado de proyectos |
+| Primera vez / no hay mapa | SessionStart → `bootstrap` | Sí, **sin LLM** |
+| Abrís Kiro y el mapa ya existe | SessionStart → `bootstrap` | **No** (no gasta tokens) |
+| Pedís “regenerá la arquitectura” | `afn_diagram_generate` recreate **o** `architecture --recreate` | Sí, **sin LLM** (comando) |
+| Redetectar repos | `bootstrap --force` | Sí |
+
+El LLM **no** dibuja la arquitectura. Lee el snapshot. Solo dispara el comando si vos lo pedís.
 
 Actualizar en la empresa:
 
@@ -102,9 +103,11 @@ cd C:\work\mi-monorepo
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 ```
 
-El `git pull` actualiza el código que Kiro ya ejecuta. El `setup` refresca steering/hooks. **Al volver a abrir Kiro**, si la arquitectura **no** está locked, bootstrap **redibuja**. Cuando el flujo ya está como debe estar: `bootstrap --lock` (o “cerrá la arquitectura AFN”). A partir de ahí no regenera solo.
+Regenerar a mano (sin chat):
 
-Si Kiro ya estaba abierto, recargá MCP o cerrá/abrí la sesión.
+```bash
+node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js architecture --recreate
+```
 
 ### 3. Activar MCP en Kiro
 
@@ -196,14 +199,14 @@ node …/index.js setup generic
 
 | Tool | Para qué |
 |------|----------|
-| `afn_bootstrap` | Detectar repos. Sin lock: al entrar redibuja. `lock` cierra arquitectura. `unlock` / `refresh` / `force` según la etapa. |
+| `afn_bootstrap` | Crea `.afn/` si falta. Si la arquitectura existe, no la toca. |
 | `afn_context_snapshot` | Bloque ≤3200 chars (mapa + trabajo reciente) |
 | `afn_projects_flow` | Activos + relationships |
 | `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
 | `afn_mem_search` / `afn_mem_save` | Buscar / guardar en el cerebro `.afn/memory/cerebro.json` |
 | `afn_session_start` / `afn_session_summary` | Abrir / cerrar sesión de trabajo |
 | `afn_dashboard` | HTML: inicio, mapa, diagramas (se abren con un clic), memoria, reglas. Abre el navegador. |
-| `afn_diagram_generate` | Recrear el flujo (componentes, nombres, enlaces) en `.afn/diagrams`. No pisa salvo `recreate`. |
+| `afn_diagram_generate` | Comando “regenerá la arquitectura”. Sin LLM. Si existe y no hay recreate, no hace nada. |
 | `afn_agent_assets` | Listar/asociar steering, skills, Copilot, Cursor al mapa. |
 | `afn_project_ignore` | Deprecados |
 | `afn_doctor` | Salud de `.afn/` |
@@ -212,7 +215,8 @@ node …/index.js setup generic
 
 ```bash
 node index.js snapshot     # stdout markdown
-node index.js bootstrap [--force|--refresh|--lock|--unlock]
+node index.js bootstrap [--force|--refresh]
+node index.js architecture [--recreate]
 node index.js session-start
 node index.js dashboard [--no-open]
 node index.js diagram [--recreate]
