@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot, isCatalogish } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
+import { LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = path.resolve(here, '..');
@@ -50,16 +51,17 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
 - Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (HTML con buscador). No regeneres nada para verlo.
-- Regenerar arquitectura escribe en el \`.afn\` de **este** workspace (\`AFN_PROJECT_ROOT\` en \`.kiro/settings/mcp.json\`), no en un \`.afn\` anidado ni en el de otro producto.
-- **No** regeneres arquitectura vos. No inventes el flujo con el LLM. No llames \`afn_diagram_generate\` ni \`bootstrap refresh\` salvo que el usuario lo pida explícito (“regenerá la arquitectura”, “regenerá el mapa”).
-- Si lo pide: \`afn_diagram_generate\` con \`recreate=true\` (comando, sin LLM). Si ya existe y no lo pidió: no toques. **No borra** observaciones del cerebro ni \`MEMORY.md\`.
+- Regenerar o crear arquitectura: el disco solo lista repos y flechas **evidentes** (proxy/compose). **El LLM** lee esos archivos y hace \`afn_architecture_commit\`. **No inventes** puertos, \`/api\`, flechas front→back ni BDs.
+- Primera vez (falta mapa verificado) o el usuario pide “regenerá la arquitectura”: \`afn_diagram_generate\` recreate → \`afn_architecture_evidence\` → leer \`filesToRead\` → \`afn_architecture_commit\`.
+- Si el snapshot dice \`llmReviewed\` / mapa verificado y nadie pidió regenerar: no toques el mapa.
+- Regenerar no borra observaciones ni \`MEMORY.md\`.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
 ## Proyectos
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el mapa es un solo \`mcp-context\`: \`afn_bootstrap\` con \`force=true\` (sin LLM).
+- Si falta \`.afn/\` o el mapa es un solo \`mcp-context\`: \`afn_bootstrap\` y el LLM completa con evidencia (no inventa).
 - Al entrar, SessionStart corre bootstrap: **crea** el mapa si no existe; **si ya existe, no lo regenera**.
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
@@ -112,10 +114,24 @@ function writeHooks(projectRoot, nodeCmd) {
     hooks: [
       {
         name: 'AFN bootstrap',
-        description: 'Crea .afn/ si falta. Si la arquitectura ya existe, no la regenera (ahorra tokens).',
+        description: 'Crea .afn/ si falta (inventario de disco, sin inventar flechas).',
         trigger: 'SessionStart',
         action: { type: 'command', command: `${nodeCmd} bootstrap` },
         timeout: 30,
+      },
+    ],
+  });
+  writeJson(path.join(dir, 'afn-session-architecture.json'), {
+    version: 'v1',
+    hooks: [
+      {
+        name: 'AFN architecture from code',
+        description: 'Si el mapa no está verificado, el agente lee evidencia de disco y commitea sin inventar.',
+        trigger: 'SessionStart',
+        action: {
+          type: 'agent',
+          prompt: `${LLM_ARCHITECTURE_PROMPT}\nSi el snapshot o afn_architecture_evidence dice llmReviewed=true, no hagas nada.`,
+        },
       },
     ],
   });
@@ -153,7 +169,7 @@ function writeHooks(projectRoot, nodeCmd) {
         action: {
           type: 'agent',
           prompt:
-            'Si este turno cambió arquitectura, APIs, un bugfix o una decisión, llamá afn_mem_save (title + type + What/Why/Where). Si cerrás el trabajo, afn_session_summary. No regeneres el mapa a menos que el usuario lo haya pedido en este turno.',
+            'Si este turno cambió APIs, un bugfix o una decisión, llamá afn_mem_save. No inventes arquitectura. Solo regenerá el mapa si el usuario lo pidió, con evidencia de disco + afn_architecture_commit.',
         },
       },
     ],

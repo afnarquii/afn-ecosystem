@@ -139,7 +139,7 @@ function inferPrefixFromDisk(dir, type, env) {
     const m = src.match(/\.(?:use|get|post|all)\(\s*['"](\/[^'"]+)['"]/);
     if (m) return m[1].replace(/\/+$/, '') || m[1];
   }
-  if (type === 'backend') return '/api';
+  if (type === 'backend') return '';
   return '';
 }
 
@@ -178,8 +178,6 @@ function inferPortExtra(dir, pkg, type, env) {
   const scripts = Object.values(pkg?.scripts || {}).join(' ');
   const m = scripts.match(/--port(?:\s|=)(\d{2,5})/i) || scripts.match(/-p\s+(\d{2,5})/);
   if (m) return Number(m[1]);
-  if (type === 'frontend') return 5173;
-  if (type === 'backend') return 4000;
   return undefined;
 }
 

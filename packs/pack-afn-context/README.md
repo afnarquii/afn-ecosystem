@@ -87,14 +87,14 @@ Un producto distinto = otro `cd` + `setup kiro`. No hace falta que estén en la 
 
 `setup kiro` **no es** “regenerar el mapa cada vez”. Es instalar MCP + hooks. El mapa se genera:
 
-| Cuándo | Qué corre | Regenera gráficas |
-|--------|-----------|-------------------|
-| Primera vez / no hay mapa | SessionStart → `bootstrap` | Sí, **sin LLM** |
-| Abrís Kiro y el mapa ya existe | SessionStart → `bootstrap` | **No** (no gasta tokens) |
-| Pedís “regenerá la arquitectura” | `afn_diagram_generate` recreate **o** `architecture --recreate` | Sí, **sin LLM** (comando) |
-| Redetectar repos | `bootstrap --force` | Sí |
+| Cuándo | Qué corre | Qué sale |
+|--------|-----------|----------|
+| Primera vez | SessionStart → bootstrap (inventario de disco) + el **LLM** lee evidencia y `afn_architecture_commit` | Mapa **sin inventar** |
+| Mapa ya verificado (`llmReviewed`) | SessionStart → bootstrap | **No** regenera |
+| Pedís “regenerá la arquitectura” | inventario de disco + LLM evidencia → commit | Redibuja solo lo verificado |
+| Redetectar repos | `bootstrap --force` | Inventario; el LLM completa flechas |
 
-El LLM **no** dibuja la arquitectura. Lee el snapshot. Solo dispara el comando si vos lo pedís. La regeneración usa el `.afn` de **AFN_PROJECT_ROOT** (raíz del workspace), no un `.afn` anidado ni el de un padre con otros clones.
+El disco **no** inventa `localhost:4000/api` ni flechas front→back. El LLM **solo** escribe lo que vio en `filesToRead`. La regeneración usa el `.afn` de **este** workspace.
 
 Actualizar en la empresa:
 

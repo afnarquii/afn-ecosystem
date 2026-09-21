@@ -83,8 +83,7 @@ test('detectProjects arma front→back y omite node_modules/tools', () => {
   assert.ok(names.includes('api'));
   assert.equal(names.includes('leftpad'), false);
   assert.equal(names.includes('scaffold'), false);
-  assert.equal(d.relationships.length, 1);
-  assert.match(d.relationships[0].endpoint, /4000/);
+  assert.equal(d.relationships.length, 0);
 });
 
 test('bootstrap escribe una vez y no pisa', () => {
@@ -173,6 +172,7 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   const hook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json'), 'utf8'));
   assert.match(JSON.stringify(hook), /bootstrap/);
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
+  assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-architecture.json')));
   assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
   const gi = fs.readFileSync(path.join(project, '.gitignore'), 'utf8');
   assert.match(gi, /\.kiro\/settings\/mcp\.json/);
@@ -212,7 +212,7 @@ test('detectProjects ve hermanos, packages/ y repos solo-git', () => {
   assert.ok(names.includes('api'));
   assert.ok(names.includes('legacy-svc'));
   assert.ok(names.includes('payments'));
-  assert.ok(d.relationships.some((r) => r.from === 'frontend' && r.to === 'api'));
+  assert.equal(d.relationships.some((r) => r.from === 'frontend' && r.to === 'api'), false);
 });
 
 test('bootstrap desde el paquete MCP sube al workspace multi-repo (no escribe mcp-context)', () => {
@@ -423,6 +423,45 @@ test('regenerar arquitectura no borra observaciones del cerebro', async () => {
   const memAfter = fs.readFileSync(path.join(root, '.afn', 'MEMORY.md'), 'utf8');
   assert.equal(memAfter, memBefore);
   assert.match(memAfter, /JWT/);
+});
+
+test('detectProjects no inventa flechas ni puerto 4000 sin evidencia', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  const d = detectProjects(root);
+  assert.equal(d.relationships.length, 0);
+  const api = d.projects.find((p) => p.name === 'api');
+  assert.equal(api.port, undefined);
+  assert.equal(api.prefix || '', '');
+});
+
+test('afn_architecture_commit rechaza nodos inventados y acepta evidencia', async () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { vite: '5', react: '18' }, scripts: { dev: 'vite --port 5173' } });
+  fs.writeFileSync(
+    path.join(root, 'web', 'vite.config.js'),
+    "export default { server: { proxy: { '/api': 'http://localhost:4000' } } }\n",
+  );
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' }, scripts: { dev: 'node --port 4000' } });
+  await handleContextTool(root, 'afn_bootstrap', {});
+  const ev = await handleContextTool(root, 'afn_architecture_evidence', {});
+  assert.equal(ev.ok, true);
+  assert.ok(ev.filesToRead.some((f) => /vite\.config/.test(f.path)));
+  const bad = await handleContextTool(root, 'afn_architecture_commit', {
+    projects: [{ name: 'inventado', path: './no-existe' }],
+    relationships: [{ from: 'web', to: 'fantasma', type: 'api' }],
+  });
+  assert.equal(bad.ok, true);
+  assert.ok(bad.rejected.some((r) => r.reason === 'path-no-existe' || r.reason === 'nodo-inventado'));
+  assert.equal((bad.projects || []).some((p) => p.name === 'inventado'), false);
+  const ok = await handleContextTool(root, 'afn_architecture_commit', {
+    relationships: [{ from: 'web', to: 'api', via: 'proxy', endpoint: '/api → http://localhost:4000' }],
+  });
+  assert.equal(ok.llmReviewed, true);
+  assert.ok(ok.relationships.some((r) => r.from === 'web' && r.to === 'api'));
+  const flow = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'diagrams', 'workspace-flow.json'), 'utf8'));
+  assert.equal(flow.llmReviewed, true);
 });
 
 test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {

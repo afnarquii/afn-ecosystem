@@ -90,11 +90,29 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_diagram_generate',
     description:
-      'Comando para regenerar arquitectura en el `.afn` de la raíz del workspace (AFN_PROJECT_ROOT). Sin LLM. No borra el cerebro ni las observaciones. Si ya existe y recreate=false, no hace nada. Solo usalo si el usuario lo pidió.',
+      'Regenera el inventario de arquitectura (disco, sin inventar). No borra el cerebro. Después el LLM debe leer filesToRead y llamar afn_architecture_commit. Solo si el usuario lo pidió o es la primera vez.',
     inputSchema: {
       type: 'object',
       properties: {
         recreate: { type: 'boolean', description: 'Reescribir el IR aunque ya exista' },
+      },
+    },
+  },
+  {
+    name: 'afn_architecture_evidence',
+    description:
+      'Evidencia de disco para armar el mapa: proyectos reales, flechas solo si hay proxy/compose, archivos a leer. El LLM no debe inventar lo que acá figura como unknown.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'afn_architecture_commit',
+    description:
+      'Guarda el mapa que el LLM verificó en archivos reales. Rechaza paths o nodos que no existan. No borra observaciones.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projects: { type: 'array', items: { type: 'object' } },
+        relationships: { type: 'array', items: { type: 'object' } },
       },
     },
   },
@@ -112,7 +130,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_bootstrap',
     description:
-      'Crea .afn/ si falta (sin LLM). Si la arquitectura ya existe, no la regenera. refresh/force solo cuando el usuario pide regenerar o redetectar repos.',
+      'Crea .afn/ e inventario de repos (disco). No inventa flechas. Si falta el mapa, el LLM completa con afn_architecture_evidence + commit. refresh/force no pisan el cerebro.',
     inputSchema: {
       type: 'object',
       properties: {

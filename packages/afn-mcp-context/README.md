@@ -4,7 +4,7 @@ Servidor MCP **stdio** (Node ≥18, cero deps) que lee y escribe `.afn/` del **w
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Mapa: rol, framework, BD, puerto, prefix, proxy/lambda, capas, E2E y cómo desarrollar/probar (`.afn/diagrams/workspace-flow.*`). Vista: `node index.js dashboard` (buscador). `setup kiro` escribe el MCP **en el workspace** (`.kiro/settings/mcp.json`), no uno solo en el usuario.
+Cerebro: `.afn/memory/cerebro.json`. Mapa: inventario de disco + LLM que **no inventa** (evidencia → commit). Vista: `node index.js dashboard`. `setup kiro` escribe el MCP **en el workspace**.
 
 Guía de integración (Kiro / Cursor / Claude / genérico):  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)

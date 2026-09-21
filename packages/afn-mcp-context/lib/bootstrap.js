@@ -7,6 +7,7 @@ import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
 import { architectureExists } from './workspace-flow.js';
+import { collectArchitectureEvidence, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -87,6 +88,7 @@ export function bootstrapAfn(root, opts = {}) {
   if (existingCount && !force && !weakExisting && !richer) {
     const cfg = normalizeProjectsConfig({ ...existingNorm, architectureLocked: locked });
     const extra = enrichAfn(base, cfg, { recreateDiagram });
+    const evidence = collectArchitectureEvidence(base);
     return {
       ok: true,
       skipped: true,
@@ -98,6 +100,8 @@ export function bootstrapAfn(root, opts = {}) {
       assets: extra.assets,
       refreshed: extra.diagram?.skipped === false,
       architectureLocked: locked,
+      needsLlm: evidence.needsLlm,
+      prompt: evidence.needsLlm ? LLM_ARCHITECTURE_PROMPT : undefined,
     };
   }
 
@@ -109,6 +113,7 @@ export function bootstrapAfn(root, opts = {}) {
   });
   fs.writeFileSync(pjFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   const extra = enrichAfn(base, config, { recreateDiagram });
+  const evidence = collectArchitectureEvidence(base);
   return {
     ok: true,
     skipped: false,
@@ -120,6 +125,8 @@ export function bootstrapAfn(root, opts = {}) {
     assets: extra.assets,
     refreshed: extra.diagram?.skipped === false,
     architectureLocked: locked,
+    needsLlm: evidence.needsLlm,
+    prompt: LLM_ARCHITECTURE_PROMPT,
   };
 }
 
@@ -145,6 +152,7 @@ function enrichAfn(base, config, opts = {}) {
     diagram = persistWorkspaceFlowDiagram(base, config, {
       recreate: opts.recreateDiagram === true,
       assets,
+      llmReviewed: false,
     });
   } catch {
     diagram = { ok: false };

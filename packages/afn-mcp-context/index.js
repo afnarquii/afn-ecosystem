@@ -5,7 +5,7 @@
  *   node index.js snapshot     → markdown a stdout (hook PromptSubmit)
  *   node index.js bootstrap    → .afn/ sin LLM
  *   node index.js dashboard    → HTML cerebro/mapa (navegador)
- *   node index.js architecture [--recreate]  → mapa (si existe, no toca; --recreate redibuja, sin LLM)
+ *   node index.js architecture [--recreate]  → inventario de disco; el LLM completa sin inventar
  *   node index.js session-start
  *   node index.js setup kiro|cursor|claude|generic
  */
@@ -83,7 +83,7 @@ async function main() {
 
   if (cmd === 'architecture' || cmd === 'diagram') {
     const recreate = argv.includes('--recreate') || argv.includes('--refresh');
-    const r = persistWorkspaceFlowDiagram(root, undefined, { recreate });
+    const r = persistWorkspaceFlowDiagram(root, undefined, { recreate, llmReviewed: false });
     if (r.config && !r.skipped) {
       fs.mkdirSync(afnPath(root), { recursive: true });
       fs.writeFileSync(afnPath(root, 'projects.json'), `${JSON.stringify(r.config, null, 2)}\n`, 'utf8');

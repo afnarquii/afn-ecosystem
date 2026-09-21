@@ -92,8 +92,6 @@ export function inferPort(pkg, type) {
   const scripts = Object.values(pkg?.scripts || {}).join(' ');
   const m = scripts.match(/--port(?:\s|=)(\d{2,5})/i) || scripts.match(/-p\s+(\d{2,5})/);
   if (m) return Number(m[1]);
-  if (type === 'frontend') return 5173;
-  if (type === 'backend') return 4000;
   return undefined;
 }
 
@@ -223,20 +221,12 @@ export function detectProjects(root, opts = {}) {
     relationships.push({ from, to, type, endpoint: endpoint || '', via: via || 'direct' });
   };
   for (const f of fronts) {
-    let matched = false;
     for (const proxy of f.proxies || []) {
       const byPort = backs.find((b) => b.port && proxy.port && Number(b.port) === Number(proxy.port));
-      const target = byPort || backs[0];
-      if (target) {
-        addRel(f.name, target.name, 'proxy', `${proxy.path} → ${proxy.target}`, 'proxy');
-        matched = true;
-      }
-    }
-    if (matched) continue;
-    for (const b of backs) {
-      const port = b.port || 4000;
-      const prefix = b.prefix || '/api';
-      addRel(f.name, b.name, 'api-communication', `http://localhost:${port}${prefix}`, 'direct');
+      const tgt = String(proxy.target || '').toLowerCase();
+      const byName = backs.find((b) => tgt && tgt.includes(String(b.name || '').toLowerCase()));
+      const target = byPort || byName;
+      if (target) addRel(f.name, target.name, 'proxy', `${proxy.path} → ${proxy.target}`, 'proxy');
     }
   }
 

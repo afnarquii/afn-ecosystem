@@ -10,6 +10,7 @@ import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
+import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 import {
   activeProjects,
   activeRelationships,
@@ -88,16 +89,26 @@ export async function handleContextTool(root, name, args = {}) {
       return writeDashboard(base, { open: args.open !== false, slug: args.slug });
     case 'afn_diagram_generate': {
       const recreate = args.recreate === true;
-      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate });
+      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate, llmReviewed: false });
       if (r.config && !r.skipped) writeProjects(base, r.config);
+      const evidence = collectArchitectureEvidence(base);
+      const needsLlm = recreate || evidence.needsLlm;
       return {
         ...r,
         root: base,
-        hint: r.skipped
+        needsLlm,
+        llmReviewed: needsLlm ? false : evidence.llmReviewed,
+        evidence,
+        prompt: needsLlm ? LLM_ARCHITECTURE_PROMPT : undefined,
+        hint: r.skipped && !recreate
           ? `Ya hay arquitectura en ${base}. Pedí “regenerá la arquitectura” (recreate).`
-          : `Arquitectura escrita en ${base}${path.sep}.afn`,
+          : `Inventario en ${base}${path.sep}.afn (sin inventar). Ahora leé filesToRead y afn_architecture_commit.`,
       };
     }
+    case 'afn_architecture_evidence':
+      return collectArchitectureEvidence(base);
+    case 'afn_architecture_commit':
+      return commitArchitecture(base, args);
     case 'afn_agent_assets':
       return persistAgentAssets(base);
     case 'afn_doctor':

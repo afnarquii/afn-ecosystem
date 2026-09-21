@@ -85,6 +85,7 @@ function persistWorkspaceFlowDiagramUnprotected(root, cfg, opts = {}) {
   const maps = buildWorkspaceDiagrams(persisted.flow);
   const files = maps.map((built) => writeIr(dir, built, opts.recreate === true));
   const wrote = files.some((f) => f.wrote);
+  const llmReviewed = persisted.flow?.llmReviewed === true;
   return {
     ok: true,
     skipped: !wrote,
@@ -94,5 +95,10 @@ function persistWorkspaceFlowDiagramUnprotected(root, cfg, opts = {}) {
     config: persisted.config,
     mermaid: maps[0]?.mermaid || '',
     ir: maps[0]?.ir || null,
+    llmReviewed,
+    needsLlm: !llmReviewed,
+    hint: llmReviewed
+      ? 'Arquitectura verificada (LLM + disco).'
+      : 'Inventario de disco (sin inventar flechas). El LLM debe leer filesToRead y afn_architecture_commit.',
   };
 }

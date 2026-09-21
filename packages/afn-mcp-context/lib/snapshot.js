@@ -7,6 +7,7 @@ import { getMemContext } from './cerebro.js';
 import { isWeakProjectsMap } from './detect-projects.js';
 import { listDiagramIrs } from './diagram-store.js';
 import { loadAgentAssets } from './agent-assets.js';
+import { loadWorkspaceFlow } from './workspace-flow.js';
 
 function readJson(file) {
   try {
@@ -38,6 +39,10 @@ export function buildSnapshot(root) {
   const rels = activeRelationships(cfg);
   const weak = isWeakProjectsMap(cfg);
   lines.push(`Workspace: \`${root}\``);
+  const flow = loadWorkspaceFlow(root);
+  if (flow?.llmReviewed !== true) {
+    lines.push('ARQUITECTURA PENDIENTE: `afn_architecture_evidence` → leer filesToRead → `afn_architecture_commit`. No inventes puertos, prefix, flechas ni BDs.');
+  }
   lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura cerrada' : ''));
   if (weak) {
     lines.push('_Mapa pobre (un proyecto genérico tipo mcp-context). Corré `afn_bootstrap` con force desde el workspace del producto, no desde afn-ecosystem._');

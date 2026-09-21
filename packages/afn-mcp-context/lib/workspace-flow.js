@@ -80,35 +80,6 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
     );
   }
 
-  if (!projects.some((p) => p.type === 'database' || p.layer === 'data')) {
-    const withDb = projects.find((p) => p.db);
-    if (withDb) {
-      uniqPush(
-        projects,
-        {
-          id: slugify(withDb.db),
-          name: withDb.db,
-          path: withDb.path,
-          type: 'database',
-          status: 'active',
-          enabled: true,
-          role: 'datos',
-          db: withDb.db,
-          layer: 'data',
-          technologies: [withDb.db],
-          skills: [],
-          endpoints: [],
-          lambdas: [],
-          proxies: [],
-          framework: '',
-          prefix: '',
-          entryPoint: '',
-        },
-        (x) => x.name.toLowerCase(),
-      );
-    }
-  }
-
   for (const p of [...projects]) {
     if (!p.lambdas?.length) continue;
     const cloudName = `${p.name}-lambda`;
@@ -149,8 +120,7 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
   }
   for (const p of projects) {
     for (const proxy of p.proxies || []) {
-      const target = projects.find((o) => o.port && proxy.port && Number(o.port) === Number(proxy.port))
-        || projects.find((o) => o.type === 'backend' || o.layer === 'api');
+      const target = projects.find((o) => o.port && proxy.port && Number(o.port) === Number(proxy.port));
       if (target) {
         pushRel(p.name, target.name, 'proxy', `${proxy.path} → ${proxy.target}`, 'proxy', p.framework || 'http');
       }
@@ -186,10 +156,12 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
     layers,
     e2e,
     how,
+    llmReviewed: opts.llmReviewed === true,
   };
 }
 
 function buildE2e(projects, relationships) {
+  if (!relationships.length) return [];
   const front = projects.find((p) => p.layer === 'presentation');
   const api = projects.find((p) => p.layer === 'api');
   const data = projects.find((p) => p.layer === 'data' || p.type === 'database');
@@ -198,10 +170,14 @@ function buildE2e(projects, relationships) {
   const steps = ['Usuario'];
   if (front) steps.push(`${front.name} (${front.framework || 'ui'})`);
   const proxy = relationships.find((r) => r.via === 'proxy');
-  if (proxy) steps.push(`proxy ${proxy.endpoint || front?.prefix || '/api'}`);
-  if (api) steps.push(`${api.name} ${api.prefix || ''}`.trim());
+  if (proxy) steps.push(`proxy ${proxy.endpoint || ''}`);
+  if (api && relationships.some((r) => r.to === api.name || r.from === api.name)) {
+    steps.push(`${api.name} ${api.prefix || ''}`.trim());
+  }
   if (cloud) steps.push(cloud.name);
-  if (data) steps.push(`${data.name} (${data.db || 'db'})`);
+  if (data && relationships.some((r) => r.to === data.name || r.via === 'db')) {
+    steps.push(`${data.name} (${data.db || 'db'})`);
+  }
   return [{ name: 'flujo-principal', steps }];
 }
 
