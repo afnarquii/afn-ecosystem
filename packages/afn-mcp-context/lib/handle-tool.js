@@ -39,7 +39,12 @@ export async function handleContextTool(root, name, args = {}) {
   const base = resolveWorkspaceRoot(path.resolve(root || '.'));
   switch (name) {
     case 'afn_bootstrap':
-      return bootstrapAfn(base, { force: args.force === true, refresh: args.refresh === true });
+      return bootstrapAfn(base, {
+        force: args.force === true,
+        refresh: args.refresh === true,
+        lock: args.lock === true,
+        unlock: args.unlock === true || args.lock === false,
+      });
     case 'afn_context_snapshot':
       return buildSnapshot(base);
     case 'afn_projects_flow': {

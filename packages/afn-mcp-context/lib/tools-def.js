@@ -112,12 +112,14 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_bootstrap',
     description:
-      'Detecta repos del workspace (como /afn-init) y escribe .afn/. No pisa un mapa rico. Si el pack es más nuevo que el mapa (git pull), regenera las gráficas. force=true redetecta repos. refresh=true redibuja capas/E2E sin borrar projects.json.',
+      'Detecta repos y actualiza .afn/. Mientras architectureLocked=false, al entrar redibuja capas/E2E (etapa de cambios). Cuando la arquitectura está cerrada: lock=true y ya no regenera solo. force redetecta repos. refresh redibuja aunque esté locked.',
     inputSchema: {
       type: 'object',
       properties: {
         force: { type: 'boolean', description: 'Reescribir projects.json conservando ignorePaths' },
-        refresh: { type: 'boolean', description: 'Regenerar diagramas y flujo aunque projects.json ya exista' },
+        refresh: { type: 'boolean', description: 'Redibujar gráficas aunque la arquitectura esté cerrada' },
+        lock: { type: 'boolean', description: 'Cerrar arquitectura (dejar de regenerar al entrar)' },
+        unlock: { type: 'boolean', description: 'Volver a regenerar al entrar (etapa de cambios)' },
       },
     },
   },

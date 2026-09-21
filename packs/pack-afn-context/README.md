@@ -88,8 +88,9 @@ Eso crea/mezcla:
 | Cuándo | Qué corre | Regenera gráficas |
 |--------|-----------|-------------------|
 | Primera vez / no hay `.afn/` | `setup` y SessionStart → `bootstrap` | Sí |
-| Abrís Kiro de nuevo | SessionStart → `bootstrap` | **Sí, si `git pull` trajo un pack más nuevo** (compara `generatorVersion`). Si no, deja el mapa. |
-| Querés redibujar ya | `bootstrap --refresh` o en el chat “regenerá el mapa AFN” | Sí (no borra `projects.json`) |
+| Abrís Kiro de nuevo | SessionStart → `bootstrap` | **Sí**, mientras `architectureLocked` sea false (etapa de cambios del pack/flujo). **No**, cuando la arquitectura ya está cerrada (`--lock`). |
+| Arquitectura lista | `bootstrap --lock` o en el chat “cerrá la arquitectura AFN” | Deja de regenerar al entrar |
+| Querés redibujar ya (aunque esté locked) | `bootstrap --refresh` | Sí |
 | Querés redetectar repos | `bootstrap --force` | Sí, reescribe el listado de proyectos |
 
 Actualizar en la empresa:
@@ -101,7 +102,7 @@ cd C:\work\mi-monorepo
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 ```
 
-El `git pull` actualiza el código que Kiro ya ejecuta. El `setup` refresca steering/hooks. **Al volver a abrir Kiro**, bootstrap ve que el pack es 1.3.1 y el mapa era 1.3.0 (o no tenía stamp) y **redibuja solo**. No tenés que decirle “regenerá todo” cada mañana.
+El `git pull` actualiza el código que Kiro ya ejecuta. El `setup` refresca steering/hooks. **Al volver a abrir Kiro**, si la arquitectura **no** está locked, bootstrap **redibuja**. Cuando el flujo ya está como debe estar: `bootstrap --lock` (o “cerrá la arquitectura AFN”). A partir de ahí no regenera solo.
 
 Si Kiro ya estaba abierto, recargá MCP o cerrá/abrí la sesión.
 
@@ -195,7 +196,7 @@ node …/index.js setup generic
 
 | Tool | Para qué |
 |------|----------|
-| `afn_bootstrap` | Detectar repos. Si el pack es más nuevo, regenera gráficas. `force` redetecta repos. `refresh` redibuja ya. |
+| `afn_bootstrap` | Detectar repos. Sin lock: al entrar redibuja. `lock` cierra arquitectura. `unlock` / `refresh` / `force` según la etapa. |
 | `afn_context_snapshot` | Bloque ≤3200 chars (mapa + trabajo reciente) |
 | `afn_projects_flow` | Activos + relationships |
 | `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
@@ -211,7 +212,7 @@ node …/index.js setup generic
 
 ```bash
 node index.js snapshot     # stdout markdown
-node index.js bootstrap [--force|--refresh]
+node index.js bootstrap [--force|--refresh|--lock|--unlock]
 node index.js session-start
 node index.js dashboard [--no-open]
 node index.js diagram [--recreate]

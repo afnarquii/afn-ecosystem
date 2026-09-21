@@ -51,7 +51,9 @@ async function main() {
   if (cmd === 'bootstrap') {
     const force = argv.includes('--force');
     const refresh = argv.includes('--refresh');
-    const r = bootstrapAfn(root, { force, refresh });
+    const lock = argv.includes('--lock');
+    const unlock = argv.includes('--unlock');
+    const r = bootstrapAfn(root, { force, refresh, lock, unlock });
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
@@ -100,7 +102,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh]|doctor|dashboard|diagram [--recreate]|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh|--lock|--unlock]|doctor|dashboard|diagram [--recreate]|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

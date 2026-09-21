@@ -89,6 +89,7 @@ export function normalizeProjectsConfig(raw = {}) {
     isMultiProject: projects.length > 1 || src.isMultiProject === true,
     rootPath: String(src.rootPath || '.'),
     ignorePaths,
+    architectureLocked: src.architectureLocked === true,
     projects: projects.slice(0, MAX_PROJECTS),
     relationships,
   };

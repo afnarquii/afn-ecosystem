@@ -6,7 +6,6 @@ import { normalizeProjectsConfig } from './projects-policy.js';
 import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
-import { isFlowStale } from './workspace-flow.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -49,7 +48,7 @@ function ensureAfnDirs(root) {
  * No pisa un mapa rico. Sí reescribe mapas pobres (un solo mcp-context) o si force.
  * No usa el catálogo afn-ecosystem / paquete MCP como raíz de producto.
  * @param {string} root
- * @param {{ force?: boolean, refresh?: boolean }} [opts]
+ * @param {{ force?: boolean, refresh?: boolean, lock?: boolean, unlock?: boolean }} [opts]
  */
 export function bootstrapAfn(root, opts = {}) {
   const force = opts.force === true;
@@ -63,6 +62,10 @@ export function bootstrapAfn(root, opts = {}) {
   const weakExisting = isWeakProjectsMap(existingNorm);
   const existingCount = existingNorm?.projects?.length || 0;
   const richer = detected.projects.length > existingCount;
+  let locked = existingNorm?.architectureLocked === true;
+  if (opts.lock === true) locked = true;
+  if (opts.unlock === true) locked = false;
+  const recreateDiagram = force || refresh || !locked || !existingCount;
 
   if (isCatalogish(base)) {
     return {
@@ -77,18 +80,19 @@ export function bootstrapAfn(root, opts = {}) {
   }
 
   if (existingCount && !force && !weakExisting && !richer) {
-    const stale = refresh || isFlowStale(base);
-    const extra = enrichAfn(base, existingNorm, { recreateDiagram: stale });
+    const cfg = normalizeProjectsConfig({ ...existingNorm, architectureLocked: locked });
+    const extra = enrichAfn(base, cfg, { recreateDiagram });
     return {
       ok: true,
       skipped: true,
       wrote: false,
       root: base,
-      config: extra.config || existingNorm,
-      reason: stale ? 'mapa-stale-regenerado' : 'projects.json ya existe',
+      config: extra.config || cfg,
+      reason: locked && !refresh && !force ? 'arquitectura-cerrada' : 'mapa-actualizado',
       diagram: extra.diagram,
       assets: extra.assets,
-      refreshed: stale,
+      refreshed: extra.diagram?.skipped === false,
+      architectureLocked: locked,
     };
   }
 
@@ -96,11 +100,10 @@ export function bootstrapAfn(root, opts = {}) {
   const config = normalizeProjectsConfig({
     ...detected,
     ignorePaths,
+    architectureLocked: locked,
   });
   fs.writeFileSync(pjFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  const extra = enrichAfn(base, config, {
-    recreateDiagram: force || weakExisting || refresh || isFlowStale(base),
-  });
+  const extra = enrichAfn(base, config, { recreateDiagram });
   return {
     ok: true,
     skipped: false,
@@ -110,6 +113,8 @@ export function bootstrapAfn(root, opts = {}) {
     reason: force ? 'force' : weakExisting ? 'mapa-pobre-reescrito' : 'detectado',
     diagram: extra.diagram,
     assets: extra.assets,
+    refreshed: extra.diagram?.skipped === false,
+    architectureLocked: locked,
   };
 }
 
