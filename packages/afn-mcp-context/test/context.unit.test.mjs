@@ -321,10 +321,10 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /id="q"/);
   assert.match(html, /data-q=/);
   assert.match(html, /applySearch|coincidencias/);
+  assert.match(html, /data-view="readme"|Arquitectura \(README\)/);
+  assert.match(html, /arquitectura\.md/);
   assert.match(html, /data-expand/);
   assert.match(html, /data-dl/);
-  assert.match(html, /Descargar \.md/);
-  assert.match(html, /Ampliar/);
 });
 
 test('regenerar arquitectura usa el .afn del workspace, no el padre ni uno anidado', async () => {
@@ -616,15 +616,59 @@ test('afn_architecture_commit rechaza puerto inventado', async () => {
   assert.match(String(api2.portSource), /env/i);
 });
 
-test('snapshot prioriza mapa, puertos evidentes y cerebro', () => {
+test('snapshot prioriza README de nombres, rutas y cerebro', () => {
   const root = tmp();
   writePkg(path.join(root, 'web'), 'web', { dependencies: { vite: '5' }, scripts: { dev: 'vite --port 5173' } });
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' }, scripts: { dev: 'node --port 4000' } });
   bootstrapAfn(root);
   const snap = buildSnapshot(root);
-  assert.match(snap.markdown, /Mapa \(quién llama a quién\)/);
-  assert.match(snap.markdown, /Cómo correr|sin puerto en disco|:5173|:4000/);
+  assert.match(snap.markdown, /Arquitectura|Nombres|Quién llama/);
+  assert.match(snap.markdown, /arquitectura\.md|:5173|:4000|sin evidencia/);
   assert.ok(snap.markdown.length <= 3200);
 });
+
+test('README de arquitectura lista rutas reales, no mermaid como fuente', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', {
+    dependencies: { vite: '5', react: '18' },
+    scripts: { dev: 'vite --port 5173' },
+  });
+  fs.writeFileSync(
+    path.join(root, 'web', 'vite.config.js'),
+    "export default { server: { proxy: { '/api': 'http://localhost:4000' } } }\n",
+  );
+  writePkg(path.join(root, 'api'), 'api', {
+    name: '@acme/payments-api',
+    dependencies: { express: '4' },
+    scripts: { dev: 'node server.js --port 4000' },
+  });
+  fs.writeFileSync(
+    path.join(root, 'api', 'server.js'),
+    "app.get('/health', ok);\napp.post('/auth/login', login);\n",
+  );
+  const py = path.join(root, 'worker');
+  fs.mkdirSync(py, { recursive: true });
+  fs.writeFileSync(path.join(py, 'requirements.txt'), 'fastapi\nuvicorn\n');
+  fs.writeFileSync(
+    path.join(py, 'app.py'),
+    'from fastapi import FastAPI\napp = FastAPI()\n@app.get("/jobs")\ndef jobs(): return []\n',
+  );
+  fs.writeFileSync(path.join(py, 'Makefile'), 'run:\n\tuvicorn app:app --port 8080\n');
+  const boot = bootstrapAfn(root);
+  assert.equal(boot.ok, true);
+  const md = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'arquitectura.md'), 'utf8');
+  assert.match(md, /## Nombres/);
+  assert.match(md, /## Quién llama a quién/);
+  assert.match(md, /## Rutas y endpoints/);
+  assert.match(md, /## Flujo/);
+  assert.match(md, /\/health|\/auth\/login/);
+  assert.match(md, /\/jobs/);
+  assert.match(md, /\/api/);
+  assert.match(md, /payments-api|worker/);
+  assert.equal(md.includes('```mermaid'), false);
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /\/health|Arquitectura/);
+});
+
 
 

@@ -2,7 +2,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_context_snapshot',
     description:
-      'Bloque compacto del producto (.afn): proyectos, flujo, hechos y trabajo reciente. Usalo al empezar. No vuelques el repo.',
+      'Bloque compacto: nombres, rutas, quién llama a quién, hechos. El documento completo es .afn/diagrams/arquitectura.md.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -78,7 +78,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_dashboard',
     description:
-      'HTML local profesional: mapa, puertos con evidencia, diagramas (ampliar y descargar .md), memoria y reglas. Abre el navegador.',
+      'HTML: README de arquitectura (nombres, rutas, flujo), vista gráfica opcional, memoria. Abre el navegador.',
     inputSchema: {
       type: 'object',
       properties: {

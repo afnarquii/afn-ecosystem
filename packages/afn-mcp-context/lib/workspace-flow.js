@@ -5,6 +5,9 @@ import { FLOW_GENERATOR_VERSION } from './version.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
 import { scanProjectSignals, scanComposeServices } from './stack-signals.js';
 import { irToMermaid, mermaidId, mermaidLabel } from './diagram-ir.js';
+import { workspaceFlowMarkdown } from './architecture-readme.js';
+
+export { workspaceFlowMarkdown };
 
 function absOf(root, rel) {
   const r = String(rel || '.').replace(/\\/g, '/');
@@ -48,6 +51,8 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
       devCommand: p.devCommand || sig.devCommand,
       testCommand: p.testCommand || sig.testCommand,
       endpoints: Array.isArray(p.endpoints) && p.endpoints.length ? p.endpoints : sig.endpoints,
+      aliases: Array.isArray(p.aliases) && p.aliases.length ? p.aliases : sig.aliases,
+      envLinks: Array.isArray(p.envLinks) && p.envLinks.length ? p.envLinks : sig.envLinks,
       lambdas: sig.lambdas,
       proxies: sig.proxies,
       skills,
@@ -243,6 +248,8 @@ export function flowToProjectsConfig(flow, baseCfg) {
     cur.testCommand = cur.testCommand || p.testCommand;
     cur.technologies = cur.technologies?.length ? cur.technologies : p.technologies;
     cur.endpoints = cur.endpoints?.length ? cur.endpoints : p.endpoints;
+    cur.aliases = cur.aliases?.length ? cur.aliases : p.aliases;
+    cur.envLinks = cur.envLinks?.length ? cur.envLinks : p.envLinks;
   }
   for (const rel of flow.relationships) {
     const exists = cfg.relationships.some((r) => r.from === rel.from && r.to === rel.to);
@@ -386,55 +393,18 @@ export function buildWorkspaceDiagrams(flow) {
   ];
 }
 
-export function workspaceFlowMarkdown(flow) {
-  const lines = [
-    '# Flujo del workspace',
-    '',
-    `Modo: **${flow.mode}** · ${flow.projects.length} componentes.`,
-    '',
-    '## Proyectos',
-    '',
-    '| Proyecto | Rol | Framework | BD | Puerto | Evidencia | Prefix | Skills |',
-    '|----------|-----|-----------|----|--------|-----------|--------|--------|',
-  ];
-  for (const p of flow.projects) {
-    lines.push(`| ${p.name} | ${p.role || ''} | ${p.framework || ''} | ${p.db || ''} | ${p.port || '—'} | ${p.portSource || ''} | ${p.prefix || ''} | ${(p.skills || []).join(', ')} |`);
-  }
-  lines.push('', '## Conexiones', '');
-  for (const r of flow.relationships) {
-    lines.push(`- **${r.from}** → **${r.to}** (${r.via || r.type}) ${r.endpoint || ''}`);
-  }
-  if (!flow.relationships.length) {
-    lines.push('- _(sin flechas con evidencia de disco)_');
-  }
-  lines.push('', '## Diagrama (quién llama qué)', '', '```mermaid', buildEndpointsMermaid(flow).trim(), '```');
-  lines.push('', '## Diagrama (capas)', '', '```mermaid', buildLayersMermaid(flow).trim(), '```');
-  lines.push('', '## Cómo agregar funcionalidad', '');
-  for (const x of flow.how.addFeature) lines.push(`- ${x}`);
-  lines.push('', 'Se toca:', '');
-  for (const x of flow.how.touch) lines.push(`- ${x}`);
-  lines.push('', 'No tocar / no versionar:', '');
-  for (const x of flow.how.ignore) lines.push(`- ${x}`);
-  lines.push('', '## Cómo se desarrolla local', '');
-  for (const x of flow.how.local) lines.push(`- ${x}`);
-  lines.push('', '## Cómo se prueba un flujo', '');
-  for (const x of flow.how.test) lines.push(`- ${x}`);
-  if (flow.e2e[0]) {
-    lines.push('', '## Ejemplo E2E', '', flow.e2e[0].steps.join(' → '));
-  }
-  lines.push('');
-  return lines.join('\n');
-}
-
 export function persistWorkspaceFlow(root, cfg, opts = {}) {
   const flow = buildWorkspaceFlow(root, cfg, opts);
   const dir = afnPath(root, 'diagrams');
   fs.mkdirSync(dir, { recursive: true });
   const jsonFile = path.join(dir, 'workspace-flow.json');
   const mdFile = path.join(dir, 'workspace-flow.md');
+  const readmeFile = path.join(dir, 'arquitectura.md');
+  const md = workspaceFlowMarkdown(flow);
   fs.writeFileSync(jsonFile, `${JSON.stringify(flow, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(mdFile, workspaceFlowMarkdown(flow), 'utf8');
-  return { ok: true, flow, jsonFile, mdFile, config: flowToProjectsConfig(flow, cfg) };
+  fs.writeFileSync(mdFile, md, 'utf8');
+  fs.writeFileSync(readmeFile, md, 'utf8');
+  return { ok: true, flow, jsonFile, mdFile, readmeFile, config: flowToProjectsConfig(flow, cfg) };
 }
 
 export function loadWorkspaceFlow(root) {

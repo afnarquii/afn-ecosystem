@@ -257,15 +257,98 @@ function inferLambdas(dir) {
   return [...new Set(names)].slice(0, 8);
 }
 
+function pushEp(out, method, pth, via) {
+  const path = String(pth || '').trim();
+  if (!path.startsWith('/')) return;
+  const methodU = String(method || 'ANY').toUpperCase().slice(0, 8);
+  if (out.some((e) => e.path === path && e.method === methodU)) return;
+  out.push({ method: methodU, path: path.slice(0, 80), via: String(via || 'code').slice(0, 16) });
+}
+
+function scanCodeRoutes(dir) {
+  const out = [];
+  const files = [
+    'server.js', 'index.js', 'app.js', 'src/index.js', 'src/server.js', 'src/app.js', 'src/main.ts', 'src/main.js',
+    'main.py', 'app.py', 'src/main.py', 'src/app.py', 'app/main.py', 'api/main.py',
+  ];
+  for (const rel of files) {
+    const src = readText(path.join(dir, rel), 24_000);
+    if (!src) continue;
+    const express = /\.(get|post|put|patch|delete|use|all)\(\s*['"](\/[^'"]+)['"]/gi;
+    let m;
+    while ((m = express.exec(src))) pushEp(out, m[1] === 'use' ? 'ANY' : m[1], m[2], path.basename(rel));
+    const fast = /@(?:app|router)\.(get|post|put|patch|delete|options|head)\(\s*['"]([^'"]+)['"]/gi;
+    while ((m = fast.exec(src))) pushEp(out, m[1], m[2], path.basename(rel));
+  }
+  const yml = readText(firstExisting(dir, ['serverless.yml', 'serverless.yaml', 'openapi.yaml', 'openapi.yml', 'swagger.yaml']) || '', 20_000);
+  if (yml) {
+    const http = /path:\s*['"]?(\/?[\w\-{}]+)['"]?[\s\S]{0,80}?method:\s*['"]?(\w+)/gi;
+    let m;
+    while ((m = http.exec(yml))) {
+      const pth = m[1].startsWith('/') ? m[1] : `/${m[1]}`;
+      pushEp(out, m[2], pth, 'serverless');
+    }
+    const oa = /(?:^|\n)\s{1,4}(\/[\w\-{}]+)\s*:/g;
+    if (/openapi:|swagger:/i.test(yml)) {
+      while ((m = oa.exec(yml))) pushEp(out, 'ANY', m[1], 'openapi');
+    }
+  }
+  for (const apiRoot of [path.join(dir, 'src', 'app', 'api'), path.join(dir, 'pages', 'api'), path.join(dir, 'app', 'api')]) {
+    walkApiFolder(apiRoot, '/api', out, 0);
+  }
+  return out;
+}
+
+function walkApiFolder(abs, urlBase, out, depth) {
+  if (depth > 4) return;
+  let ents = [];
+  try {
+    ents = fs.readdirSync(abs, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const hasRoute = ents.some((e) => e.isFile() && (/^route\.(t|j)sx?$/.test(e.name) || /^index\.(t|j)sx?$/.test(e.name)));
+  if (hasRoute) pushEp(out, 'ANY', urlBase.replace(/\/+$/, '') || '/', 'app-router');
+  for (const e of ents) {
+    if (!e.isDirectory() || e.name.startsWith('.')) continue;
+    const seg = e.name.startsWith('[') ? `:${e.name.replace(/[\[\]]/g, '')}` : e.name;
+    walkApiFolder(path.join(abs, e.name), `${urlBase}/${seg}`, out, depth + 1);
+  }
+}
+
 function inferEndpoints(dir, prefix, proxies) {
   const out = [];
-  for (const p of proxies) {
-    out.push({ method: 'ANY', path: p.path, via: 'proxy' });
+  for (const p of proxies) pushEp(out, 'ANY', p.path, 'proxy');
+  if (prefix) pushEp(out, 'ANY', prefix, 'prefix');
+  for (const e of scanCodeRoutes(dir)) pushEp(out, e.method, e.path, e.via);
+  return out.slice(0, 24);
+}
+
+function inferAliases(dir, pkg, hintName) {
+  const out = [];
+  const add = (x) => {
+    const s = String(x || '').replace(/^@[^/]+\//, '').trim();
+    if (s && !out.some((a) => a.toLowerCase() === s.toLowerCase())) out.push(s);
+  };
+  add(hintName);
+  add(pkg?.name);
+  add(path.basename(dir));
+  const sls = readText(firstExisting(dir, ['serverless.yml', 'serverless.yaml']) || '', 4_000);
+  const svc = sls.match(/^\s*service\s*:\s*['"]?([\w-]+)/m);
+  if (svc) add(svc[1]);
+  return out.slice(0, 6);
+}
+
+function inferEnvLinks(env) {
+  const keys = ['VITE_API_URL', 'REACT_APP_API_URL', 'NEXT_PUBLIC_API_URL', 'API_URL', 'API_BASE', 'API_PREFIX', 'DATABASE_URL', 'DB_URL'];
+  const out = [];
+  for (const key of keys) {
+    const raw = pickEnv(env, [key]);
+    if (!raw) continue;
+    const safe = raw.includes('${') ? '(plantilla)' : raw.replace(/:[^/@]+@/, ':[redacted]@').slice(0, 80);
+    out.push({ key, value: safe });
   }
-  if (prefix && !out.some((e) => e.path === prefix)) {
-    out.push({ method: 'ANY', path: prefix, via: exists(dir, path.join('src', 'app', 'api')) ? 'direct' : 'direct' });
-  }
-  return out.slice(0, 12);
+  return out.slice(0, 8);
 }
 
 /**
@@ -308,6 +391,8 @@ export function scanProjectSignals(abs, hint = {}) {
     devCommand: cmds.devCommand,
     testCommand: cmds.testCommand,
     endpoints: inferEndpoints(abs, prefix, proxies),
+    aliases: inferAliases(abs, pkg, hint.name),
+    envLinks: inferEnvLinks(env),
     hasServerless: lambdas.length > 0,
   };
 }

@@ -8,15 +8,16 @@ import { withPreservedMemory } from './cerebro.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
 import { findPortEvidence } from './port-evidence.js';
 
-export const LLM_ARCHITECTURE_PROMPT = `Mapa AFN: leé evidencia de disco, no inventes.
+export const LLM_ARCHITECTURE_PROMPT = `Arquitectura AFN: leé evidencia de disco y armá un README, no un diagrama.
 
 1. Llamá afn_architecture_evidence.
-2. Leé SOLO los archivos de filesToRead (existen en este workspace): proxy, compose, Makefile, Dockerfile, serverless.yml, uvicorn, .env.example.
-3. Llamá afn_architecture_commit con projects/relationships que hayas visto en esos archivos.
+2. Leé SOLO filesToRead (proxy, compose, Makefile, Dockerfile, serverless, uvicorn, env.example, rutas Express/FastAPI).
+3. Llamá afn_architecture_commit con:
+   - projects: name, path, framework, port (solo si está en disco), prefix, endpoints [{method,path,via}] vistos en código
+   - relationships: from, to, via, endpoint (ruta real: "/api → http://localhost:4000")
 
-Prohibido inventar: puertos, prefix /api, flechas front→back, BDs, lambdas o paquetes que no estén en el disco.
-Un puerto solo si aparece en Makefile / Dockerfile EXPOSE / compose ports / uvicorn --port / serverless provider.port|httpPort / scripts / .env*.
-Si no hay evidencia de una conexión, omitila. No completes huecos. El diagrama debe reflejar el flujo real.`;
+El artefacto que queda es \`.afn/diagrams/arquitectura.md\`: nombres (carpeta, package, servicio), quién llama a quién, rutas, flujo en pasos.
+Prohibido inventar: puertos, prefix /api, flechas, BDs, mermaid hueco. Si no hay evidencia, omití.`;
 
 function readJson(file) {
   try {
@@ -67,6 +68,10 @@ const EVIDENCE_FILES = [
   ['app.py', 'fastapi / uvicorn'],
   ['src/main.py', 'fastapi / uvicorn'],
   ['app/main.py', 'fastapi / uvicorn'],
+  ['server.js', 'rutas express'],
+  ['src/server.js', 'rutas express'],
+  ['src/app.js', 'rutas express'],
+  ['openapi.yaml', 'rutas openapi'],
   ['prisma/schema.prisma', 'BD'],
   ['go.mod', 'manifiesto'],
 ];
@@ -112,6 +117,8 @@ export function collectArchitectureEvidence(root) {
       db: p.db || '',
       prefix: p.prefix || '',
       proxies: p.proxies || [],
+      endpoints: p.endpoints || [],
+      aliases: p.aliases || [],
       unknowns,
     };
   });
@@ -206,6 +213,23 @@ export function commitArchitecture(root, input = {}) {
       if (p.prefix) cur.prefix = p.prefix;
       if (p.role) cur.role = p.role;
       if (p.layer) cur.layer = p.layer;
+      if (Array.isArray(p.endpoints) && p.endpoints.length) {
+        const disk = cur.endpoints || [];
+        const merged = [...disk];
+        for (const e of p.endpoints) {
+          const ep = String(e?.path || '').trim();
+          if (!ep.startsWith('/')) continue;
+          if ((ep === '/api' || ep === '/api/') && !disk.some((x) => String(x.path || '').startsWith('/api'))) continue;
+          const method = String(e.method || 'ANY').slice(0, 8);
+          if (!merged.some((x) => x.path === ep && String(x.method || 'ANY') === method)) {
+            merged.push({ method, path: ep.slice(0, 80), via: String(e.via || 'code').slice(0, 16) });
+          }
+        }
+        cur.endpoints = merged.slice(0, 24);
+      }
+      if (Array.isArray(p.aliases) && p.aliases.length) {
+        cur.aliases = [...new Set([...(cur.aliases || []), ...p.aliases.map((x) => String(x).trim()).filter(Boolean)])].slice(0, 8);
+      }
       cur.path = rel;
       byName.set(name, cur);
     }
@@ -270,7 +294,7 @@ export function commitArchitecture(root, input = {}) {
       diagram,
       hint: rejected.length
         ? `Guardé lo verificado. Rechacé ${rejected.length} ítem(s) sin disco (no se inventan puertos ni nodos).`
-        : 'Arquitectura guardada solo con lo verificado. El cerebro no se tocó.',
+        : 'Arquitectura README guardada (.afn/diagrams/arquitectura.md). El cerebro no se tocó.',
     };
   });
 }

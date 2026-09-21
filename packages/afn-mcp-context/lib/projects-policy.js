@@ -71,7 +71,14 @@ export function normalizeProjectsConfig(raw = {}) {
               path: String(e.path || '').slice(0, 80),
               via: String(e.via || '').slice(0, 16),
             }))
-            .slice(0, 12)
+            .slice(0, 24)
+        : [],
+      aliases: Array.isArray(p.aliases) ? p.aliases.map((x) => String(x)).filter(Boolean).slice(0, 8) : [],
+      envLinks: Array.isArray(p.envLinks)
+        ? p.envLinks
+            .filter((e) => e && e.key)
+            .map((e) => ({ key: String(e.key).slice(0, 40), value: String(e.value || '').slice(0, 80) }))
+            .slice(0, 8)
         : [],
       status: String(p.status || (p.enabled === false ? 'ignored' : 'active')).toLowerCase() || 'active',
       enabled: p.enabled !== false,

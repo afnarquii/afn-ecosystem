@@ -273,7 +273,7 @@ function buildHtml(data) {
     if (e.target.closest("[data-dl]")) { e.preventDefault(); downloadOpen(); }
     if (e.target.closest("[data-dl-flow]")) {
       e.preventDefault();
-      downloadText("workspace-flow.md", flowMd || "# Flujo\\n");
+      downloadText("arquitectura.md", flowMd || "# Arquitectura\\n");
     }
   });
   window.addEventListener("input", (e) => {
@@ -297,7 +297,7 @@ function buildHtml(data) {
   });
   const boot = location.hash.replace("#", "") || "inicio";
   if (boot.startsWith("d-")) openDiagram(boot.slice(2));
-  else showView(["inicio","mapa","diagramas","capas","howto","cerebro","reglas"].includes(boot) ? boot : "inicio");
+  else showView(["inicio","readme","mapa","diagramas","capas","howto","cerebro","reglas"].includes(boot) ? boot : "inicio");
 </script>
 <style>
   :root {
@@ -357,6 +357,7 @@ function buildHtml(data) {
   .sheet-actions { display:flex; gap:.4rem; align-items:center; }
   .x { background:transparent; border:0; color:var(--muted); font-size:1.4rem; cursor:pointer; }
   .mermaid { background:#0b1016; border-radius:10px; padding:.75rem; overflow:auto; min-height:180px; }
+  .doc { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:1.1rem 1.25rem; white-space:pre-wrap; font:13px/1.55 ui-monospace,Consolas,monospace; color:#dbe4ee; max-width:92ch; }
 </style>
 </head>
 <body>
@@ -364,7 +365,7 @@ function buildHtml(data) {
   <aside>
     <div class="brand">
       <div class="mark">AFN context</div>
-      <h1>Mapa y cerebro</h1>
+      <h1>Arquitectura y cerebro</h1>
       <p class="ws">${esc(wsName)}</p>
     </div>
     <div class="search-box">
@@ -375,6 +376,7 @@ function buildHtml(data) {
     <p id="q-empty" hidden>Sin coincidencias. Probá otro término.</p>
     <nav>
       <button type="button" data-go="inicio">Inicio</button>
+      <button type="button" data-go="readme">Arquitectura</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
       <button type="button" data-go="diagramas">Diagramas (${diagrams.length})</button>
       <button type="button" data-go="capas">Capas y E2E</button>
@@ -392,8 +394,9 @@ function buildHtml(data) {
     <main>
     <section data-view="inicio">
       <h2>Qué hay en este workspace</h2>
-      <p class="lead">Mapa real (puertos solo con evidencia de disco). Los diagramas se abren, se amplían y se descargan en Markdown.</p>
+      <p class="lead">El agente usa el README (nombres, rutas, quién llama a quién). Los diagramas son opcionales para vos.</p>
       <div class="hero">
+        <button type="button" data-go="readme" data-q="arquitectura readme rutas endpoints flujo nombres"><span class="k">README</span><strong>Arquitectura</strong><span class="muted">Nombres · rutas · conexiones</span></button>
         <button type="button" data-go="mapa" data-q="mapa proyectos conexiones flujo"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
         <button type="button" data-go="diagramas" data-q="diagramas mapas flujo componentes"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Ampliar y descargar .md</span></button>
         <button type="button" data-go="capas" data-q="capas presentación api datos e2e trazabilidad"><span class="k">Capas</span><strong>Presentación · API · datos</strong><span class="muted">Quién llama qué</span></button>
@@ -407,11 +410,19 @@ function buildHtml(data) {
         <tbody>${portRows || '<tr><td colspan="4" class="muted">Sin componentes.</td></tr>'}</tbody>
       </table>
     </section>
+    <section data-view="readme" hidden>
+      <h2>Arquitectura (README)</h2>
+      <p class="lead">Esto es lo que el LLM debe leer: nombres de todas partes, rutas, endpoints y el flujo. Descargable en <code>arquitectura.md</code>.</p>
+      <div class="toolbar">
+        <button type="button" class="btn" data-dl-flow>Descargar arquitectura.md</button>
+      </div>
+      <pre class="doc" data-q="arquitectura nombres rutas endpoints flujo">${esc(flowMd || 'Todavía no hay README. Pedí regenerar la arquitectura.')}</pre>
+    </section>
     <section data-view="mapa" hidden>
       <h2>Cómo se conectan</h2>
       <p class="lead">Rol, framework, BD, puerto (solo si hay evidencia), prefix y skills. Las flechas son proxy, API, lambda o datos.</p>
       <div class="toolbar">
-        <button type="button" class="btn" data-dl-flow>Descargar flujo .md</button>
+        <button type="button" class="btn" data-dl-flow>Descargar arquitectura.md</button>
       </div>
       <div class="grid">${projCards || '<div class="empty">Corrê bootstrap desde el workspace del producto.</div>'}</div>
       <div id="flow-mermaid" class="mermaid" style="margin-top:1rem"></div>
@@ -421,7 +432,7 @@ function buildHtml(data) {
       <h2>Capas y trazabilidad</h2>
       <p class="lead">Presentación, API, datos, cloud. El E2E es el camino usuario → UI → proxy → API → persistencia.</p>
       <div class="toolbar">
-        <button type="button" class="btn" data-dl-flow>Descargar flujo .md</button>
+        <button type="button" class="btn" data-dl-flow>Descargar arquitectura.md</button>
       </div>
       <div id="layers-mermaid" class="mermaid"></div>
       <pre id="layers-src">${esc(flow ? buildLayersMermaid(flow) : flowMermaid(projects, rels))}</pre>

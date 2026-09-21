@@ -46,13 +46,13 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 ## Tokens
 
-- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. **No** listés el repo si eso alcanza.
+- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. La fuente es \`.afn/diagrams/arquitectura.md\` (nombres, rutas, quién llama a quién). **No** listés el repo ni uses mermaid como contexto.
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (HTML profesional: ampliar diagrama, descargar .md). No regeneres nada para verlo.
-- Regenerar o crear arquitectura: el disco lista repos y flechas **evidentes** (proxy, compose, Makefile, Dockerfile, serverless, uvicorn, .env.example). **El LLM** lee \`filesToRead\` y hace \`afn_architecture_commit\`. **No inventes** puertos, \`/api\`, flechas ni BDs. Un puerto solo si hay evidencia.
-- El snapshot y el cerebro (\`.afn/memory/cerebro.json\`) deben alcanzar para preguntar: mapa, puertos evidentes, cómo correr, hechos. No reexplores el repo.
+- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (README de arquitectura + vista gráfica opcional). No regeneres nada para verlo.
+- Regenerar o crear arquitectura: el disco lista repos, rutas y flechas **evidentes**. **El LLM** lee \`filesToRead\` y hace \`afn_architecture_commit\`. El resultado es un **README** (no un diagrama). **No inventes** puertos, \`/api\`, flechas ni BDs.
+- El snapshot y el cerebro (\`.afn/memory/cerebro.json\`) deben alcanzar para preguntar: nombres, endpoints, flujo, cómo correr, hechos.
 - Primera vez (falta mapa verificado) o el usuario pide “regenerá la arquitectura”: \`afn_diagram_generate\` recreate → \`afn_architecture_evidence\` → leer \`filesToRead\` → \`afn_architecture_commit\`.
 - Si el snapshot dice \`llmReviewed\` / mapa verificado y nadie pidió regenerar: no toques el mapa.
 - Regenerar no borra observaciones ni \`MEMORY.md\`.

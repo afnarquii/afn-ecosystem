@@ -69,6 +69,7 @@ export async function handleContextTool(root, name, args = {}) {
         layers: flow?.layers || null,
         e2e: flow?.e2e || [],
         how: flow?.how || null,
+        readme: '.afn/diagrams/arquitectura.md',
         ignorePaths: cfg.ignorePaths,
       };
     }

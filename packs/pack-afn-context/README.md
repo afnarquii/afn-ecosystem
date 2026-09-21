@@ -149,7 +149,7 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → **no pisa los nombres de repo** (`--force` para redetectar).
 
-Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard` (HTML profesional: buscador, puertos con evidencia, ampliar diagrama y descargar `.md`). No regenera nada.
+Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard` (README de arquitectura: nombres, rutas, flujo; diagrama opcional). No regenera nada.
 
 ### 5. Hechos
 
@@ -200,12 +200,12 @@ node …/index.js setup generic
 | Tool | Para qué |
 |------|----------|
 | `afn_bootstrap` | Crea `.afn/` si falta. Si la arquitectura existe, no la toca. |
-| `afn_context_snapshot` | Mapa, puertos evidentes, cómo correr, hechos del cerebro |
-| `afn_projects_flow` | Activos + relationships |
+| `afn_context_snapshot` | README compacto: nombres, rutas, quién llama a quién, hechos |
+| `afn_projects_flow` | Activos + relationships + `.afn/diagrams/arquitectura.md` |
 | `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
 | `afn_mem_search` / `afn_mem_save` | Buscar / guardar en el cerebro `.afn/memory/cerebro.json` |
 | `afn_session_start` / `afn_session_summary` | Abrir / cerrar sesión de trabajo |
-| `afn_dashboard` | HTML profesional: mapa, ampliar diagrama, descargar `.md`, memoria, reglas |
+| `afn_dashboard` | README de arquitectura + vista gráfica opcional |
 | `afn_diagram_generate` | Inventario de disco (sin inventar puertos). Luego evidence → commit. |
 | `afn_architecture_evidence` | Archivos reales a leer (Makefile, compose, serverless, uvicorn, env.example). |
 | `afn_architecture_commit` | Guarda solo nodos/flechas/puertos verificados. Rechaza inventos. |
