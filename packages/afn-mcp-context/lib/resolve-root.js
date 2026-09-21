@@ -70,6 +70,24 @@ function isTempDir(dir) {
   return n === tmp;
 }
 
+function isInsideOrEqual(root, dir) {
+  let r = path.resolve(root);
+  let d = path.resolve(dir);
+  if (process.platform === 'win32') {
+    r = r.toLowerCase();
+    d = d.toLowerCase();
+  }
+  return d === r || d.startsWith(`${r}${path.sep}`);
+}
+
+export function hasAfnProjectsMap(dir) {
+  try {
+    return fs.existsSync(path.join(dir, '.afn', 'projects.json'));
+  } catch {
+    return false;
+  }
+}
+
 function isUsableRoot(raw) {
   const s = String(raw || '').trim();
   if (!s || /\$\{/.test(s)) return false;
@@ -98,52 +116,78 @@ export function escapeCatalog(start) {
  * @param {string} [override]
  * @param {{ cwd?: string, envRoot?: string }} [opts]
  */
+function pickNonCatalog(...dirs) {
+  for (const d of dirs) {
+    if (d && !isCatalogish(d)) return d;
+  }
+  return '';
+}
+
 export function resolveProjectRoot(override, opts = {}) {
   const cwd = path.resolve(opts.cwd || process.cwd() || '.');
-  const rawEnv = String(opts.envRoot ?? process.env.AFN_PROJECT_ROOT ?? override ?? '').trim();
-  const envAbs = isUsableRoot(rawEnv) ? path.resolve(rawEnv) : '';
+  const explicitAbs = isUsableRoot(override) ? path.resolve(override) : '';
+  const envRaw = String(opts.envRoot !== undefined ? opts.envRoot : process.env.AFN_PROJECT_ROOT || '').trim();
+  const envAbs = isUsableRoot(envRaw) ? path.resolve(envRaw) : '';
 
-  const picks = [];
-  if (envAbs && !isCatalogish(envAbs)) picks.push(envAbs);
-  if (cwd && !isCatalogish(cwd)) picks.push(cwd);
-  if (envAbs) picks.push(envAbs);
-  if (cwd) picks.push(cwd);
-
-  const start = picks[0] || cwd;
-  const resolved = resolveWorkspaceRoot(start);
+  const pin = pickNonCatalog(explicitAbs, envAbs, cwd) || explicitAbs || envAbs || cwd;
+  let ceiling = pickNonCatalog(explicitAbs, envAbs);
+  if (envAbs && !isCatalogish(envAbs) && explicitAbs && isInsideOrEqual(envAbs, explicitAbs)) {
+    ceiling = envAbs;
+  }
+  const start = ceiling || pin;
+  const resolved = resolveWorkspaceRoot(start, { ceiling, countFn: opts.countFn });
   if (isCatalogish(resolved) && cwd && !isCatalogish(cwd)) {
-    return resolveWorkspaceRoot(cwd);
+    return resolveWorkspaceRoot(cwd, { ceiling, countFn: opts.countFn });
   }
   return resolved;
 }
 
 /**
  * Si el padre tiene varios repos/paquetes, ese es el workspace (como /afn-init).
- * No sube a /tmp ni al home. No elige el ancestro con más hijos si el actual ya es workspace.
+ * No sube a /tmp ni al home. Si AFN_PROJECT_ROOT (ceiling) está pinneado, no sale de ahí.
+ * Prefiere el `.afn/projects.json` más arriba (raíz del workspace), no un .afn anidado.
  * @param {string} start
- * @param {{ countFn?: (dir: string) => number }} [opts]
+ * @param {{ countFn?: (dir: string) => number, ceiling?: string }} [opts]
  */
 export function resolveWorkspaceRoot(start, opts = {}) {
   const count = opts.countFn || countChildProjectSignals;
+  const ceiling = opts.ceiling ? path.resolve(opts.ceiling) : '';
   let cur = escapeCatalog(path.resolve(start));
+
+  const allowed = (dir) => {
+    const d = path.resolve(dir);
+    if (!d || isFsRoot(d) || isHomeOrUsers(d) || isTempDir(d)) return false;
+    if (ceiling && !isInsideOrEqual(ceiling, d)) return false;
+    return true;
+  };
 
   if (isAfnEcosystemCatalog(cur)) {
     const parent = path.dirname(cur);
-    if (parent && parent !== cur && !isFsRoot(parent) && !isHomeOrUsers(parent) && !isTempDir(parent)) {
-      if (count(parent) >= 2) cur = parent;
-    }
+    if (allowed(parent) && !isCatalogish(parent) && count(parent) >= 2) cur = parent;
   }
 
   const escaped = cur;
   const selfCount = count(cur);
-  if (selfCount >= 2 && !isCatalogish(cur)) return cur;
+  if (selfCount >= 2 && !isCatalogish(cur) && allowed(cur)) return cur;
 
+  const maps = [];
+  let walk = cur;
+  for (let i = 0; i < 6; i += 1) {
+    if (!allowed(walk) || isCatalogish(walk)) break;
+    if (hasAfnProjectsMap(walk)) maps.push(walk);
+    if (maps.length && count(walk) >= 2) break;
+    const parent = path.dirname(walk);
+    if (!parent || parent === walk) break;
+    walk = parent;
+  }
+  if (maps.length) return maps[maps.length - 1];
+
+  walk = cur;
   for (let i = 0; i < 5; i += 1) {
-    const parent = path.dirname(cur);
-    if (!parent || parent === cur || isFsRoot(parent) || isHomeOrUsers(parent) || isTempDir(parent)) break;
-    const n = count(parent);
-    if (n >= 2) return parent;
-    cur = parent;
+    const parent = path.dirname(walk);
+    if (!allowed(parent)) break;
+    if (!isCatalogish(parent) && count(parent) >= 2) return parent;
+    walk = parent;
   }
   return escaped;
 }

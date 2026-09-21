@@ -49,7 +49,8 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **ver** el mapa: \`afn_dashboard\` (HTML). No regeneres nada para verlo.
+- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (HTML con buscador). No regeneres nada para verlo.
+- Regenerar arquitectura escribe en el \`.afn\` de **AFN_PROJECT_ROOT** (raíz del workspace), no en un \`.afn\` anidado ni en el padre de varios clones.
 - **No** regeneres arquitectura vos. No inventes el flujo con el LLM. No llames \`afn_diagram_generate\` ni \`bootstrap refresh\` salvo que el usuario lo pida explícito (“regenerá la arquitectura”, “regenerá el mapa”).
 - Si lo pide: \`afn_diagram_generate\` con \`recreate=true\` (comando, sin LLM). Si ya existe y no lo pidió: no toques.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).

@@ -78,7 +78,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_dashboard',
     description:
-      'HTML local: inicio, mapa, diagramas (se abren con un clic), memoria y reglas Kiro/Copilot. Por defecto abre el navegador (Kiro no embebe UI).',
+      'HTML local: inicio, mapa, diagramas (se abren con un clic), memoria, reglas y buscador. Por defecto abre el navegador (Kiro no embebe UI).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -90,7 +90,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_diagram_generate',
     description:
-      'Comando para regenerar arquitectura (capas, endpoints, E2E). Sin LLM. Si ya existe y recreate=false, no hace nada (ahorra tokens). Solo usalo si el usuario lo pidió.',
+      'Comando para regenerar arquitectura en el `.afn` de la raíz del workspace (AFN_PROJECT_ROOT). Sin LLM. Si ya existe y recreate=false, no hace nada. Solo usalo si el usuario lo pidió.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -54,7 +54,9 @@ function ensureAfnDirs(root) {
 export function bootstrapAfn(root, opts = {}) {
   const force = opts.force === true;
   const refresh = opts.refresh === true;
-  const base = resolveWorkspaceRoot(path.resolve(root));
+  const start = path.resolve(root);
+  const ceiling = opts.ceiling ? path.resolve(opts.ceiling) : '';
+  const base = resolveWorkspaceRoot(start, ceiling ? { ceiling } : {});
   const pjFile = afnPath(base, 'projects.json');
   const existing = readJson(pjFile);
   const existingNorm = existing ? normalizeProjectsConfig(existing) : null;

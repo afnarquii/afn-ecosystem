@@ -53,7 +53,7 @@ async function main() {
     const refresh = argv.includes('--refresh');
     const lock = argv.includes('--lock');
     const unlock = argv.includes('--unlock');
-    const r = bootstrapAfn(root, { force, refresh, lock, unlock });
+    const r = bootstrapAfn(root, { force, refresh, lock, unlock, ceiling: root });
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;

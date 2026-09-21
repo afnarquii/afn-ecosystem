@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
-import { resolveWorkspaceRoot } from './resolve-root.js';
+import { resolveProjectRoot } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
 import { searchFacts } from './memory.js';
 import { saveObservation, searchCerebro, startSession, endSession, getMemContext } from './cerebro.js';
@@ -36,7 +36,7 @@ function writeProjects(root, cfg) {
  * @param {object} args
  */
 export async function handleContextTool(root, name, args = {}) {
-  const base = resolveWorkspaceRoot(path.resolve(root || '.'));
+  const base = resolveProjectRoot(root || process.env.AFN_PROJECT_ROOT);
   switch (name) {
     case 'afn_bootstrap':
       return bootstrapAfn(base, {
@@ -44,6 +44,7 @@ export async function handleContextTool(root, name, args = {}) {
         refresh: args.refresh === true,
         lock: args.lock === true,
         unlock: args.unlock === true || args.lock === false,
+        ceiling: base,
       });
     case 'afn_context_snapshot':
       return buildSnapshot(base);
@@ -91,9 +92,10 @@ export async function handleContextTool(root, name, args = {}) {
       if (r.config && !r.skipped) writeProjects(base, r.config);
       return {
         ...r,
+        root: base,
         hint: r.skipped
-          ? 'Ya hay arquitectura. Pedí “regenerá la arquitectura” (recreate) — es un comando, no lo inventa el LLM.'
-          : r.hint,
+          ? `Ya hay arquitectura en ${base}. Pedí “regenerá la arquitectura” (recreate).`
+          : `Arquitectura escrita en ${base}${path.sep}.afn`,
       };
     }
     case 'afn_agent_assets':

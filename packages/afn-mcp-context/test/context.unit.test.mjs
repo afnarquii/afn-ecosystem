@@ -289,7 +289,55 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /id="overlay"/);
   assert.match(html, /Capas y E2E|Cómo se trabaja/);
   assert.match(html, /prefix|presentaci|express|react/i);
+  assert.match(html, /id="q"/);
+  assert.match(html, /data-q=/);
+  assert.match(html, /applySearch|coincidencias/);
 });
+
+test('regenerar arquitectura usa el .afn del workspace, no el padre ni uno anidado', async () => {
+  const parent = tmp();
+  writePkg(path.join(parent, 'otro-a'), 'otro-a', { dependencies: { express: '4' } });
+  writePkg(path.join(parent, 'otro-b'), 'otro-b', { dependencies: { express: '4' } });
+  fs.mkdirSync(path.join(parent, '.afn'), { recursive: true });
+  fs.writeFileSync(
+    path.join(parent, '.afn', 'projects.json'),
+    JSON.stringify({ projects: [{ name: 'ajeno', path: '.', type: 'unknown' }] }),
+  );
+
+  const ws = path.join(parent, 'producto');
+  writePkg(path.join(ws, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(ws, 'api'), 'api', { dependencies: { express: '4' } });
+  const boot = bootstrapAfn(ws, { ceiling: ws });
+  assert.equal(path.resolve(boot.root), path.resolve(ws));
+
+  const nested = path.join(ws, 'web');
+  fs.mkdirSync(path.join(nested, '.afn'), { recursive: true });
+  fs.writeFileSync(
+    path.join(nested, '.afn', 'projects.json'),
+    JSON.stringify({ projects: [{ name: 'solo-front', path: '.', type: 'frontend' }] }),
+  );
+
+  assert.equal(path.resolve(resolveWorkspaceRoot(ws)), path.resolve(ws));
+  assert.equal(path.resolve(resolveWorkspaceRoot(nested)), path.resolve(ws));
+  assert.equal(
+    path.resolve(resolveProjectRoot(nested, { cwd: nested, envRoot: ws })),
+    path.resolve(ws),
+  );
+
+  const gen = await handleContextTool(ws, 'afn_diagram_generate', { recreate: true });
+  assert.equal(gen.ok, true);
+  assert.equal(path.resolve(gen.root), path.resolve(ws));
+  assert.equal(fs.existsSync(path.join(ws, '.afn', 'diagrams', 'workspace-flow.json')), true);
+  assert.equal(fs.existsSync(path.join(parent, '.afn', 'diagrams', 'workspace-flow.json')), false);
+  assert.equal(fs.existsSync(path.join(nested, '.afn', 'diagrams', 'workspace-flow.json')), false);
+  const flow = JSON.parse(fs.readFileSync(path.join(ws, '.afn', 'diagrams', 'workspace-flow.json'), 'utf8'));
+  const names = (flow.projects || []).map((p) => p.name);
+  assert.ok(names.includes('web'));
+  assert.ok(names.includes('api'));
+  assert.equal(names.includes('ajeno'), false);
+  assert.equal(names.includes('solo-front'), false);
+});
+
 
 test('si la arquitectura existe, bootstrap no regenera; el comando --refresh sí', () => {
   const root = tmp();

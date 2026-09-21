@@ -4,7 +4,7 @@ Servidor MCP **stdio** (Node ≥18, cero deps) que lee y escribe `.afn/` del **w
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Mapa: rol, framework, BD, puerto, prefix, proxy/lambda, capas, E2E y cómo desarrollar/probar (`.afn/diagrams/workspace-flow.*`). Vista: `node index.js dashboard`.
+Cerebro: `.afn/memory/cerebro.json`. Mapa: rol, framework, BD, puerto, prefix, proxy/lambda, capas, E2E y cómo desarrollar/probar (`.afn/diagrams/workspace-flow.*`). Vista: `node index.js dashboard` (buscador). Regenerar arquitectura: raíz `AFN_PROJECT_ROOT`, no un `.afn` anidado.
 
 Guía de integración (Kiro / Cursor / Claude / genérico):  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)

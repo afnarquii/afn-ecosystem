@@ -100,7 +100,7 @@ function buildHtml(data) {
     .map((p) => {
       const bits = [p.role, p.framework, p.db, p.prefix, p.port && `:${p.port}`].filter(Boolean).join(' · ');
       const skills = (p.skills || []).slice(0, 3).join(', ');
-      return `<button type="button" class="tile" data-go="mapa"><span class="k">${esc(p.layer || p.type)}</span><strong>${esc(p.name)}</strong><span class="muted">${esc(bits)}</span>${skills ? `<span class="muted">${esc(skills)}</span>` : ''}<code>${esc(p.path || '')}</code></button>`;
+      return `<button type="button" class="tile" data-go="mapa" data-q="${esc([p.name, p.path, p.role, p.framework, p.db, p.prefix, p.layer, p.type, ...(p.skills || [])].filter(Boolean).join(' '))}"><span class="k">${esc(p.layer || p.type)}</span><strong>${esc(p.name)}</strong><span class="muted">${esc(bits)}</span>${skills ? `<span class="muted">${esc(skills)}</span>` : ''}<code>${esc(p.path || '')}</code></button>`;
     })
     .join('');
 
@@ -108,7 +108,7 @@ function buildHtml(data) {
     ? diagrams
         .map(
           (d) =>
-            `<button type="button" class="diagram-card" data-open="${esc(d.slug)}" aria-label="Abrir diagrama ${esc(d.title)}">
+            `<button type="button" class="diagram-card" data-open="${esc(d.slug)}" data-q="${esc(`${d.title} ${d.type} ${d.slug}`)}" aria-label="Abrir diagrama ${esc(d.title)}">
               <span class="k">${esc(d.type)}</span>
               <strong>${esc(d.title)}</strong>
               <span class="muted">${d.nodes} componentes · ${d.edges} enlaces</span>
@@ -122,7 +122,7 @@ function buildHtml(data) {
     ? assets
         .map(
           (a) =>
-            `<tr><td><span class="tag">${esc(kindLabel(a.kind))}</span></td><td>${esc(a.title)}</td><td>${esc(a.project || 'workspace')}</td><td class="muted">${esc(a.rel)}</td></tr>`,
+            `<tr data-q="${esc(`${a.kind} ${a.title} ${a.project || ''} ${a.rel || ''}`)}"><td><span class="tag">${esc(kindLabel(a.kind))}</span></td><td>${esc(a.title)}</td><td>${esc(a.project || 'workspace')}</td><td class="muted">${esc(a.rel)}</td></tr>`,
         )
         .join('')
     : '<tr><td colspan="4" class="muted">No encontré steering/skills/Copilot. El bootstrap las asocia si existen en el repo o en ~/.kiro/steering.</td></tr>';
@@ -131,7 +131,7 @@ function buildHtml(data) {
     ? sess
         .map(
           (s) =>
-            `<li><strong>${esc(s.goal || s.id)}</strong><p class="muted">${esc(s.summary || s.done || 'en curso')}</p><time>${esc(String(s.startedAt || '').slice(0, 16))}</time></li>`,
+            `<li data-q="${esc(`${s.goal || ''} ${s.summary || ''} ${s.done || ''}`)}"><strong>${esc(s.goal || s.id)}</strong><p class="muted">${esc(s.summary || s.done || 'en curso')}</p><time>${esc(String(s.startedAt || '').slice(0, 16))}</time></li>`,
         )
         .join('')
     : '<li class="muted">Todavía no hay sesiones. El hook SessionStart o <code>afn_session_start</code> las crea.</li>';
@@ -140,7 +140,7 @@ function buildHtml(data) {
     ? obs
         .map(
           (o) =>
-            `<li><span class="tag">${esc(o.type)}</span> <strong>${esc(o.title || 'hecho')}</strong><p class="muted">${esc(String(o.text || '').slice(0, 220))}</p></li>`,
+            `<li data-q="${esc(`${o.type} ${o.title || ''} ${o.text || ''}`)}"><span class="tag">${esc(o.type)}</span> <strong>${esc(o.title || 'hecho')}</strong><p class="muted">${esc(String(o.text || '').slice(0, 220))}</p></li>`,
         )
         .join('')
     : '<li class="muted">El cerebro está vacío. Pedile al agente que recuerde una decisión con <code>afn_mem_save</code>.</li>';
@@ -164,6 +164,30 @@ function buildHtml(data) {
       el.textContent = src;
       await mermaid.run({ nodes: [el] });
     } catch (_) { /* diagrama inválido: el overlay igual muestra el título */ }
+  }
+
+  function applySearch() {
+    const q = (document.getElementById("q")?.value || "").trim().toLowerCase();
+    let hits = 0;
+    document.querySelectorAll("[data-q]").forEach((el) => {
+      const hay = (el.getAttribute("data-q") || el.textContent || "").toLowerCase();
+      const ok = !q || hay.includes(q);
+      el.hidden = !ok;
+      if (ok && q) hits += 1;
+    });
+    const empty = document.getElementById("q-empty");
+    if (empty) empty.hidden = !q || hits > 0;
+    const n = document.getElementById("q-count");
+    if (n) n.textContent = q ? (hits + " coincidencias") : "";
+    document.querySelectorAll("[data-view]").forEach((sec) => {
+      if (!q) return;
+      const any = Array.from(sec.querySelectorAll("[data-q]")).some((el) => !el.hidden);
+      sec.hidden = !any;
+    });
+    if (!q) {
+      const on = document.querySelector("nav button.on")?.dataset.go || "inicio";
+      showView(on);
+    }
   }
 
   function showView(id) {
@@ -198,7 +222,20 @@ function buildHtml(data) {
     if (open) { e.preventDefault(); openDiagram(open.dataset.open); }
     if (e.target.closest("[data-close]")) closeOverlay();
   });
-  window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeOverlay(); });
+  window.addEventListener("input", (e) => {
+    if (e.target && e.target.id === "q") applySearch();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeOverlay();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      document.getElementById("q")?.focus();
+    }
+    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      e.preventDefault();
+      document.getElementById("q")?.focus();
+    }
+  });
   window.addEventListener("hashchange", () => {
     const h = location.hash.replace("#", "");
     if (h.startsWith("d-")) openDiagram(h.slice(2));
@@ -214,7 +251,10 @@ function buildHtml(data) {
   html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.45 "Segoe UI",system-ui,sans-serif; }
   .app { display:grid; grid-template-columns:220px 1fr; min-height:100%; }
   aside { background:#10151d; border-right:1px solid var(--line); padding:1.25rem 0.9rem; }
-  aside h1 { font-size:0.95rem; margin:0 0 1rem; letter-spacing:.06em; text-transform:uppercase; color:var(--acc); }
+  aside h1 { font-size:0.95rem; margin:0 0 .65rem; letter-spacing:.06em; text-transform:uppercase; color:var(--acc); }
+  #q { width:100%; margin:0 0 .75rem; padding:.5rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
+  #q:focus { outline:1px solid var(--acc); border-color:var(--acc); }
+  #q-count, #q-empty { font-size:.75rem; color:var(--muted); margin:0 0 .5rem; }
   nav { display:flex; flex-direction:column; gap:.25rem; }
   nav button { text-align:left; background:transparent; border:0; color:var(--muted); padding:.55rem .7rem; border-radius:8px; cursor:pointer; font:inherit; }
   nav button.on, nav button:hover { background:#1c2736; color:var(--ink); }
@@ -250,6 +290,10 @@ function buildHtml(data) {
 <div class="app">
   <aside>
     <h1>AFN</h1>
+    <label for="q" class="muted" style="display:block;font-size:.7rem;margin:0 0 .3rem;letter-spacing:.06em;text-transform:uppercase">Buscar</label>
+    <input id="q" type="search" placeholder="Proyecto, diagrama, regla…" autocomplete="off"/>
+    <p id="q-count" class="muted"></p>
+    <p id="q-empty" hidden>Sin coincidencias. Probá otro término.</p>
     <nav>
       <button type="button" data-go="inicio">Inicio</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
@@ -266,12 +310,12 @@ function buildHtml(data) {
       <h2>Qué hay en este workspace</h2>
       <p class="lead">Elegí una tarjeta. Los diagramas se abren aquí mismo (no hace falta otro programa).</p>
       <div class="hero">
-        <button type="button" data-go="mapa"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
-        <button type="button" data-go="diagramas"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Clic para abrir el flujo</span></button>
-        <button type="button" data-go="capas"><span class="k">Capas</span><strong>Presentación · API · datos</strong><span class="muted">Quién llama qué</span></button>
-        <button type="button" data-go="howto"><span class="k">Local / test</span><strong>Cómo agregar y probar</strong><span class="muted">Qué se toca y qué no</span></button>
-        <button type="button" data-go="cerebro"><span class="k">Memoria</span><strong>${lastSess ? esc(lastSess.goal || 'Sesión') : 'Sin sesiones'}</strong><span class="muted">${obs.length} hechos recientes</span></button>
-        <button type="button" data-go="reglas"><span class="k">Kiro · Copilot</span><strong>${assets.length} reglas / skills</strong><span class="muted">Asociadas al workspace</span></button>
+        <button type="button" data-go="mapa" data-q="mapa proyectos conexiones flujo"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
+        <button type="button" data-go="diagramas" data-q="diagramas mapas flujo componentes"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Clic para abrir el flujo</span></button>
+        <button type="button" data-go="capas" data-q="capas presentación api datos e2e trazabilidad"><span class="k">Capas</span><strong>Presentación · API · datos</strong><span class="muted">Quién llama qué</span></button>
+        <button type="button" data-go="howto" data-q="local test desarrollar probar feature"><span class="k">Local / test</span><strong>Cómo agregar y probar</strong><span class="muted">Qué se toca y qué no</span></button>
+        <button type="button" data-go="cerebro" data-q="memoria cerebro sesiones hechos"><span class="k">Memoria</span><strong>${lastSess ? esc(lastSess.goal || 'Sesión') : 'Sin sesiones'}</strong><span class="muted">${obs.length} hechos recientes</span></button>
+        <button type="button" data-go="reglas" data-q="kiro copilot steering skills reglas"><span class="k">Kiro · Copilot</span><strong>${assets.length} reglas / skills</strong><span class="muted">Asociadas al workspace</span></button>
       </div>
     </section>
     <section data-view="mapa" hidden>
@@ -376,6 +420,7 @@ export function writeDashboard(root, opts = {}) {
     file,
     url: `${pathToFileURL(file).href}${hash}`,
     opened,
+    root: data.root,
     projects: data.projects.length,
     observations: data.cerebro.observations.length,
     diagrams: data.diagrams.length,

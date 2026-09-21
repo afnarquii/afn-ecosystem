@@ -92,7 +92,7 @@ Eso crea/mezcla:
 | Pedís “regenerá la arquitectura” | `afn_diagram_generate` recreate **o** `architecture --recreate` | Sí, **sin LLM** (comando) |
 | Redetectar repos | `bootstrap --force` | Sí |
 
-El LLM **no** dibuja la arquitectura. Lee el snapshot. Solo dispara el comando si vos lo pedís.
+El LLM **no** dibuja la arquitectura. Lee el snapshot. Solo dispara el comando si vos lo pedís. La regeneración usa el `.afn` de **AFN_PROJECT_ROOT** (raíz del workspace), no un `.afn` anidado ni el de un padre con otros clones.
 
 Actualizar en la empresa:
 
@@ -146,10 +146,8 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Sin `.afn/projects.json` → detecta repos y escribe el mapa **sin LLM**.
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → **no pisa los nombres de repo** (`--force` para redetectar).
-- Si el **pack es más nuevo** que `.afn/diagrams/workspace-flow.json` (después de `git pull`) → **regenera las gráficas** (capas, endpoints, E2E). No hace falta pedir recreate.
-- `--refresh` redibuja ya, aunque la versión sea la misma.
 
-Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard`.
+Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard` (HTML con buscador de proyectos, diagramas, reglas y memoria). No regenera nada.
 
 ### 5. Hechos
 
