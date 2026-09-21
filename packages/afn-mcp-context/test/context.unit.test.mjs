@@ -14,7 +14,7 @@ import { setupAgent } from '../lib/setup.js';
 import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js';
 import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
-import { writeDashboard } from '../lib/dashboard.js';
+import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 
 function tmp() {
@@ -322,9 +322,40 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /data-q=/);
   assert.match(html, /applySearch|coincidencias/);
   assert.match(html, /data-view="readme"|Arquitectura \(README\)/);
-  assert.match(html, /arquitectura\.md/);
+  assert.match(html, /ARQUITECTURA\.md/);
+  assert.match(html, /id="readme-article"/);
   assert.match(html, /data-expand/);
   assert.match(html, /data-dl/);
+  assert.match(html, /data-zoom/);
+  assert.match(html, /id="ov-stage"/);
+  assert.match(html, /data-canvas=/);
+  assert.match(html, /\|\| "readme"/);
+  assert.match(d.url, /#readme/);
+});
+
+test('mdToHtml convierte README en tablas y títulos', () => {
+  const h = mdToHtml('# Arquitectura\n\n## Contenedores\n\n| Nombre | Rol |\n| --- | --- |\n| web | UI |\n');
+  assert.match(h, /<h1>/);
+  assert.match(h, /<h2>/);
+  assert.match(h, /doc-table/);
+  assert.match(h, /web/);
+});
+
+test('dashboard embebe ARQUITECTURA.md de la raíz y abre en README', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  bootstrapAfn(root);
+  fs.writeFileSync(
+    path.join(root, 'ARQUITECTURA.md'),
+    '# Arquitectura visible\n\n## Contenedores\n\n| Nombre | Rol |\n| --- | --- |\n| web | presentación |\n',
+  );
+  const d = writeDashboard(root, { open: false });
+  const html = fs.readFileSync(d.file, 'utf8');
+  assert.match(html, /Arquitectura visible/);
+  assert.match(html, /presentación/);
+  assert.match(html, /id="readme-article"/);
+  assert.match(html, /doc-table/);
+  assert.equal(d.readme, true);
 });
 
 test('regenerar arquitectura usa el .afn del workspace, no el padre ni uno anidado', async () => {
