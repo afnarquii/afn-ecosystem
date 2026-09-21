@@ -12,13 +12,13 @@ Usar el MCP **afn-context** para no reexplorar el repo. Fuente: `.afn/projects.j
 
 ## Flujo
 
-1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true`.
+1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true`. Eso también genera el diagrama de flujo si falta y escanea reglas Kiro/Copilot/Cursor.
 2. Al empezar → `afn_context_snapshot` + `afn_mem_context`. Si alcanza, **no** listés el árbol.
 3. Trabajo nuevo → `afn_session_start` (goal).
-4. Flujo entre paquetes → `afn_projects_flow`.
+4. Flujo entre paquetes → `afn_projects_flow`. Recrear el mapa visual (como el botón del `@` en AFN IDE) → `afn_diagram_generate` `recreate=true`.
 5. ¿Ya lo decidimos? → `afn_mem_search`.
 6. Decisión / bugfix / hallazgo → `afn_mem_save` (title, type, What/Why/Where/Learned).
-7. Ver mapa, diagramas y cerebro → `afn_dashboard` (HTML en el navegador; Kiro no embebe UI).
+7. Ver mapa, diagramas y cerebro → `afn_dashboard`. Los diagramas se **abren en esa página**.
 8. Paquete muerto → `afn_project_ignore`.
 9. Cierre → `afn_session_summary`.
 

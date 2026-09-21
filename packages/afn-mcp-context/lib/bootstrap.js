@@ -4,6 +4,8 @@ import { afnPath } from './paths.js';
 import { detectProjects, isWeakProjectsMap } from './detect-projects.js';
 import { normalizeProjectsConfig } from './projects-policy.js';
 import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
+import { persistWorkspaceFlowDiagram } from './diagram-store.js';
+import { persistAgentAssets } from './agent-assets.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -36,6 +38,7 @@ function ensureAfnDirs(root) {
   fs.mkdirSync(afnPath(root), { recursive: true });
   fs.mkdirSync(afnPath(root, 'memory'), { recursive: true });
   fs.mkdirSync(afnPath(root, 'skills'), { recursive: true });
+  fs.mkdirSync(afnPath(root, 'diagrams'), { recursive: true });
 }
 
 /**
@@ -70,9 +73,7 @@ export function bootstrapAfn(root, opts = {}) {
   }
 
   if (existingCount && !force && !weakExisting && !richer) {
-    ensureAfnDirs(base);
-    ensureMemoryStub(base);
-    ensureGitignore(base);
+    const extra = enrichAfn(base, existingNorm);
     return {
       ok: true,
       skipped: true,
@@ -80,6 +81,8 @@ export function bootstrapAfn(root, opts = {}) {
       root: base,
       config: existingNorm,
       reason: 'projects.json ya existe',
+      diagram: extra.diagram,
+      assets: extra.assets,
     };
   }
 
@@ -89,8 +92,7 @@ export function bootstrapAfn(root, opts = {}) {
     ignorePaths,
   });
   fs.writeFileSync(pjFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  ensureMemoryStub(base);
-  ensureGitignore(base);
+  const extra = enrichAfn(base, config, { recreateDiagram: force || weakExisting });
   return {
     ok: true,
     skipped: false,
@@ -98,7 +100,28 @@ export function bootstrapAfn(root, opts = {}) {
     root: base,
     config,
     reason: force ? 'force' : weakExisting ? 'mapa-pobre-reescrito' : 'detectado',
+    diagram: extra.diagram,
+    assets: extra.assets,
   };
+}
+
+function enrichAfn(base, config, opts = {}) {
+  ensureAfnDirs(base);
+  ensureMemoryStub(base);
+  ensureGitignore(base);
+  let diagram = { ok: false };
+  try {
+    diagram = persistWorkspaceFlowDiagram(base, config, { recreate: opts.recreateDiagram === true });
+  } catch {
+    diagram = { ok: false };
+  }
+  let assets = { ok: false, count: 0 };
+  try {
+    assets = persistAgentAssets(base);
+  } catch {
+    assets = { ok: false, count: 0 };
+  }
+  return { diagram, assets };
 }
 
 function ensureMemoryStub(root) {

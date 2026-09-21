@@ -5,7 +5,7 @@
   "transport": "stdio",
   "command": "node",
   "args": ["${AFN_MCP_CONTEXT_ENTRY}"],
-  "description": "Mapa y memoria de proyecto (.afn/projects.json, MEMORY.md). Sirve en Kiro, Cursor, Claude Code u otro host MCP. Sin Engram. Sin secretos.",
+  "description": "Mapa, cerebro, diagramas de flujo y reglas Kiro/Copilot (.afn). Sirve en Kiro, Cursor, Claude Code u otro host MCP. Sin Engram. Sin secretos.",
   "publisher": "afn-ecosystem",
   "tags": ["context", "memory", "afn", "kiro", "mcp"],
   "env": {

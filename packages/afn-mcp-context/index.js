@@ -5,6 +5,7 @@
  *   node index.js snapshot     → markdown a stdout (hook PromptSubmit)
  *   node index.js bootstrap    → .afn/ sin LLM
  *   node index.js dashboard    → HTML cerebro/mapa (navegador)
+ *   node index.js diagram      → IR de flujo en .afn/diagrams
  *   node index.js session-start
  *   node index.js setup kiro|cursor|claude|generic
  */
@@ -18,9 +19,10 @@ import { bootstrapAfn } from './lib/bootstrap.js';
 import { doctorAfn } from './lib/snapshot.js';
 import { startSession } from './lib/cerebro.js';
 import { writeDashboard } from './lib/dashboard.js';
+import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent } from './lib/setup.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -74,6 +76,14 @@ async function main() {
     return;
   }
 
+  if (cmd === 'diagram') {
+    const recreate = argv.includes('--recreate');
+    const r = persistWorkspaceFlowDiagram(root, undefined, { recreate });
+    process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
+    process.exit(r.ok ? 0 : 1);
+    return;
+  }
+
   if (cmd === 'setup') {
     const agent = String(argv[1] || 'kiro').toLowerCase();
     const r = setupAgent(agent, { projectRoot: root });
@@ -83,7 +93,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot|bootstrap|doctor|dashboard|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|snapshot|bootstrap|doctor|dashboard|diagram|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

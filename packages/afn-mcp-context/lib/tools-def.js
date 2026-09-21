@@ -78,13 +78,31 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_dashboard',
     description:
-      'Genera un HTML local con mapa, flujos, diagramas .afn/diagrams y cerebro. Por defecto abre el navegador (Kiro no embebe UI).',
+      'HTML local: inicio, mapa, diagramas (se abren con un clic), memoria y reglas Kiro/Copilot. Por defecto abre el navegador (Kiro no embebe UI).',
     inputSchema: {
       type: 'object',
       properties: {
         open: { type: 'boolean', description: 'Abrir el navegador (default true)' },
+        slug: { type: 'string', description: 'Abrir un diagrama concreto (#d-slug)' },
       },
     },
+  },
+  {
+    name: 'afn_diagram_generate',
+    description:
+      'Genera o recrea el diagrama de flujo del workspace (proyectos, nombres, enlaces) en .afn/diagrams, igual que el botón mapa del @ en AFN IDE. No pisa un diagrama existente salvo recreate=true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        recreate: { type: 'boolean', description: 'Reescribir el IR aunque ya exista' },
+      },
+    },
+  },
+  {
+    name: 'afn_agent_assets',
+    description:
+      'Escanea steering/skills de Kiro, instrucciones y skills de Copilot (.github), Cursor y AGENTS.md, y las asocia a un proyecto del mapa si el nombre coincide.',
+    inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'afn_doctor',

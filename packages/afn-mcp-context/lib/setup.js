@@ -35,6 +35,8 @@ function mcpServerBlock() {
       'afn_bootstrap',
       'afn_doctor',
       'afn_dashboard',
+      'afn_diagram_generate',
+      'afn_agent_assets',
     ],
   };
 }
@@ -49,14 +51,15 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide ver el mapa, diagramas o el cerebro: \`afn_dashboard\` (abre HTML en el navegador; Kiro no embebe UI).
+- Si el usuario pide ver el mapa, diagramas o el cerebro: \`afn_dashboard\` (abre HTML; los diagramas se abren **en esa página** con un clic).
+- Si pide recrear el diagrama de todo el workspace (como el botón mapa del \`@\` en AFN IDE): \`afn_diagram_generate\` con \`recreate=true\`.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
 ## Proyectos
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM).
+- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM). El bootstrap **también** genera el diagrama de flujo si no existe y escanea steering/skills de Kiro, Copilot (\`.github\`) y Cursor, asociándolos al proyecto si el nombre coincide. Un diagrama ya versionado **no** se pisa.
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia
@@ -120,7 +123,7 @@ function writeHooks(projectRoot, nodeCmd) {
         action: {
           type: 'agent',
           prompt:
-            'Si este turno cambió arquitectura, APIs, un bugfix o una decisión, llamá afn_mem_save (title + type + What/Why/Where). Si cerrás el trabajo, afn_session_summary. Si el usuario pidió ver el mapa o el cerebro, afn_dashboard.',
+            'Si este turno cambió arquitectura, APIs, un bugfix o una decisión, llamá afn_mem_save (title + type + What/Why/Where). Si cerrás el trabajo, afn_session_summary. Si el usuario pidió ver el mapa o el cerebro, afn_dashboard. Si pidió recrear el diagrama del workspace, afn_diagram_generate con recreate=true.',
         },
       },
     ],

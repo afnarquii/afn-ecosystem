@@ -5,6 +5,8 @@ import { activeProjects, activeRelationships, normalizeProjectsConfig } from './
 import { loadFacts, readMemoryMarkdown } from './memory.js';
 import { getMemContext } from './cerebro.js';
 import { isWeakProjectsMap } from './detect-projects.js';
+import { listDiagramIrs } from './diagram-store.js';
+import { loadAgentAssets } from './agent-assets.js';
 
 function readJson(file) {
   try {
@@ -51,6 +53,20 @@ export function buildSnapshot(root) {
     for (const r of rels) {
       lines.push(`- ${r.from} → ${r.to}` + (r.type ? ` · ${r.type}` : '') + (r.endpoint ? ` \`${r.endpoint}\`` : ''));
     }
+    lines.push('');
+  }
+
+  const diagrams = listDiagramIrs(root);
+  if (diagrams.length) {
+    lines.push(`Diagramas (.afn/diagrams): ${diagrams.map((d) => d.slug).join(', ')}`);
+    lines.push('Para verlos: `afn_dashboard` (se abren en esa página). Recrear flujo: `afn_diagram_generate` recreate.');
+    lines.push('');
+  }
+
+  const assets = loadAgentAssets(root);
+  if (Array.isArray(assets.assets) && assets.assets.length) {
+    const kinds = [...new Set(assets.assets.map((a) => a.kind))].slice(0, 6).join(', ');
+    lines.push(`Reglas/skills (${assets.assets.length}): ${kinds}`);
     lines.push('');
   }
 
@@ -104,6 +120,11 @@ export function doctorAfn(root) {
   checks.push({ id: 'projects', ok: exists('projects.json'), detail: '.afn/projects.json' });
   checks.push({ id: 'memory-md', ok: exists('MEMORY.md'), detail: '.afn/MEMORY.md' });
   const snap = buildSnapshot(root);
+  checks.push({
+    id: 'diagrams',
+    ok: (snap.activeCount || 0) < 1 || exists('diagrams'),
+    detail: exists('diagrams') ? '.afn/diagrams' : 'sin .afn/diagrams (bootstrap genera el flujo)',
+  });
   checks.push({
     id: 'mapa-rico',
     ok: !snap.weak && (snap.activeCount || 0) >= 1,

@@ -120,16 +120,18 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Sin `.afn/projects.json` → detecta repos del workspace (`web/` + `api/`, hermanos, `packages/`) y escribe el mapa **sin gastar tokens del LLM**.
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → no pisa (`force` para rehacer).
+- Si falta el diagrama de flujo → lo genera en `.afn/diagrams` (mismos nodos/enlaces que `/diagrama` y el botón mapa del `@` en AFN IDE). **No pisa** un diagrama ya versionado.
+- Escanea steering/skills de Kiro, Copilot (`.github/copilot-instructions.md`, `.github/skills`) y Cursor, y los asocia a un proyecto si el nombre coincide.
 
 El primer prompt recibe el snapshot (proyectos, `web → api`, trabajo reciente). Si ves un solo proyecto genérico, pedí `afn_bootstrap` con `force=true`.
 
-Para **ver** el mapa, los diagramas (`.afn/diagrams`) y el cerebro: en Kiro pedí “abrí el dashboard AFN” (tool `afn_dashboard`) o:
+Para **ver** el mapa, los diagramas y el cerebro: en Kiro pedí “abrí el dashboard AFN” (tool `afn_dashboard`) o:
 
 ```bash
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js dashboard
 ```
 
-Kiro no tiene webview nuestro: se abre el navegador con un HTML local (`.afn/_tmp/dashboard.html`).
+Kiro no tiene webview nuestro: se abre el navegador con un HTML local (`.afn/_tmp/dashboard.html`). **Inicio** resume el workspace; **Diagramas** abre cada mapa en esa misma página (clic en la tarjeta). Recrear el flujo: “generá el diagrama AFN” (`afn_diagram_generate` `recreate=true`).
 
 ### 5. Hechos
 
@@ -179,13 +181,15 @@ node …/index.js setup generic
 
 | Tool | Para qué |
 |------|----------|
-| `afn_bootstrap` | Detectar repos del workspace (como `/afn-init`) y escribir `.afn/`. `force` reescribe. |
+| `afn_bootstrap` | Detectar repos del workspace (como `/afn-init`) y escribir `.afn/`. También genera el diagrama si falta y escanea reglas Kiro/Copilot. `force` reescribe el mapa. |
 | `afn_context_snapshot` | Bloque ≤3200 chars (mapa + trabajo reciente) |
 | `afn_projects_flow` | Activos + relationships |
 | `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
 | `afn_mem_search` / `afn_mem_save` | Buscar / guardar en el cerebro `.afn/memory/cerebro.json` |
 | `afn_session_start` / `afn_session_summary` | Abrir / cerrar sesión de trabajo |
-| `afn_dashboard` | HTML local: mapa, flujos, diagramas, cerebro. Abre el navegador (Kiro no embebe UI). |
+| `afn_dashboard` | HTML: inicio, mapa, diagramas (se abren con un clic), memoria, reglas. Abre el navegador. |
+| `afn_diagram_generate` | Recrear el flujo (componentes, nombres, enlaces) en `.afn/diagrams`. No pisa salvo `recreate`. |
+| `afn_agent_assets` | Listar/asociar steering, skills, Copilot, Cursor al mapa. |
 | `afn_project_ignore` | Deprecados |
 | `afn_doctor` | Salud de `.afn/` |
 
@@ -196,6 +200,7 @@ node index.js snapshot     # stdout markdown
 node index.js bootstrap [--force]
 node index.js session-start
 node index.js dashboard [--no-open]
+node index.js diagram [--recreate]
 node index.js doctor
 ```
 

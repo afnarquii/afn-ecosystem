@@ -283,5 +283,50 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /web/);
   assert.match(html, /flowchart/);
   assert.match(html, /web→api|front llama/);
+  assert.match(html, /data-open=/);
+  assert.match(html, /data-view="inicio"/);
+  assert.match(html, /Reglas/);
+  assert.match(html, /id="overlay"/);
+});
+
+test('bootstrap escribe diagrama de flujo y no lo pisa si ya existe', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  const a = bootstrapAfn(root);
+  assert.equal(a.diagram?.ok, true);
+  assert.equal(a.diagram?.skipped, false);
+  const dir = path.join(root, '.afn', 'diagrams');
+  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.architecture.json'));
+  assert.equal(files.length, 1);
+  const first = fs.readFileSync(path.join(dir, files[0]), 'utf8');
+  const b = bootstrapAfn(root);
+  assert.equal(b.skipped, true);
+  assert.equal(b.diagram?.skipped, true);
+  assert.equal(fs.readFileSync(path.join(dir, files[0]), 'utf8'), first);
+});
+
+test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {
+  const root = tmp();
+  const home = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  fs.mkdirSync(path.join(root, '.kiro', 'steering'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.kiro', 'steering', 'web-auth.md'), '# web auth\nJWT en el front\n');
+  fs.mkdirSync(path.join(root, '.github', 'skills', 'api-review'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.github', 'skills', 'api-review', 'SKILL.md'), '# api review\nrevisá contratos\n');
+  fs.writeFileSync(path.join(root, '.github', 'copilot-instructions.md'), '# Copilot\nusá el api\n');
+  fs.mkdirSync(path.join(home, '.kiro', 'steering'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.kiro', 'steering', 'global.md'), '# kiro global\nsteering user\n');
+  const { persistAgentAssets } = await import('../lib/agent-assets.js');
+  const scanned = persistAgentAssets(root, { home });
+  assert.ok(scanned.assets.some((a) => a.kind === 'kiro-steering' && a.project === 'web'));
+  assert.ok(scanned.assets.some((a) => a.kind === 'copilot-skill' && a.project === 'api'));
+  assert.ok(scanned.assets.some((a) => a.kind === 'copilot-instructions'));
+  assert.ok(scanned.assets.some((a) => a.kind === 'kiro-steering' && String(a.rel).includes('.kiro')));
+  const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
+  assert.equal(gen.ok, true);
+  assert.equal(gen.skipped, false);
 });
 

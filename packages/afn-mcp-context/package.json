@@ -1,7 +1,7 @@
 {
   "name": "@afn-ecosystem/mcp-context",
-  "version": "1.1.0",
-  "description": "MCP headless: mapa .afn (proyectos, flujo, memoria). Kiro, Cursor, Claude Code u otro agente MCP. Sin Engram. Sin Electron.",
+  "version": "1.2.0",
+  "description": "MCP headless: mapa .afn (proyectos, flujo, cerebro, diagramas, reglas Kiro/Copilot). Kiro, Cursor, Claude Code u otro agente MCP. Sin Engram. Sin Electron.",
   "type": "module",
   "bin": {
     "afn-mcp-context": "./index.js"

@@ -6,6 +6,8 @@ import { bootstrapAfn } from './bootstrap.js';
 import { searchFacts } from './memory.js';
 import { saveObservation, searchCerebro, startSession, endSession, getMemContext } from './cerebro.js';
 import { writeDashboard } from './dashboard.js';
+import { persistWorkspaceFlowDiagram } from './diagram-store.js';
+import { persistAgentAssets } from './agent-assets.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import {
   activeProjects,
@@ -63,7 +65,11 @@ export async function handleContextTool(root, name, args = {}) {
     case 'afn_session_summary':
       return endSession(base, args);
     case 'afn_dashboard':
-      return writeDashboard(base, { open: args.open !== false });
+      return writeDashboard(base, { open: args.open !== false, slug: args.slug });
+    case 'afn_diagram_generate':
+      return persistWorkspaceFlowDiagram(base, readProjects(base), { recreate: args.recreate === true });
+    case 'afn_agent_assets':
+      return persistAgentAssets(base);
     case 'afn_doctor':
       return doctorAfn(base);
     case 'afn_project_ignore': {
