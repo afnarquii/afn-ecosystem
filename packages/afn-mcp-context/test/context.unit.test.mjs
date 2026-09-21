@@ -312,6 +312,24 @@ test('bootstrap escribe diagrama de flujo y no lo pisa si ya existe', () => {
   assert.equal(fs.readFileSync(path.join(dir, sample), 'utf8'), first);
 });
 
+test('bootstrap regenera gráficas si el pack es más nuevo', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  const flowFile = path.join(root, '.afn', 'diagrams', 'workspace-flow.json');
+  const flow = JSON.parse(fs.readFileSync(flowFile, 'utf8'));
+  flow.generatorVersion = '1.0.0';
+  fs.writeFileSync(flowFile, `${JSON.stringify(flow, null, 2)}\n`);
+  const b = bootstrapAfn(root);
+  assert.equal(b.refreshed, true);
+  assert.equal(b.diagram?.skipped, false);
+  const next = JSON.parse(fs.readFileSync(flowFile, 'utf8'));
+  assert.notEqual(next.generatorVersion, '1.0.0');
+  const c = bootstrapAfn(root);
+  assert.equal(c.diagram?.skipped, true);
+});
+
 test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {
   const root = tmp();
   const home = tmp();

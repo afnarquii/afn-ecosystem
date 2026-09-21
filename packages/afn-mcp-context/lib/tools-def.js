@@ -112,11 +112,12 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_bootstrap',
     description:
-      'Detecta repos/paquetes del workspace (hermanos, packages/, apps/) SIN LLM y escribe .afn/projects.json. No pisa un mapa rico. force=true reescribe. Rehace mapas pobres (un solo mcp-context).',
+      'Detecta repos del workspace (como /afn-init) y escribe .afn/. No pisa un mapa rico. Si el pack es más nuevo que el mapa (git pull), regenera las gráficas. force=true redetecta repos. refresh=true redibuja capas/E2E sin borrar projects.json.',
     inputSchema: {
       type: 'object',
       properties: {
         force: { type: 'boolean', description: 'Reescribir projects.json conservando ignorePaths' },
+        refresh: { type: 'boolean', description: 'Regenerar diagramas y flujo aunque projects.json ya exista' },
       },
     },
   },

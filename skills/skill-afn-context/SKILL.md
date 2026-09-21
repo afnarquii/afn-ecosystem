@@ -12,7 +12,8 @@ Usar el MCP **afn-context** para no reexplorar el repo. Fuente: `.afn/projects.j
 
 ## Flujo
 
-1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true`. Eso también genera el diagrama de flujo si falta y escanea reglas Kiro/Copilot/Cursor.
+1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true`.
+   Tras `git pull` del pack, al entrar (SessionStart) bootstrap **regenera las gráficas** si el pack es más nuevo. `refresh=true` redibuja ya.
 2. Al empezar → `afn_context_snapshot` + `afn_mem_context`. Si alcanza, **no** listés el árbol.
 3. Trabajo nuevo → `afn_session_start` (goal).
 4. Flujo entre paquetes → `afn_projects_flow` (rol, framework, BD, prefix, capas, E2E, cómo desarrollar). Recrear los mapas visuales → `afn_diagram_generate` `recreate=true`.

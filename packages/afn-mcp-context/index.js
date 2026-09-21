@@ -21,9 +21,10 @@ import { startSession } from './lib/cerebro.js';
 import { writeDashboard } from './lib/dashboard.js';
 import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent } from './lib/setup.js';
+import { FLOW_GENERATOR_VERSION } from './lib/version.js';
 import fs from 'node:fs';
 
-const VERSION = '1.3.0';
+const VERSION = FLOW_GENERATOR_VERSION;
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -49,7 +50,8 @@ async function main() {
 
   if (cmd === 'bootstrap') {
     const force = argv.includes('--force');
-    const r = bootstrapAfn(root, { force });
+    const refresh = argv.includes('--refresh');
+    const r = bootstrapAfn(root, { force, refresh });
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
@@ -98,7 +100,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot|bootstrap|doctor|dashboard|diagram|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh]|doctor|dashboard|diagram [--recreate]|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

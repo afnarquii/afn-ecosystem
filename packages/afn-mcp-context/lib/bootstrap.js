@@ -6,6 +6,7 @@ import { normalizeProjectsConfig } from './projects-policy.js';
 import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
+import { isFlowStale } from './workspace-flow.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -48,10 +49,11 @@ function ensureAfnDirs(root) {
  * No pisa un mapa rico. Sí reescribe mapas pobres (un solo mcp-context) o si force.
  * No usa el catálogo afn-ecosystem / paquete MCP como raíz de producto.
  * @param {string} root
- * @param {{ force?: boolean }} [opts]
+ * @param {{ force?: boolean, refresh?: boolean }} [opts]
  */
 export function bootstrapAfn(root, opts = {}) {
   const force = opts.force === true;
+  const refresh = opts.refresh === true;
   const base = resolveWorkspaceRoot(path.resolve(root));
   const pjFile = afnPath(base, 'projects.json');
   const existing = readJson(pjFile);
@@ -75,16 +77,18 @@ export function bootstrapAfn(root, opts = {}) {
   }
 
   if (existingCount && !force && !weakExisting && !richer) {
-    const extra = enrichAfn(base, existingNorm);
+    const stale = refresh || isFlowStale(base);
+    const extra = enrichAfn(base, existingNorm, { recreateDiagram: stale });
     return {
       ok: true,
       skipped: true,
       wrote: false,
       root: base,
       config: extra.config || existingNorm,
-      reason: 'projects.json ya existe',
+      reason: stale ? 'mapa-stale-regenerado' : 'projects.json ya existe',
       diagram: extra.diagram,
       assets: extra.assets,
+      refreshed: stale,
     };
   }
 
@@ -94,7 +98,9 @@ export function bootstrapAfn(root, opts = {}) {
     ignorePaths,
   });
   fs.writeFileSync(pjFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  const extra = enrichAfn(base, config, { recreateDiagram: force || weakExisting });
+  const extra = enrichAfn(base, config, {
+    recreateDiagram: force || weakExisting || refresh || isFlowStale(base),
+  });
   return {
     ok: true,
     skipped: false,

@@ -59,7 +59,8 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM). El bootstrap arma el **flujo cross-project** (rol, framework, BD, puerto, prefix, proxy, lambda, capas, E2E, cómo desarrollar/probar) y lo dibuja. Un diagrama ya versionado **no** se pisa.
+- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM).
+- Al **entrar** (SessionStart) corre bootstrap. Si el pack (git pull) es más nuevo que \`.afn/diagrams/workspace-flow.json\`, **regenera las gráficas**. No pisa un \`projects.json\` rico. Para redetectar repos: \`force=true\`. Para redibujar ya: \`refresh=true\` o \`afn_diagram_generate\` recreate.
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia
@@ -82,7 +83,7 @@ function writeHooks(projectRoot, nodeCmd) {
     hooks: [
       {
         name: 'AFN bootstrap',
-        description: 'Detecta repos/paquetes del workspace y escribe .afn/ (sin LLM).',
+        description: 'Detecta repos y, si el pack AFN es más nuevo que el mapa, regenera las gráficas (sin LLM).',
         trigger: 'SessionStart',
         action: { type: 'command', command: `${nodeCmd} bootstrap` },
         timeout: 30,

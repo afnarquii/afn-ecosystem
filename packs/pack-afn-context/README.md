@@ -79,9 +79,31 @@ Eso crea/mezcla:
 
 - `%USERPROFILE%\.kiro\settings\mcp.json` → server `afn-context`
 - `%USERPROFILE%\.kiro\steering\afn-context.md`
-- `.kiro\hooks\afn-session-start.json` (bootstrap)
+- `.kiro\hooks\afn-session-start.json` (bootstrap **al entrar**)
 - `.kiro\hooks\afn-prompt-submit.json` (snapshot a stdout)
 - `.kiro\hooks\afn-agent-stop.json` (pide `afn_mem_save` si hubo decisión)
+
+`setup kiro` **no es** “regenerar el mapa cada vez”. Es instalar MCP + hooks. El mapa se genera:
+
+| Cuándo | Qué corre | Regenera gráficas |
+|--------|-----------|-------------------|
+| Primera vez / no hay `.afn/` | `setup` y SessionStart → `bootstrap` | Sí |
+| Abrís Kiro de nuevo | SessionStart → `bootstrap` | **Sí, si `git pull` trajo un pack más nuevo** (compara `generatorVersion`). Si no, deja el mapa. |
+| Querés redibujar ya | `bootstrap --refresh` o en el chat “regenerá el mapa AFN” | Sí (no borra `projects.json`) |
+| Querés redetectar repos | `bootstrap --force` | Sí, reescribe el listado de proyectos |
+
+Actualizar en la empresa:
+
+```bash
+cd C:\tools\afn-ecosystem
+git pull
+cd C:\work\mi-monorepo
+node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
+```
+
+El `git pull` actualiza el código que Kiro ya ejecuta. El `setup` refresca steering/hooks. **Al volver a abrir Kiro**, bootstrap ve que el pack es 1.3.1 y el mapa era 1.3.0 (o no tenía stamp) y **redibuja solo**. No tenés que decirle “regenerá todo” cada mañana.
+
+Si Kiro ya estaba abierto, recargá MCP o cerrá/abrí la sesión.
 
 ### 3. Activar MCP en Kiro
 
@@ -117,21 +139,13 @@ Si también usás Engram, **no lo borres**; conviven dos servers.
 
 Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 
-- Sin `.afn/projects.json` → detecta repos del workspace (`web/` + `api/`, hermanos, `packages/`) y escribe el mapa **sin gastar tokens del LLM**.
+- Sin `.afn/projects.json` → detecta repos y escribe el mapa **sin LLM**.
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
-- JSON rico ya en git → no pisa (`force` para rehacer).
-- Si falta el diagrama de flujo → genera **cuatro** mapas en `.afn/diagrams` (flujo, capas, endpoints, E2E) más `workspace-flow.md` (cómo agregar, local, tests). **No pisa** un diagrama ya versionado.
-- Escanea steering/skills de Kiro, Copilot (`.github/copilot-instructions.md`, `.github/skills`) y Cursor, y los asocia a un proyecto si el nombre coincide.
+- JSON rico ya en git → **no pisa los nombres de repo** (`--force` para redetectar).
+- Si el **pack es más nuevo** que `.afn/diagrams/workspace-flow.json` (después de `git pull`) → **regenera las gráficas** (capas, endpoints, E2E). No hace falta pedir recreate.
+- `--refresh` redibuja ya, aunque la versión sea la misma.
 
-El primer prompt recibe el snapshot (proyectos, `web → api`, trabajo reciente). Si ves un solo proyecto genérico, pedí `afn_bootstrap` con `force=true`.
-
-Para **ver** el mapa, los diagramas y el cerebro: en Kiro pedí “abrí el dashboard AFN” (tool `afn_dashboard`) o:
-
-```bash
-node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js dashboard
-```
-
-Kiro no tiene webview nuestro: se abre el navegador con un HTML local (`.afn/_tmp/dashboard.html`). **Inicio** resume el workspace; **Diagramas** abre cada mapa en esa misma página (clic en la tarjeta). Recrear el flujo: “generá el diagrama AFN” (`afn_diagram_generate` `recreate=true`).
+Para **ver** el mapa: en Kiro “abrí el dashboard AFN” o `node …/index.js dashboard`.
 
 ### 5. Hechos
 
@@ -181,7 +195,7 @@ node …/index.js setup generic
 
 | Tool | Para qué |
 |------|----------|
-| `afn_bootstrap` | Detectar repos del workspace (como `/afn-init`) y escribir `.afn/`. También genera el diagrama si falta y escanea reglas Kiro/Copilot. `force` reescribe el mapa. |
+| `afn_bootstrap` | Detectar repos. Si el pack es más nuevo, regenera gráficas. `force` redetecta repos. `refresh` redibuja ya. |
 | `afn_context_snapshot` | Bloque ≤3200 chars (mapa + trabajo reciente) |
 | `afn_projects_flow` | Activos + relationships |
 | `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
@@ -197,7 +211,7 @@ node …/index.js setup generic
 
 ```bash
 node index.js snapshot     # stdout markdown
-node index.js bootstrap [--force]
+node index.js bootstrap [--force|--refresh]
 node index.js session-start
 node index.js dashboard [--no-open]
 node index.js diagram [--recreate]
