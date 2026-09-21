@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveWorkspaceRoot, isCatalogish } from './resolve-root.js';
+import { bootstrapAfn } from './bootstrap.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = path.resolve(here, '..');
@@ -24,9 +26,6 @@ function mcpServerBlock() {
   return {
     command: 'node',
     args: [ENTRY],
-    env: {
-      AFN_PROJECT_ROOT: '${workspaceFolder}',
-    },
     disabled: false,
     autoApprove: ['afn_context_snapshot', 'afn_projects_flow', 'afn_mem_search', 'afn_bootstrap', 'afn_doctor'],
   };
@@ -48,7 +47,8 @@ Tenés tools MCP **afn-context** (no Engram). El mapa del producto está en \`.a
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\`: \`afn_bootstrap\` (sin LLM). No ejecutes slash de otro IDE.
+- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM). El detector debe listar los repos del workspace, como \`/afn-init\`.
+- **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia
 
@@ -70,9 +70,9 @@ function writeHooks(projectRoot, nodeCmd) {
     hooks: [
       {
         name: 'AFN bootstrap',
-        description: 'Crea .afn/ si falta (sin LLM). No pisa projects.json existente.',
+        description: 'Detecta repos/paquetes del workspace y escribe .afn/ (sin LLM).',
         trigger: 'SessionStart',
-        action: { type: 'command', command: nodeCmd },
+        action: { type: 'command', command: `${nodeCmd} bootstrap` },
         timeout: 30,
       },
     ],
@@ -113,16 +113,19 @@ function writeHooks(projectRoot, nodeCmd) {
 export function setupAgent(agent, opts = {}) {
   const kind = String(agent || 'kiro').toLowerCase();
   const home = opts.home || os.homedir();
-  const projectRoot = path.resolve(opts.projectRoot || process.cwd());
+  const setupCwd = path.resolve(opts.projectRoot || process.cwd());
+  const workspace = resolveWorkspaceRoot(setupCwd);
+  const pinRoot = isCatalogish(workspace) ? '' : workspace;
   const nodeEntry = `"${process.execPath}" "${ENTRY}"`;
   const written = [];
+  const mcpEnv = pinRoot ? { AFN_PROJECT_ROOT: pinRoot } : undefined;
 
   if (kind === 'kiro') {
     const mcpFile = path.join(home, '.kiro', 'settings', 'mcp.json');
     mergeMcpServers(mcpFile, {
       command: process.execPath,
       args: [ENTRY],
-      env: { AFN_PROJECT_ROOT: projectRoot },
+      ...(mcpEnv ? { env: mcpEnv } : {}),
       disabled: false,
       autoApprove: mcpServerBlock().autoApprove,
     });
@@ -131,23 +134,34 @@ export function setupAgent(agent, opts = {}) {
     fs.mkdirSync(path.dirname(steering), { recursive: true });
     fs.writeFileSync(steering, STEERING, 'utf8');
     written.push(steering);
-    writeHooks(projectRoot, nodeEntry);
-    written.push(path.join(projectRoot, '.kiro', 'hooks'));
-    return { ok: true, agent: 'kiro', written, note: 'Reiniciá Kiro o recargá MCP.' };
+    writeHooks(setupCwd, nodeEntry);
+    written.push(path.join(setupCwd, '.kiro', 'hooks'));
+    const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+    return {
+      ok: true,
+      agent: 'kiro',
+      written,
+      workspace: pinRoot || workspace,
+      bootstrap: boot,
+      note: pinRoot
+        ? 'Reiniciá Kiro o recargá MCP. El mapa está en .afn/projects.json del workspace.'
+        : 'Corré setup otra vez desde el workspace del producto, no desde afn-ecosystem.',
+    };
   }
 
   if (kind === 'cursor') {
-    const mcpFile = path.join(projectRoot, '.cursor', 'mcp.json');
+    const mcpFile = path.join(setupCwd, '.cursor', 'mcp.json');
     mergeMcpServers(mcpFile, {
       command: process.execPath,
       args: [ENTRY],
-      env: { AFN_PROJECT_ROOT: projectRoot },
+      ...(mcpEnv ? { env: mcpEnv } : {}),
     });
-    const rules = path.join(projectRoot, '.cursor', 'rules', 'afn-context.mdc');
+    const rules = path.join(setupCwd, '.cursor', 'rules', 'afn-context.mdc');
     fs.mkdirSync(path.dirname(rules), { recursive: true });
     fs.writeFileSync(rules, `---\ndescription: Mapa y memoria AFN (.afn)\nglobs:\nalwaysApply: true\n---\n\n${STEERING}`, 'utf8');
     written.push(mcpFile, rules);
-    return { ok: true, agent: 'cursor', written };
+    const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+    return { ok: true, agent: 'cursor', written, workspace: pinRoot || workspace, bootstrap: boot };
   }
 
   if (kind === 'claude') {
@@ -155,9 +169,9 @@ export function setupAgent(agent, opts = {}) {
     mergeMcpServers(mcpFile, {
       command: process.execPath,
       args: [ENTRY],
-      env: { AFN_PROJECT_ROOT: projectRoot },
+      ...(mcpEnv ? { env: mcpEnv } : {}),
     });
-    const md = path.join(projectRoot, 'CLAUDE.md');
+    const md = path.join(setupCwd, 'CLAUDE.md');
     const block = `\n\n## AFN context\n\n${STEERING}\n`;
     let cur = '';
     try {
@@ -167,16 +181,17 @@ export function setupAgent(agent, opts = {}) {
     }
     if (!cur.includes('## AFN context')) fs.writeFileSync(md, `${cur}${block}`, 'utf8');
     written.push(mcpFile, md);
-    return { ok: true, agent: 'claude', written };
+    const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+    return { ok: true, agent: 'claude', written, workspace: pinRoot || workspace, bootstrap: boot };
   }
 
-  const generic = path.join(projectRoot, '.mcp.json');
+  const generic = path.join(setupCwd, '.mcp.json');
   mergeMcpServers(generic, {
     command: process.execPath,
     args: [ENTRY],
-    env: { AFN_PROJECT_ROOT: projectRoot },
+    ...(mcpEnv ? { env: mcpEnv } : {}),
   });
-  const agents = path.join(projectRoot, 'AGENTS.md');
+  const agents = path.join(setupCwd, 'AGENTS.md');
   let ag = '';
   try {
     ag = fs.readFileSync(agents, 'utf8');
@@ -185,7 +200,8 @@ export function setupAgent(agent, opts = {}) {
   }
   if (!ag.includes('## AFN context')) fs.writeFileSync(agents, `${ag}\n\n## AFN context\n\n${STEERING}\n`, 'utf8');
   written.push(generic, agents);
-  return { ok: true, agent: 'generic', written };
+  const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+  return { ok: true, agent: 'generic', written, workspace: pinRoot || workspace, bootstrap: boot };
 }
 
 export { STEERING };

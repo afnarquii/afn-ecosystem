@@ -3,6 +3,7 @@ import { afnPath, MAX_SNAPSHOT_CHARS } from './paths.js';
 import { redactSecrets } from './redact.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
 import { loadFacts, readMemoryMarkdown } from './memory.js';
+import { isWeakProjectsMap } from './detect-projects.js';
 
 function readJson(file) {
   try {
@@ -32,7 +33,12 @@ export function buildSnapshot(root) {
   const cfg = normalizeProjectsConfig(pj);
   const active = activeProjects(cfg);
   const rels = activeRelationships(cfg);
+  const weak = isWeakProjectsMap(cfg);
+  lines.push(`Workspace: \`${root}\``);
   lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : ''));
+  if (weak) {
+    lines.push('_Mapa pobre (un proyecto genérico tipo mcp-context). Corré `afn_bootstrap` con force desde el workspace del producto, no desde afn-ecosystem._');
+  }
   for (const p of active) {
     const port = p.port ? ` :${p.port}` : '';
     lines.push(`- **${p.name}** (${p.type}${port}) \`${p.path}\`${p.entryPoint ? ` · ${p.entryPoint}` : ''}`);
@@ -68,7 +74,7 @@ export function buildSnapshot(root) {
   }
 
   const md = lines.join('\n').slice(0, MAX_SNAPSHOT_CHARS);
-  return { ok: true, markdown: md, missing: false, activeCount: active.length, relCount: rels.length };
+  return { ok: !weak, markdown: md, missing: false, weak, activeCount: active.length, relCount: rels.length };
 }
 
 /**
@@ -88,6 +94,11 @@ export function doctorAfn(root) {
   checks.push({ id: 'projects', ok: exists('projects.json'), detail: '.afn/projects.json' });
   checks.push({ id: 'memory-md', ok: exists('MEMORY.md'), detail: '.afn/MEMORY.md' });
   const snap = buildSnapshot(root);
+  checks.push({
+    id: 'mapa-rico',
+    ok: !snap.weak && (snap.activeCount || 0) >= 1,
+    detail: snap.weak ? 'projects.json genérico (mcp-context) — re-bootstrap desde el workspace' : 'mapa con repos reales',
+  });
   return {
     ok: checks.every((c) => c.ok) && !snap.missing,
     root,

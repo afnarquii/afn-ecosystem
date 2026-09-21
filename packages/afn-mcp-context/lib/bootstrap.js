@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
-import { detectProjects } from './detect-projects.js';
+import { detectProjects, isWeakProjectsMap } from './detect-projects.js';
 import { normalizeProjectsConfig } from './projects-policy.js';
+import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -31,32 +32,73 @@ function readJson(file) {
   }
 }
 
-/**
- * Si falta projects.json, detecta y escribe. No pisa un JSON existente con proyectos.
- * @param {string} root
- */
-export function bootstrapAfn(root) {
-  const base = path.resolve(root);
-  fs.mkdirSync(afnPath(base), { recursive: true });
-  fs.mkdirSync(afnPath(base, 'memory'), { recursive: true });
-  fs.mkdirSync(afnPath(base, 'skills'), { recursive: true });
+function ensureAfnDirs(root) {
+  fs.mkdirSync(afnPath(root), { recursive: true });
+  fs.mkdirSync(afnPath(root, 'memory'), { recursive: true });
+  fs.mkdirSync(afnPath(root, 'skills'), { recursive: true });
+}
 
+/**
+ * Detecta y escribe `.afn/projects.json` (como /afn-init + detectProjectsConfig).
+ * No pisa un mapa rico. Sí reescribe mapas pobres (un solo mcp-context) o si force.
+ * No usa el catálogo afn-ecosystem / paquete MCP como raíz de producto.
+ * @param {string} root
+ * @param {{ force?: boolean }} [opts]
+ */
+export function bootstrapAfn(root, opts = {}) {
+  const force = opts.force === true;
+  const base = resolveWorkspaceRoot(path.resolve(root));
   const pjFile = afnPath(base, 'projects.json');
   const existing = readJson(pjFile);
   const existingNorm = existing ? normalizeProjectsConfig(existing) : null;
-  if (existingNorm?.projects?.length) {
-    ensureMemoryStub(base);
-    ensureGitignore(base);
-    return { ok: true, skipped: true, wrote: false, config: existingNorm, reason: 'projects.json ya existe' };
+  const ignorePaths = existingNorm?.ignorePaths || [];
+  const detected = normalizeProjectsConfig(detectProjects(base, { ignorePaths }));
+  const weakExisting = isWeakProjectsMap(existingNorm);
+  const existingCount = existingNorm?.projects?.length || 0;
+  const richer = detected.projects.length > existingCount;
+
+  if (isCatalogish(base)) {
+    return {
+      ok: false,
+      skipped: true,
+      wrote: false,
+      root: base,
+      config: existingNorm || detected,
+      reason: 'raiz-catalogo',
+      hint: 'Corré setup/bootstrap desde el workspace del producto (varios repos), no desde afn-ecosystem ni packages/afn-mcp-context.',
+    };
   }
 
-  const ignorePaths = existingNorm?.ignorePaths || [];
-  const detected = detectProjects(base, { ignorePaths });
-  const config = normalizeProjectsConfig(detected);
+  if (existingCount && !force && !weakExisting && !richer) {
+    ensureAfnDirs(base);
+    ensureMemoryStub(base);
+    ensureGitignore(base);
+    return {
+      ok: true,
+      skipped: true,
+      wrote: false,
+      root: base,
+      config: existingNorm,
+      reason: 'projects.json ya existe',
+    };
+  }
+
+  ensureAfnDirs(base);
+  const config = normalizeProjectsConfig({
+    ...detected,
+    ignorePaths,
+  });
   fs.writeFileSync(pjFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   ensureMemoryStub(base);
   ensureGitignore(base);
-  return { ok: true, skipped: false, wrote: true, config, reason: 'detectado' };
+  return {
+    ok: true,
+    skipped: false,
+    wrote: true,
+    root: base,
+    config,
+    reason: force ? 'force' : weakExisting ? 'mapa-pobre-reescrito' : 'detectado',
+  };
 }
 
 function ensureMemoryStub(root) {

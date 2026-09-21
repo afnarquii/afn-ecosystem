@@ -12,7 +12,7 @@ Usar el MCP **afn-context** para no reexplorar el repo. Fuente: `.afn/projects.j
 
 ## Flujo
 
-1. Si no hay `.afn/` → `afn_bootstrap` (sin LLM) o el hook SessionStart de Kiro.
+1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true` (sin LLM). El mapa debe listar los repos del workspace (hermanos, `packages/`, `apps/`), no el paquete MCP.
 2. Al empezar → `afn_context_snapshot`. Si alcanza, **no** listés el árbol.
 3. Flujo entre paquetes → `afn_projects_flow`.
 4. ¿Ya lo decidimos? → `afn_mem_search`.

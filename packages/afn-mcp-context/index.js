@@ -17,7 +17,7 @@ import { bootstrapAfn } from './lib/bootstrap.js';
 import { doctorAfn } from './lib/snapshot.js';
 import { setupAgent } from './lib/setup.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -42,7 +42,8 @@ async function main() {
   }
 
   if (cmd === 'bootstrap') {
-    const r = bootstrapAfn(root);
+    const force = argv.includes('--force');
+    const r = bootstrapAfn(root, { force });
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;

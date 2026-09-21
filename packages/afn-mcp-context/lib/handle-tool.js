@@ -1,5 +1,7 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { afnPath } from './paths.js';
+import { resolveWorkspaceRoot } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
 import { saveFact, searchFacts } from './memory.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
@@ -29,24 +31,26 @@ function writeProjects(root, cfg) {
  * @param {object} args
  */
 export async function handleContextTool(root, name, args = {}) {
+  const base = resolveWorkspaceRoot(path.resolve(root || '.'));
   switch (name) {
     case 'afn_bootstrap':
-      return bootstrapAfn(root);
+      return bootstrapAfn(base, { force: args.force === true });
     case 'afn_context_snapshot':
-      return buildSnapshot(root);
+      return buildSnapshot(base);
     case 'afn_projects_flow': {
-      const cfg = readProjects(root);
+      const cfg = readProjects(base);
       return {
         ok: true,
+        root: base,
         projects: activeProjects(cfg),
         relationships: activeRelationships(cfg),
         ignorePaths: cfg.ignorePaths,
       };
     }
     case 'afn_mem_search':
-      return { ok: true, facts: searchFacts(root, args.query, Number(args.limit) || 8) };
+      return { ok: true, facts: searchFacts(base, args.query, Number(args.limit) || 8) };
     case 'afn_mem_save':
-      return saveFact(root, args);
+      return saveFact(base, args);
     case 'afn_session_summary': {
       const text = [
         args.goal && `**Goal**: ${args.goal}`,
@@ -56,15 +60,15 @@ export async function handleContextTool(root, name, args = {}) {
       ]
         .filter(Boolean)
         .join(' ');
-      return saveFact(root, { text: text || args.text, what: 'session-summary' });
+      return saveFact(base, { text: text || args.text, what: 'session-summary' });
     }
     case 'afn_doctor':
-      return doctorAfn(root);
+      return doctorAfn(base);
     case 'afn_project_ignore': {
       const rel = String(args.path || '').trim();
       if (!rel) return { ok: false, error: 'path requerido' };
-      const next = applyIgnorePath(readProjects(root), rel, args.reason || 'deprecated');
-      writeProjects(root, next);
+      const next = applyIgnorePath(readProjects(base), rel, args.reason || 'deprecated');
+      writeProjects(base, next);
       return { ok: true, ignorePaths: next.ignorePaths, projects: next.projects };
     }
     default:

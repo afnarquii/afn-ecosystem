@@ -1,17 +1,17 @@
 import path from 'node:path';
+import { resolveProjectRoot as resolveRootSmart } from './resolve-root.js';
 
 export const AFN_DIR = '.afn';
 export const MAX_SNAPSHOT_CHARS = 3200;
 export const MAX_FACTS = 200;
-export const MAX_PROJECTS = 24;
+export const MAX_PROJECTS = 40;
 export const MAX_FACT_CHARS = 2000;
 
 /**
  * @param {string} [override]
  */
 export function resolveProjectRoot(override) {
-  const raw = String(override || process.env.AFN_PROJECT_ROOT || process.cwd() || '').trim();
-  return path.resolve(raw);
+  return resolveRootSmart(override);
 }
 
 /**

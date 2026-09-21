@@ -44,6 +44,10 @@ node C:\projects\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 
 `setup` escribe rutas **absolutas** a `index.js` (Windows/macOS/Linux). Engram, si existía en `mcp.json`, **se deja**.
 
+El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
+
+Si Kiro arranca el MCP con cwd del paquete, `AFN_PROJECT_ROOT` queda anclado al workspace donde corriste `setup`.
+
 Otros hosts:
 
 ```bash
@@ -111,12 +115,13 @@ Si también usás Engram, **no lo borres**; conviven dos servers.
 
 ### 4. Abrir el proyecto
 
-Al iniciar sesión, el hook corre `bootstrap`:
+Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 
-- Sin `.afn/projects.json` → detecta `web/` + `api/`, escribe el mapa **sin gastar tokens del LLM**.
-- Con JSON ya en git → no pisa.
+- Sin `.afn/projects.json` → detecta repos del workspace (`web/` + `api/`, hermanos, `packages/`) y escribe el mapa **sin gastar tokens del LLM**.
+- Mapa pobre (un solo `mcp-context`) → lo reescribe.
+- JSON rico ya en git → no pisa (`force` para rehacer).
 
-El primer prompt recibe el snapshot (proyectos, `web → api`, hechos).
+El primer prompt recibe el snapshot (proyectos, `web → api`, hechos). Si ves un solo proyecto genérico, pedí `afn_bootstrap` con `force=true`.
 
 ### 5. Hechos
 
@@ -166,7 +171,7 @@ node …/index.js setup generic
 
 | Tool | Para qué |
 |------|----------|
-| `afn_bootstrap` | Crear `.afn/` si falta (sin LLM) |
+| `afn_bootstrap` | Detectar repos del workspace (como `/afn-init`) y escribir `.afn/`. `force` reescribe. No usa el catálogo MCP como producto. |
 | `afn_context_snapshot` | Bloque ≤3200 chars |
 | `afn_projects_flow` | Activos + relationships |
 | `afn_mem_search` / `afn_mem_save` | Hechos |
@@ -178,11 +183,11 @@ node …/index.js setup generic
 
 ```bash
 node index.js snapshot     # stdout markdown
-node index.js bootstrap    # JSON
+node index.js bootstrap [--force]   # JSON
 node index.js doctor
 ```
 
-`AFN_PROJECT_ROOT` = cwd del producto.
+`AFN_PROJECT_ROOT` = workspace del producto (lo fija `setup`). El detector sube al padre si hay varios repos.
 
 ---
 

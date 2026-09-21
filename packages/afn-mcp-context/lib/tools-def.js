@@ -58,8 +58,13 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_bootstrap',
     description:
-      'Si falta .afn/projects.json, detecta paquetes SIN LLM y escribe el mapa. No pisa un JSON existente.',
-    inputSchema: { type: 'object', properties: {} },
+      'Detecta repos/paquetes del workspace (hermanos, packages/, apps/) SIN LLM y escribe .afn/projects.json. No pisa un mapa rico. force=true reescribe. Rehace mapas pobres (un solo mcp-context).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        force: { type: 'boolean', description: 'Reescribir projects.json conservando ignorePaths' },
+      },
+    },
   },
   {
     name: 'afn_project_ignore',

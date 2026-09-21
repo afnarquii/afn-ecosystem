@@ -11,6 +11,8 @@ import { buildSnapshot, doctorAfn } from '../lib/snapshot.js';
 import { handleContextTool } from '../lib/handle-tool.js';
 import { redactSecrets } from '../lib/redact.js';
 import { setupAgent } from '../lib/setup.js';
+import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js';
+import { isWeakProjectsMap } from '../lib/detect-projects.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -160,6 +162,86 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.ok(mcp.mcpServers.engram);
   assert.ok(mcp.mcpServers['afn-context']);
   assert.ok(mcp.mcpServers['afn-context'].args?.length);
+  assert.equal(mcp.mcpServers['afn-context'].env?.AFN_PROJECT_ROOT, project);
   assert.ok(fs.existsSync(path.join(home, '.kiro', 'steering', 'afn-context.md')));
-  assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json')));
+  const hook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json'), 'utf8'));
+  assert.match(JSON.stringify(hook), /bootstrap/);
+  assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
+});
+
+test('detectProjects ve hermanos, packages/ y repos solo-git', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'frontend'), 'frontend', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.mkdirSync(path.join(root, 'legacy-svc', '.git'), { recursive: true });
+  writePkg(path.join(root, 'packages', 'payments'), 'payments', { dependencies: { express: '4' } });
+  const d = detectProjects(root);
+  const names = d.projects.map((p) => p.name).sort();
+  assert.ok(names.includes('frontend'));
+  assert.ok(names.includes('api'));
+  assert.ok(names.includes('legacy-svc'));
+  assert.ok(names.includes('payments'));
+  assert.ok(d.relationships.some((r) => r.from === 'frontend' && r.to === 'api'));
+});
+
+test('bootstrap desde el paquete MCP sube al workspace multi-repo (no escribe mcp-context)', () => {
+  const ws = tmp();
+  writePkg(path.join(ws, 'frontend'), 'frontend', { dependencies: { vite: '5' } });
+  writePkg(path.join(ws, 'api'), 'api', { dependencies: { express: '4' } });
+  const mcpDir = path.join(ws, 'afn-ecosystem', 'packages', 'afn-mcp-context');
+  fs.mkdirSync(path.join(ws, 'afn-ecosystem', 'packs'), { recursive: true });
+  fs.mkdirSync(path.join(ws, 'afn-ecosystem', 'skills'), { recursive: true });
+  fs.mkdirSync(path.join(ws, 'afn-ecosystem', 'mcps'), { recursive: true });
+  writePkg(mcpDir, '@afn-ecosystem/mcp-context');
+  const resolved = resolveWorkspaceRoot(mcpDir);
+  assert.equal(path.resolve(resolved), path.resolve(ws));
+  const r = bootstrapAfn(mcpDir);
+  assert.equal(r.ok, true);
+  assert.equal(r.wrote, true);
+  assert.equal(path.resolve(r.root), path.resolve(ws));
+  const names = r.config.projects.map((p) => p.name);
+  assert.ok(names.includes('frontend'));
+  assert.ok(names.includes('api'));
+  assert.equal(names.includes('mcp-context'), false);
+  assert.equal(isWeakProjectsMap(r.config), false);
+  assert.ok(fs.existsSync(path.join(ws, '.afn', 'projects.json')));
+  assert.equal(fs.existsSync(path.join(mcpDir, '.afn', 'projects.json')), false);
+});
+
+test('bootstrap reescribe mapa pobre mcp-context', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.mkdirSync(path.join(root, '.afn'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.afn', 'projects.json'),
+    JSON.stringify({ projects: [{ name: 'mcp-context', path: '.', type: 'unknown' }] }),
+  );
+  const r = bootstrapAfn(root);
+  assert.equal(r.wrote, true);
+  assert.equal(r.reason, 'mapa-pobre-reescrito');
+  const names = r.config.projects.map((p) => p.name).sort();
+  assert.ok(names.includes('web'));
+  assert.ok(names.includes('api'));
+});
+
+test('bootstrap en el catálogo aislado no finge un producto mcp-context', () => {
+  const catalog = tmp();
+  fs.mkdirSync(path.join(catalog, 'packs'), { recursive: true });
+  fs.mkdirSync(path.join(catalog, 'skills'), { recursive: true });
+  fs.mkdirSync(path.join(catalog, 'mcps'), { recursive: true });
+  const mcpDir = path.join(catalog, 'packages', 'afn-mcp-context');
+  writePkg(mcpDir, '@afn-ecosystem/mcp-context');
+  const r = bootstrapAfn(mcpDir);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'raiz-catalogo');
+  assert.equal(r.wrote, false);
+});
+
+test('resolveProjectRoot ignora ${workspaceFolder} sin expandir', () => {
+  const cwd = tmp();
+  writePkg(path.join(cwd, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(cwd, 'api'), 'api', { dependencies: { express: '4' } });
+  const r = resolveProjectRoot('', { cwd, envRoot: '${workspaceFolder}' });
+  assert.equal(path.resolve(r), path.resolve(cwd));
 });
