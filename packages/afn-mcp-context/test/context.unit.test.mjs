@@ -13,7 +13,7 @@ import { redactSecrets } from '../lib/redact.js';
 import { setupAgent } from '../lib/setup.js';
 import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js';
 import { isWeakProjectsMap } from '../lib/detect-projects.js';
-import { saveObservation, startSession, endSession, getMemContext } from '../lib/cerebro.js';
+import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard } from '../lib/dashboard.js';
 
 function tmp() {
@@ -394,6 +394,35 @@ test('afn_diagram_generate sin recreate no pisa; con recreate sí', async () => 
   const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
   assert.equal(gen.ok, true);
   assert.equal(gen.skipped, false);
+});
+
+test('regenerar arquitectura no borra observaciones del cerebro', async () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  startSession(root, { goal: 'auth' });
+  const o1 = saveObservation(root, { type: 'decision', title: 'JWT', what: 'JWT en /api/auth', why: 'escalar' });
+  saveObservation(root, { type: 'architecture', title: 'proxy', what: 'web llama /api', where: 'vite' });
+  assert.equal(o1.ok, true);
+  const before = loadCerebro(root);
+  const memBefore = fs.readFileSync(path.join(root, '.afn', 'MEMORY.md'), 'utf8');
+  const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
+  assert.equal(gen.ok, true);
+  assert.equal(gen.skipped, false);
+  const refresh = bootstrapAfn(root, { refresh: true });
+  assert.equal(refresh.diagram?.skipped, false);
+  const after = loadCerebro(root);
+  assert.equal(after.observations.length, before.observations.length);
+  assert.deepEqual(
+    after.observations.map((o) => o.id),
+    before.observations.map((o) => o.id),
+  );
+  assert.ok(after.observations.some((o) => o.title === 'JWT'));
+  assert.ok(after.sessions.some((s) => s.goal === 'auth'));
+  const memAfter = fs.readFileSync(path.join(root, '.afn', 'MEMORY.md'), 'utf8');
+  assert.equal(memAfter, memBefore);
+  assert.match(memAfter, /JWT/);
 });
 
 test('agent assets asocia steering Kiro y Copilot al proyecto', async () => {

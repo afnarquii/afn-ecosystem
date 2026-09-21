@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { afnPath, MAX_FACT_CHARS } from './paths.js';
 import { loadFacts, writeFacts } from './memory.js';
 
@@ -8,6 +9,37 @@ const DURABLE_TYPES = new Set(['decision', 'architecture', 'pattern', 'config'])
 
 function cerebroFile(root) {
   return afnPath(root, 'memory', 'cerebro.json');
+}
+
+function memoryKeepFiles(root) {
+  return [cerebroFile(root), afnPath(root, 'memory', 'facts.json'), afnPath(root, 'MEMORY.md')];
+}
+
+/**
+ * Regenerar arquitectura / bootstrap no puede borrar el cerebro.
+ * Restaura cerebro, facts y MEMORY.md si `fn` los tocó.
+ * @param {string} root
+ * @param {() => T} fn
+ * @returns {T}
+ * @template T
+ */
+export function withPreservedMemory(root, fn) {
+  const snap = new Map();
+  for (const file of memoryKeepFiles(root)) {
+    try {
+      snap.set(file, fs.readFileSync(file, 'utf8'));
+    } catch {
+      /* no existía: no lo inventamos */
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    for (const [file, text] of snap) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, text, 'utf8');
+    }
+  }
 }
 
 function emptyStore() {

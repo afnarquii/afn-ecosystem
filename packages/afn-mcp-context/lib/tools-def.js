@@ -90,7 +90,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_diagram_generate',
     description:
-      'Comando para regenerar arquitectura en el `.afn` de la raíz del workspace (AFN_PROJECT_ROOT). Sin LLM. Si ya existe y recreate=false, no hace nada. Solo usalo si el usuario lo pidió.',
+      'Comando para regenerar arquitectura en el `.afn` de la raíz del workspace (AFN_PROJECT_ROOT). Sin LLM. No borra el cerebro ni las observaciones. Si ya existe y recreate=false, no hace nada. Solo usalo si el usuario lo pidió.',
     inputSchema: {
       type: 'object',
       properties: {

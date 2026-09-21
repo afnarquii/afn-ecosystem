@@ -4,6 +4,7 @@ import { afnPath } from './paths.js';
 import { normalizeProjectsConfig } from './projects-policy.js';
 import { irToMermaid } from './diagram-ir.js';
 import { persistWorkspaceFlow, buildWorkspaceDiagrams, architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
+import { withPreservedMemory } from './cerebro.js';
 
 function readJson(file) {
   try {
@@ -56,11 +57,16 @@ function writeIr(dir, built, recreate) {
 /**
  * Persiste flujo + capas + endpoints + e2e (gráficas que reflejan el mapa cross-project).
  * No pisa un IR existente salvo recreate.
+ * No toca el cerebro (`.afn/memory/cerebro.json`, facts, MEMORY.md).
  * @param {string} root
  * @param {object} [cfg]
  * @param {{ recreate?: boolean, assets?: object }} [opts]
  */
 export function persistWorkspaceFlowDiagram(root, cfg, opts = {}) {
+  return withPreservedMemory(root, () => persistWorkspaceFlowDiagramUnprotected(root, cfg, opts));
+}
+
+function persistWorkspaceFlowDiagramUnprotected(root, cfg, opts = {}) {
   const config = cfg || normalizeProjectsConfig(readJson(afnPath(root, 'projects.json')) || {});
   if (!opts.recreate && architectureExists(root)) {
     return {

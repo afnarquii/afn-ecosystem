@@ -13,7 +13,7 @@ Usar el MCP **afn-context** para no reexplorar el repo. Fuente: `.afn/projects.j
 ## Flujo
 
 1. Si no hay `.afn/` **o** el snapshot muestra un solo proyecto genérico (`mcp-context`) → `afn_bootstrap` con `force=true` (sin LLM).
-   Si el mapa **ya existe**, no lo regeneres. Solo si el usuario pide “regenerá la arquitectura”: `afn_diagram_generate` `recreate=true` sobre el `.afn` de **este** workspace (MCP en `.kiro/settings/mcp.json` del proyecto), no un `.afn` anidado ni el de otro producto.
+   Si el mapa **ya existe**, no lo regeneres. Solo si el usuario pide “regenerá la arquitectura”: `afn_diagram_generate` `recreate=true` sobre el `.afn` de **este** workspace. No borra observaciones ni `MEMORY.md`.
 2. Al empezar → `afn_context_snapshot` + `afn_mem_context`. Si alcanza, **no** listés el árbol.
 3. Trabajo nuevo → `afn_session_start` (goal).
 4. Flujo entre paquetes → `afn_projects_flow`. Recrear mapas **solo si el usuario lo pide** → `afn_diagram_generate` `recreate=true` (comando, sin LLM).
