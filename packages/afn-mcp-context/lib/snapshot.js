@@ -3,6 +3,7 @@ import { afnPath, MAX_SNAPSHOT_CHARS } from './paths.js';
 import { redactSecrets } from './redact.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
 import { loadFacts, readMemoryMarkdown } from './memory.js';
+import { getMemContext } from './cerebro.js';
 import { isWeakProjectsMap } from './detect-projects.js';
 
 function readJson(file) {
@@ -61,16 +62,25 @@ export function buildSnapshot(root) {
     lines.push('');
   }
 
-  const mem = readMemoryMarkdown(root).trim();
-  const facts = loadFacts(root).facts.slice(-6);
-  if (facts.length) {
-    lines.push('Hechos recientes:');
-    for (const f of facts.reverse()) {
-      lines.push(`- ${String(f.text || '').slice(0, 220)}`);
+  const memCtx = getMemContext(root, { limit: 5 });
+  if (memCtx.observations.length) {
+    lines.push('Trabajo reciente (cerebro):');
+    for (const o of memCtx.observations) {
+      lines.push(`- ${String(o.title || o.text || '').slice(0, 180)}`);
     }
     lines.push('');
-  } else if (mem) {
-    lines.push(mem.slice(0, 600), '');
+  } else {
+    const mem = readMemoryMarkdown(root).trim();
+    const facts = loadFacts(root).facts.slice(-6);
+    if (facts.length) {
+      lines.push('Hechos recientes:');
+      for (const f of facts.reverse()) {
+        lines.push(`- ${String(f.text || '').slice(0, 220)}`);
+      }
+      lines.push('');
+    } else if (mem) {
+      lines.push(mem.slice(0, 600), '');
+    }
   }
 
   const md = lines.join('\n').slice(0, MAX_SNAPSHOT_CHARS);

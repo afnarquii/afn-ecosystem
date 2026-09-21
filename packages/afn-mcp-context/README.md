@@ -4,6 +4,8 @@ Servidor MCP **stdio** (Node ≥18, cero deps) que lee y escribe `.afn/` del **w
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
+Cerebro: `.afn/memory/cerebro.json` (sesiones + hechos). Vista: `node index.js dashboard`.
+
 Guía de integración (Kiro / Cursor / Claude / genérico):  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)
 
@@ -12,4 +14,5 @@ node --test test/context.unit.test.mjs
 # desde el workspace del producto (varios repos), no desde este paquete:
 node index.js setup kiro
 node index.js bootstrap --force
+node index.js dashboard
 ```

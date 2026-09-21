@@ -3,7 +3,9 @@ import path from 'node:path';
 import { afnPath } from './paths.js';
 import { resolveWorkspaceRoot } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
-import { saveFact, searchFacts } from './memory.js';
+import { searchFacts } from './memory.js';
+import { saveObservation, searchCerebro, startSession, endSession, getMemContext } from './cerebro.js';
+import { writeDashboard } from './dashboard.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import {
   activeProjects,
@@ -47,21 +49,21 @@ export async function handleContextTool(root, name, args = {}) {
         ignorePaths: cfg.ignorePaths,
       };
     }
-    case 'afn_mem_search':
-      return { ok: true, facts: searchFacts(base, args.query, Number(args.limit) || 8) };
-    case 'afn_mem_save':
-      return saveFact(base, args);
-    case 'afn_session_summary': {
-      const text = [
-        args.goal && `**Goal**: ${args.goal}`,
-        args.done && `**Done**: ${args.done}`,
-        args.next && `**Next**: ${args.next}`,
-        args.files && `**Files**: ${args.files}`,
-      ]
-        .filter(Boolean)
-        .join(' ');
-      return saveFact(base, { text: text || args.text, what: 'session-summary' });
+    case 'afn_mem_context':
+      return getMemContext(base, { limit: Number(args.limit) || 8 });
+    case 'afn_mem_search': {
+      const fromCerebro = searchCerebro(base, args.query, { limit: Number(args.limit) || 8, type: args.type });
+      const facts = fromCerebro.length ? fromCerebro : searchFacts(base, args.query, Number(args.limit) || 8);
+      return { ok: true, facts };
     }
+    case 'afn_mem_save':
+      return saveObservation(base, args);
+    case 'afn_session_start':
+      return startSession(base, args);
+    case 'afn_session_summary':
+      return endSession(base, args);
+    case 'afn_dashboard':
+      return writeDashboard(base, { open: args.open !== false });
     case 'afn_doctor':
       return doctorAfn(base);
     case 'afn_project_ignore': {

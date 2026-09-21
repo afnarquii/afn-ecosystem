@@ -27,32 +27,41 @@ function mcpServerBlock() {
     command: 'node',
     args: [ENTRY],
     disabled: false,
-    autoApprove: ['afn_context_snapshot', 'afn_projects_flow', 'afn_mem_search', 'afn_bootstrap', 'afn_doctor'],
+    autoApprove: [
+      'afn_context_snapshot',
+      'afn_projects_flow',
+      'afn_mem_search',
+      'afn_mem_context',
+      'afn_bootstrap',
+      'afn_doctor',
+      'afn_dashboard',
+    ],
   };
 }
 
 const STEERING = `# Memoria y mapa AFN (.afn)
 
-Tenés tools MCP **afn-context** (no Engram). El mapa del producto está en \`.afn/\`, no en el historial de chat.
+Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto están en \`.afn/\`, no en el historial de chat.
 
 ## Tokens
 
-- Al empezar: \`afn_context_snapshot\` (o el hook PromptSubmit). **No** listés el repo si el snapshot alcanza.
+- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. **No** listés el repo si eso alcanza.
 - Buscá con \`afn_mem_search\` antes de re-explorar.
-- Guardá **hechos**, no transcripts: \`afn_mem_save\` (What/Why/Where/Learned).
-- Al cerrar trabajo: \`afn_session_summary\`.
+- Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
+- Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
+- Si el usuario pide ver el mapa, diagramas o el cerebro: \`afn_dashboard\` (abre HTML en el navegador; Kiro no embebe UI).
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
 ## Proyectos
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM). El detector debe listar los repos del workspace, como \`/afn-init\`.
+- Si falta \`.afn/\` o el snapshot muestra **un solo proyecto genérico** (\`mcp-context\`): \`afn_bootstrap\` con \`force=true\` (sin LLM).
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia
 
-Engram u otras memorias son opcionales. No dupliques el mismo hecho en dos sitios.
+Engram u otras memorias son opcionales. No dupliques el mismo hecho en dos sitios. El cerebro AFN vive en \`.afn/memory/cerebro.json\` + \`MEMORY.md\`.
 `;
 
 function mergeMcpServers(file, extra) {
@@ -74,6 +83,18 @@ function writeHooks(projectRoot, nodeCmd) {
         trigger: 'SessionStart',
         action: { type: 'command', command: `${nodeCmd} bootstrap` },
         timeout: 30,
+      },
+    ],
+  });
+  writeJson(path.join(dir, 'afn-session-work.json'), {
+    version: 'v1',
+    hooks: [
+      {
+        name: 'AFN session work',
+        description: 'Abre una sesión en el cerebro .afn (qué se está trabajando).',
+        trigger: 'SessionStart',
+        action: { type: 'command', command: `${nodeCmd} session-start` },
+        timeout: 20,
       },
     ],
   });
@@ -99,7 +120,7 @@ function writeHooks(projectRoot, nodeCmd) {
         action: {
           type: 'agent',
           prompt:
-            'Si este turno cambió arquitectura, APIs, proyectos activos/deprecados o una decisión durable, llamá afn_mem_save (hecho corto What/Why/Where). No vuelques el chat. Si cerrás el trabajo, afn_session_summary.',
+            'Si este turno cambió arquitectura, APIs, un bugfix o una decisión, llamá afn_mem_save (title + type + What/Why/Where). Si cerrás el trabajo, afn_session_summary. Si el usuario pidió ver el mapa o el cerebro, afn_dashboard.',
         },
       },
     ],

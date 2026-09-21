@@ -13,6 +13,8 @@ import { redactSecrets } from '../lib/redact.js';
 import { setupAgent } from '../lib/setup.js';
 import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js';
 import { isWeakProjectsMap } from '../lib/detect-projects.js';
+import { saveObservation, startSession, endSession, getMemContext } from '../lib/cerebro.js';
+import { writeDashboard } from '../lib/dashboard.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -166,6 +168,7 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.ok(fs.existsSync(path.join(home, '.kiro', 'steering', 'afn-context.md')));
   const hook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json'), 'utf8'));
   assert.match(JSON.stringify(hook), /bootstrap/);
+  assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
   assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
 });
 
@@ -245,3 +248,40 @@ test('resolveProjectRoot ignora ${workspaceFolder} sin expandir', () => {
   const r = resolveProjectRoot('', { cwd, envRoot: '${workspaceFolder}' });
   assert.equal(path.resolve(r), path.resolve(cwd));
 });
+
+test('cerebro guarda sesiones y observaciones; context las lista', () => {
+  const root = tmp();
+  bootstrapAfn(root);
+  const s = startSession(root, { goal: 'auth unificado' });
+  assert.equal(s.ok, true);
+  const o = saveObservation(root, {
+    type: 'decision',
+    title: 'JWT',
+    what: 'JWT en /api/auth',
+    why: 'escalar instancias',
+  });
+  assert.equal(o.ok, true);
+  const ctx = getMemContext(root);
+  assert.equal(ctx.counts.observations >= 1, true);
+  assert.equal(ctx.activeSessionId, s.session.id);
+  const end = endSession(root, { done: 'middleware listo', next: 'refresh tokens' });
+  assert.equal(end.ok, true);
+  const snap = buildSnapshot(root);
+  assert.match(snap.markdown, /JWT|auth|cerebro/i);
+});
+
+test('dashboard HTML lista proyectos y no abre el browser en test', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  saveObservation(root, { type: 'architecture', title: 'web→api', what: 'front llama /api' });
+  const d = writeDashboard(root, { open: false });
+  assert.equal(d.ok, true);
+  assert.equal(d.opened, false);
+  const html = fs.readFileSync(d.file, 'utf8');
+  assert.match(html, /web/);
+  assert.match(html, /flowchart/);
+  assert.match(html, /web→api|front llama/);
+});
+

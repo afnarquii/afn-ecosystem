@@ -121,7 +121,15 @@ Al iniciar sesión, el hook corre `bootstrap` (y `setup` ya lo corre una vez):
 - Mapa pobre (un solo `mcp-context`) → lo reescribe.
 - JSON rico ya en git → no pisa (`force` para rehacer).
 
-El primer prompt recibe el snapshot (proyectos, `web → api`, hechos). Si ves un solo proyecto genérico, pedí `afn_bootstrap` con `force=true`.
+El primer prompt recibe el snapshot (proyectos, `web → api`, trabajo reciente). Si ves un solo proyecto genérico, pedí `afn_bootstrap` con `force=true`.
+
+Para **ver** el mapa, los diagramas (`.afn/diagrams`) y el cerebro: en Kiro pedí “abrí el dashboard AFN” (tool `afn_dashboard`) o:
+
+```bash
+node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js dashboard
+```
+
+Kiro no tiene webview nuestro: se abre el navegador con un HTML local (`.afn/_tmp/dashboard.html`).
 
 ### 5. Hechos
 
@@ -171,11 +179,13 @@ node …/index.js setup generic
 
 | Tool | Para qué |
 |------|----------|
-| `afn_bootstrap` | Detectar repos del workspace (como `/afn-init`) y escribir `.afn/`. `force` reescribe. No usa el catálogo MCP como producto. |
-| `afn_context_snapshot` | Bloque ≤3200 chars |
+| `afn_bootstrap` | Detectar repos del workspace (como `/afn-init`) y escribir `.afn/`. `force` reescribe. |
+| `afn_context_snapshot` | Bloque ≤3200 chars (mapa + trabajo reciente) |
 | `afn_projects_flow` | Activos + relationships |
-| `afn_mem_search` / `afn_mem_save` | Hechos |
-| `afn_session_summary` | Handoff |
+| `afn_mem_context` | Qué se trabajó (sesiones + observaciones) |
+| `afn_mem_search` / `afn_mem_save` | Buscar / guardar en el cerebro `.afn/memory/cerebro.json` |
+| `afn_session_start` / `afn_session_summary` | Abrir / cerrar sesión de trabajo |
+| `afn_dashboard` | HTML local: mapa, flujos, diagramas, cerebro. Abre el navegador (Kiro no embebe UI). |
 | `afn_project_ignore` | Deprecados |
 | `afn_doctor` | Salud de `.afn/` |
 
@@ -183,7 +193,9 @@ node …/index.js setup generic
 
 ```bash
 node index.js snapshot     # stdout markdown
-node index.js bootstrap [--force]   # JSON
+node index.js bootstrap [--force]
+node index.js session-start
+node index.js dashboard [--no-open]
 node index.js doctor
 ```
 

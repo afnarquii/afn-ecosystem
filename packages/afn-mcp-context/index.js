@@ -4,7 +4,8 @@
  *   node index.js              → MCP stdio
  *   node index.js snapshot     → markdown a stdout (hook PromptSubmit)
  *   node index.js bootstrap    → .afn/ sin LLM
- *   node index.js doctor
+ *   node index.js dashboard    → HTML cerebro/mapa (navegador)
+ *   node index.js session-start
  *   node index.js setup kiro|cursor|claude|generic
  */
 
@@ -15,9 +16,11 @@ import { resolveProjectRoot } from './lib/paths.js';
 import { buildSnapshot } from './lib/snapshot.js';
 import { bootstrapAfn } from './lib/bootstrap.js';
 import { doctorAfn } from './lib/snapshot.js';
+import { startSession } from './lib/cerebro.js';
+import { writeDashboard } from './lib/dashboard.js';
 import { setupAgent } from './lib/setup.js';
 
-const VERSION = '1.0.1';
+const VERSION = '1.1.0';
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -56,6 +59,21 @@ async function main() {
     return;
   }
 
+  if (cmd === 'session-start') {
+    const r = startSession(root, { goal: argv.slice(1).filter((a) => a !== '--force').join(' ') });
+    process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
+    process.exit(r.ok ? 0 : 1);
+    return;
+  }
+
+  if (cmd === 'dashboard') {
+    const open = !argv.includes('--no-open');
+    const r = writeDashboard(root, { open });
+    process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
+    process.exit(r.ok ? 0 : 1);
+    return;
+  }
+
   if (cmd === 'setup') {
     const agent = String(argv[1] || 'kiro').toLowerCase();
     const r = setupAgent(agent, { projectRoot: root });
@@ -65,7 +83,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot|bootstrap|doctor|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|snapshot|bootstrap|doctor|dashboard|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }
