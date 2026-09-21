@@ -38,6 +38,26 @@ packs/           → Delivery Packs (uiSchema + deploy.template + lista de pieza
 
 Stubs: [`packs/pack-github-aws/`](packs/pack-github-aws/) · [`packs/pack-gcp-gcs/`](packs/pack-gcp-gcs/)
 
+## AFN Context (mapa `.afn` — Kiro y cualquier MCP)
+
+Memoria de **producto** (proyectos, flujo, hechos), no de charla. Engram **opcional**. Baja tokens: snapshot compacto + bootstrap **sin LLM**.
+
+| Pieza | Ruta |
+|-------|------|
+| Pack + guía de integración | [`packs/pack-afn-context/`](packs/pack-afn-context/) |
+| MCP (Node, stdio) | [`packages/afn-mcp-context/`](packages/afn-mcp-context/) |
+| Descriptor | [`mcps/context/afn-mcp-context.json`](mcps/context/afn-mcp-context.json) |
+| Skill | [`skills/skill-afn-context/`](skills/skill-afn-context/) |
+| Agente | [`agents/context/agent-afn-context.json`](agents/context/agent-afn-context.json) |
+
+```bash
+git clone https://github.com/afnarquii/afn-ecosystem.git
+cd /ruta/del/producto
+node /ruta/afn-ecosystem/packages/afn-mcp-context/index.js setup kiro
+```
+
+Tests: `cd packages/afn-mcp-context && npm test`
+
 ## Data Agent (MCP genérico + dominios)
 
 | Pieza | Ruta |
@@ -59,6 +79,10 @@ Ejemplo (stub Bitbucket): [`mcps/bitbucket-cloud-delivery/mcp-bitbucket-cloud-de
 También declarado en Azure / AWS / GitHub descriptors. Valores reales **nunca** en este repo.
 
 ## Instalación en un proyecto
+
+**AFN Context (Kiro / Cursor / Claude / MCP):** no usa el Marketplace ni secretos. Guía: [`packs/pack-afn-context/README.md`](packs/pack-afn-context/README.md).
+
+**Packs con credenciales (Cloud Delivery, Data Agent):**
 
 1. Abrí el repo en **AFN IDE**.
 2. Marketplace → instalá el pack / skill / MCP (o `/cloud-delivery setup`).

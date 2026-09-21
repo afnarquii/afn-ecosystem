@@ -1,0 +1,15 @@
+{
+  "id": "afn-mcp-context",
+  "name": "AFN Context (mapa .afn)",
+  "type": "stdio",
+  "transport": "stdio",
+  "command": "node",
+  "args": ["${AFN_MCP_CONTEXT_ENTRY}"],
+  "description": "Mapa y memoria de proyecto (.afn/projects.json, MEMORY.md). Sirve en Kiro, Cursor, Claude Code u otro host MCP. Sin Engram. Sin secretos.",
+  "publisher": "afn-ecosystem",
+  "tags": ["context", "memory", "afn", "kiro", "mcp"],
+  "env": {
+    "AFN_PROJECT_ROOT": "${workspaceFolder}"
+  },
+  "_comment": "Instalación: clonar este repo y `node packages/afn-mcp-context/index.js setup kiro` (o cursor/claude). El setup rellena AFN_MCP_CONTEXT_ENTRY. Alternativa futura: npx @afn-ecosystem/mcp-context@latest cuando el paquete esté en npm."
+}

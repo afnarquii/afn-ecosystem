@@ -1,0 +1,18 @@
+{
+  "isMultiProject": true,
+  "rootPath": ".",
+  "ignorePaths": ["./legacy-app"],
+  "projects": [
+    { "name": "frontend", "path": "./web", "type": "frontend", "port": 5173, "status": "active" },
+    { "name": "backend", "path": "./api", "type": "backend", "port": 4000, "status": "active" },
+    { "name": "legacy", "path": "./legacy-app", "type": "backend", "status": "deprecated", "enabled": false }
+  ],
+  "relationships": [
+    {
+      "from": "frontend",
+      "to": "backend",
+      "type": "api-communication",
+      "endpoint": "http://localhost:4000/api"
+    }
+  ]
+}

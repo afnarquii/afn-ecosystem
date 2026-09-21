@@ -1,0 +1,15 @@
+{
+  "name": "AFN Context",
+  "description": "Agente con mapa .afn (proyectos, flujo, memoria). Compatible con Kiro mcpServers.",
+  "mcpServers": {
+    "afn-context": {
+      "command": "node",
+      "args": ["${AFN_MCP_CONTEXT_ENTRY}"],
+      "env": {
+        "AFN_PROJECT_ROOT": "${workspaceFolder}"
+      },
+      "disabled": false
+    }
+  },
+  "includeMcpJson": true
+}

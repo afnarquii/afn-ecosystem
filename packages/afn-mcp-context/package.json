@@ -1,0 +1,34 @@
+{
+  "name": "@afn-ecosystem/mcp-context",
+  "version": "1.0.0",
+  "description": "MCP headless: mapa .afn (proyectos, flujo, memoria). Kiro, Cursor, Claude Code u otro agente MCP. Sin Engram. Sin Electron.",
+  "type": "module",
+  "bin": {
+    "afn-mcp-context": "./index.js"
+  },
+  "main": "./index.js",
+  "files": [
+    "index.js",
+    "lib"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "afn",
+    "mcp",
+    "kiro",
+    "memory",
+    "context"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/afnarquii/afn-ecosystem.git",
+    "directory": "packages/afn-mcp-context"
+  }
+}
