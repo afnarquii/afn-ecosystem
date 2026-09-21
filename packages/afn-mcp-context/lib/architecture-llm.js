@@ -8,16 +8,14 @@ import { withPreservedMemory } from './cerebro.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
 import { findPortEvidence } from './port-evidence.js';
 
-export const LLM_ARCHITECTURE_PROMPT = `Arquitectura AFN: leé evidencia de disco y armá un README, no un diagrama.
+export const LLM_ARCHITECTURE_PROMPT = `Arquitectura AFN (C4 + arc42, texto): inventario de disco de punta a punta.
 
 1. Llamá afn_architecture_evidence.
-2. Leé SOLO filesToRead (proxy, compose, Makefile, Dockerfile, serverless, uvicorn, env.example, rutas Express/FastAPI).
-3. Llamá afn_architecture_commit con:
-   - projects: name, path, framework, port (solo si está en disco), prefix, endpoints [{method,path,via}] vistos en código
-   - relationships: from, to, via, endpoint (ruta real: "/api → http://localhost:4000")
+2. Leé filesToRead: proxy, compose, rutas, prisma/SQL/ORM, OpenAPI. Completá huecos SOLO si el archivo lo dice.
+3. afn_architecture_commit: projects (endpoints, prefix, port con evidencia) + relationships (from, to, via, endpoint).
 
-El artefacto que queda es \`.afn/diagrams/arquitectura.md\`: nombres (carpeta, package, servicio), quién llama a quién, rutas, flujo en pasos.
-Prohibido inventar: puertos, prefix /api, flechas, BDs, mermaid hueco. Si no hay evidencia, omití.`;
+El artefacto es \`.afn/diagrams/arquitectura.md\`: contexto, contenedores (1 repo o varios), comunicación, flujo E2E, rutas, esquemas.
+Prohibido inventar puertos, /api, flechas, tablas o mermaid. Si no hay evidencia, omití.`;
 
 function readJson(file) {
   try {
@@ -72,7 +70,10 @@ const EVIDENCE_FILES = [
   ['src/server.js', 'rutas express'],
   ['src/app.js', 'rutas express'],
   ['openapi.yaml', 'rutas openapi'],
-  ['prisma/schema.prisma', 'BD'],
+  ['openapi.json', 'contratos'],
+  ['prisma/schema.prisma', 'esquema BD'],
+  ['schema.prisma', 'esquema BD'],
+  ['models.py', 'ORM'],
   ['go.mod', 'manifiesto'],
 ];
 
@@ -119,6 +120,8 @@ export function collectArchitectureEvidence(root) {
       proxies: p.proxies || [],
       endpoints: p.endpoints || [],
       aliases: p.aliases || [],
+      schemaFile: p.design?.schemaFile || '',
+      entities: (p.design?.entities || []).map((e) => e.name).slice(0, 12),
       unknowns,
     };
   });

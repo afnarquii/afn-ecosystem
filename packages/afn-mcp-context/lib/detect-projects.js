@@ -162,6 +162,7 @@ export function detectProjects(root, opts = {}) {
       endpoints: sig.endpoints,
       aliases: sig.aliases,
       envLinks: sig.envLinks,
+      design: sig.design,
       proxies: sig.proxies,
       devCommand: sig.devCommand,
       testCommand: sig.testCommand,

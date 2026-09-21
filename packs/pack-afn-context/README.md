@@ -94,7 +94,7 @@ Un producto distinto = otro `cd` + `setup kiro`. No hace falta que estén en la 
 | Pedís “regenerá la arquitectura” | inventario de disco + LLM evidencia → commit | Redibuja solo lo verificado |
 | Redetectar repos | `bootstrap --force` | Inventario; el LLM completa flechas |
 
-El disco **no** inventa `localhost:4000/api` ni flechas front→back. Un puerto solo si aparece en Makefile, Dockerfile `EXPOSE`/`CMD`, compose `ports`, serverless `provider.port`/`httpPort`, `uvicorn --port`, scripts o `.env*` (`PORT`/`UVICORN_PORT`). El LLM **solo** escribe lo que vio en `filesToRead`. La regeneración usa el `.afn` de **este** workspace.
+El disco **no** inventa `localhost:4000/api` ni flechas front→back. El README sigue C4/arc42: contexto, contenedores (1 repo o varios), comunicación, flujo E2E, rutas, esquemas (prisma/SQL/OpenAPI). Un puerto o una tabla solo si está en disco.
 
 Actualizar en la empresa:
 

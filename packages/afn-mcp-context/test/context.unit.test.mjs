@@ -622,7 +622,7 @@ test('snapshot prioriza README de nombres, rutas y cerebro', () => {
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' }, scripts: { dev: 'node --port 4000' } });
   bootstrapAfn(root);
   const snap = buildSnapshot(root);
-  assert.match(snap.markdown, /Arquitectura|Nombres|Quién llama/);
+  assert.match(snap.markdown, /Arquitectura|Contenedores|Comunicación|Flujo E2E/);
   assert.match(snap.markdown, /arquitectura\.md|:5173|:4000|sin evidencia/);
   assert.ok(snap.markdown.length <= 3200);
 });
@@ -657,10 +657,10 @@ test('README de arquitectura lista rutas reales, no mermaid como fuente', () => 
   const boot = bootstrapAfn(root);
   assert.equal(boot.ok, true);
   const md = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'arquitectura.md'), 'utf8');
-  assert.match(md, /## Nombres/);
-  assert.match(md, /## Quién llama a quién/);
-  assert.match(md, /## Rutas y endpoints/);
-  assert.match(md, /## Flujo/);
+  assert.match(md, /## 2\. Contenedores|## Contenedores/);
+  assert.match(md, /## 3\. Comunicación|Quién llama/);
+  assert.match(md, /## 5\. Rutas/);
+  assert.match(md, /## 4\. Flujo E2E/);
   assert.match(md, /\/health|\/auth\/login/);
   assert.match(md, /\/jobs/);
   assert.match(md, /\/api/);
@@ -669,6 +669,33 @@ test('README de arquitectura lista rutas reales, no mermaid como fuente', () => 
   const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(html, /\/health|Arquitectura/);
 });
+
+test('README E2E incluye esquema prisma/SQL y openapi si existen en disco', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18', vite: '5' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4', pg: '8' } });
+  fs.mkdirSync(path.join(root, 'api', 'prisma'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'api', 'prisma', 'schema.prisma'),
+    'model User { id String @id email String posts Post[] }\nmodel Post { id String title String user User @relation(fields: [userId], references: [id]) userId String }\n',
+  );
+  fs.writeFileSync(
+    path.join(root, 'api', 'openapi.yaml'),
+    'openapi: 3.0.0\npaths:\n  /users:\n    get: {}\ncomponents:\n  schemas:\n    User:\n      type: object\n',
+  );
+  fs.writeFileSync(
+    path.join(root, 'api', 'init.sql'),
+    'CREATE TABLE orders (id int);\n',
+  );
+  bootstrapAfn(root);
+  const md = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'arquitectura.md'), 'utf8');
+  assert.match(md, /## 6\. Datos y esquemas/);
+  assert.match(md, /User/);
+  assert.match(md, /Post|orders/);
+  assert.match(md, /schema\.prisma|init\.sql|openapi/i);
+  assert.match(md, /## 4\. Flujo E2E/);
+});
+
 
 
 

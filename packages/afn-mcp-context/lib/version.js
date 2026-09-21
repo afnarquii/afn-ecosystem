@@ -1,5 +1,5 @@
 /** Versión del generador de mapa/flujo. Si el pack es más nuevo que el stamp en `.afn/diagrams/workspace-flow.json`, SessionStart regenera las gráficas. */
-export const FLOW_GENERATOR_VERSION = '1.3.9';
+export const FLOW_GENERATOR_VERSION = '1.4.0';
 
 /**
  * @param {string} a

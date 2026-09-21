@@ -4,7 +4,7 @@ Servidor MCP **stdio** (Node ≥18, cero deps) que lee y escribe `.afn/` del **w
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Mapa: README `.afn/diagrams/arquitectura.md` (nombres, rutas, quién llama a quién) + LLM que **no inventa**. Puertos solo con evidencia. Dashboard: README primero, diagrama opcional. `setup kiro` escribe el MCP **en el workspace**.
+Cerebro: `.afn/memory/cerebro.json`. Arquitectura: README C4/arc42 `.afn/diagrams/arquitectura.md` (contexto, contenedores 1 o N repos, comunicación, E2E, rutas, esquemas). Puertos y tablas solo con evidencia. Dashboard: README primero.
 
 Guía de integración (Kiro / Cursor / Claude / genérico):  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)

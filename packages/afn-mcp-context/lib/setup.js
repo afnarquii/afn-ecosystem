@@ -46,7 +46,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 ## Tokens
 
-- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. La fuente es \`.afn/diagrams/arquitectura.md\` (nombres, rutas, quién llama a quién). **No** listés el repo ni uses mermaid como contexto.
+- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. La fuente es \`.afn/diagrams/arquitectura.md\` (C4/arc42 en texto: contexto, contenedores, comunicación, E2E, rutas, esquemas). **No** vuelques el repo ni uses mermaid como contexto.
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.

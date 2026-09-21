@@ -53,6 +53,7 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
       endpoints: Array.isArray(p.endpoints) && p.endpoints.length ? p.endpoints : sig.endpoints,
       aliases: Array.isArray(p.aliases) && p.aliases.length ? p.aliases : sig.aliases,
       envLinks: Array.isArray(p.envLinks) && p.envLinks.length ? p.envLinks : sig.envLinks,
+      design: p.design && p.design.entities?.length ? p.design : sig.design,
       lambdas: sig.lambdas,
       proxies: sig.proxies,
       skills,
@@ -168,24 +169,32 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
 }
 
 function buildE2e(projects, relationships) {
-  if (!relationships.length) return [];
   const front = projects.find((p) => p.layer === 'presentation');
   const api = projects.find((p) => p.layer === 'api');
   const data = projects.find((p) => p.layer === 'data' || p.type === 'database');
   const cloud = projects.find((p) => p.layer === 'cloud');
-  if (!front && !api) return [];
-  const steps = ['Usuario'];
-  if (front) steps.push(`${front.name} (${front.framework || 'ui'})`);
+  const schema = projects.find((p) => p.design?.entities?.length)?.design;
+  if (!front && !api && !relationships.length) return [];
+  const steps = [];
+  steps.push('Actor usa el sistema');
+  if (front) steps.push(`${front.name} (${front.framework || 'ui'}) recibe la acción`);
   const proxy = relationships.find((r) => r.via === 'proxy');
-  if (proxy) steps.push(`proxy ${proxy.endpoint || ''}`);
-  if (api && relationships.some((r) => r.to === api.name || r.from === api.name)) {
-    steps.push(`${api.name} ${api.prefix || ''}`.trim());
+  if (proxy) steps.push(`${proxy.from} llama ${proxy.endpoint || 'proxy'} → ${proxy.to}`);
+  else if (relationships[0]) {
+    steps.push(`${relationships[0].from} → ${relationships[0].to} (${relationships[0].endpoint || relationships[0].via || 'link'})`);
   }
-  if (cloud) steps.push(cloud.name);
-  if (data && relationships.some((r) => r.to === data.name || r.via === 'db')) {
-    steps.push(`${data.name} (${data.db || 'db'})`);
+  if (api) {
+    const sample = (api.endpoints || []).find((e) => e.via !== 'proxy') || (api.endpoints || [])[0];
+    steps.push(`${api.name} atiende ${sample ? `${sample.method} ${sample.path}` : (api.prefix || 'HTTP')}`);
   }
-  return [{ name: 'flujo-principal', steps }];
+  if (cloud) steps.push(`${cloud.name} (lambda/serverless)`);
+  if (data || schema) {
+    const tables = (schema?.entities || []).map((e) => e.name).slice(0, 6).join(', ');
+    const dbName = data ? `${data.name} (${data.db || 'db'})` : `${schema.schemaKind} ${schema.schemaFile}`;
+    steps.push(`Persistencia en ${dbName}${tables ? `: ${tables}` : ''}`);
+  }
+  steps.push('Respuesta vuelve al actor por el mismo camino');
+  return [{ name: 'request-e2e', steps }];
 }
 
 function buildHowTo(projects, relationships) {

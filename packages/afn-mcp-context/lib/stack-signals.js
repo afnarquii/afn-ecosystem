@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { findPortEvidence } from './port-evidence.js';
+import { scanDataDesign, listRouteSourceFiles } from './schema-scan.js';
 
 const MAX_READ = 48_000;
 
@@ -293,6 +294,18 @@ function scanCodeRoutes(dir) {
       while ((m = oa.exec(yml))) pushEp(out, 'ANY', m[1], 'openapi');
     }
   }
+  for (const abs of listRouteSourceFiles(dir)) {
+    const src = readText(abs, 20_000);
+    if (!src) continue;
+    const via = path.basename(abs);
+    const express = /\.(get|post|put|patch|delete|use|all)\(\s*['"](\/[^'"]+)['"]/gi;
+    let m;
+    while ((m = express.exec(src))) pushEp(out, m[1] === 'use' ? 'ANY' : m[1], m[2], via);
+    const fast = /@(?:app|router)\.(get|post|put|patch|delete|options|head)\(\s*['"]([^'"]+)['"]/gi;
+    while ((m = fast.exec(src))) pushEp(out, m[1], m[2], via);
+    const flask = /@(?:app|bp|blueprint)\.(?:route|get|post)\(\s*['"](\/[^'"]+)['"]/gi;
+    while ((m = flask.exec(src))) pushEp(out, 'ANY', m[1], via);
+  }
   for (const apiRoot of [path.join(dir, 'src', 'app', 'api'), path.join(dir, 'pages', 'api'), path.join(dir, 'app', 'api')]) {
     walkApiFolder(apiRoot, '/api', out, 0);
   }
@@ -393,6 +406,7 @@ export function scanProjectSignals(abs, hint = {}) {
     endpoints: inferEndpoints(abs, prefix, proxies),
     aliases: inferAliases(abs, pkg, hint.name),
     envLinks: inferEnvLinks(env),
+    design: scanDataDesign(abs),
     hasServerless: lambdas.length > 0,
   };
 }
