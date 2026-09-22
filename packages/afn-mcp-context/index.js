@@ -2,7 +2,7 @@
 /**
  * @afn-ecosystem/mcp-context
  *   node index.js              → MCP stdio
- *   node index.js snapshot [--hint] → markdown (PromptSubmit usa --hint)
+ *   node index.js prompt-gate   → hook Kiro: comando local o pista (exit 2 = no LLM)
  *   node index.js dashboard [sql|cerebro|notas] → http://127.0.0.1:5847 (sin Kiro, sin tokens)
  *   node index.js note-save archivo.md
  *   node index.js mem-search texto
@@ -26,6 +26,7 @@ import { FLOW_GENERATOR_VERSION } from './lib/version.js';
 import { architectureStatus } from './lib/architecture-llm.js';
 import { compactBootstrap, compactDiagramResult, compactDashboard } from './lib/compact-result.js';
 import { saveTaskNoteFromFile } from './lib/task-notes.js';
+import { runPromptGate, readHookPrompt } from './lib/prompt-gate.js';
 import fs from 'node:fs';
 
 const VERSION = FLOW_GENERATOR_VERSION;
@@ -42,6 +43,16 @@ async function main() {
       tools: CONTEXT_TOOLS,
       onCallTool: (name, args) => handleContextTool(resolveProjectRoot(process.env.AFN_PROJECT_ROOT), name, args),
     });
+    return;
+  }
+
+  if (cmd === 'prompt-gate') {
+    const text = await readHookPrompt();
+    const r = await runPromptGate(root, text);
+    const msg = `${r.message}\n`;
+    process.stdout.write(msg);
+    if (r.handled) process.stderr.write(msg);
+    process.exit(r.exitCode);
     return;
   }
 
@@ -156,7 +167,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot [--hint]|dashboard [sql|cerebro|notas]|note-save archivo.md|mem-search texto|mem-context|bootstrap|architecture [--recreate]|architecture-status|doctor|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|prompt-gate|snapshot [--hint]|dashboard [sql|cerebro|notas]|note-save archivo.md|mem-search texto|mem-context|bootstrap|architecture [--recreate]|architecture-status|doctor|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

@@ -110,7 +110,7 @@ cd C:\work\mi-monorepo
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 ```
 
-`setup kiro` **sí** hay que correrlo esta vez: saca el hook AgentStop (gastaba un turno extra) y deja PromptSubmit en una pista de ~3 líneas. Después, dashboard/notas/cerebro **sin chat**:
+`setup kiro` actualiza el hook PromptSubmit: frases como *abre dashboard AFN* o *guarda el readme hu102030* se ejecutan **en local y no van al modelo** (exit 2). El resto del chat sí usa el LLM, con una pista corta.
 
 ```bash
 cd C:\work\mi-monorepo

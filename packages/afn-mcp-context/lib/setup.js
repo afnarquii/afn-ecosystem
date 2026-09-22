@@ -91,8 +91,8 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 ## Tokens (no gastar chat en operativos)
 
-- **Dashboard, guardar un .md y consultar cerebro NO van por el chat.** El chat consume el modelo (snapshot + tools + AgentStop).
-- Dashboard sin tokens: en la raíz del producto \`.afn/_tmp/afn-dashboard.cmd\` o \`node …/packages/afn-mcp-context/index.js dashboard\` (queda en \`http://127.0.0.1:5847\`). Pestaña: \`dashboard sql\` / \`dashboard cerebro\`.
+- **Antes del LLM:** si escribís *abre dashboard AFN*, *guarda el readme …* o *busca en el cerebro …*, el hook \`prompt-gate\` lo hace en local y **bloquea** el envío al modelo (exit 2). No gasta tokens.
+- Dashboard también: \`.afn/_tmp/afn-dashboard.cmd\` o \`node …/index.js dashboard\` (\`http://127.0.0.1:5847\`).
 - Guardar un README: \`node …/index.js note-save hu_102030_fondos.md\` (o \`.afn/_tmp/afn-note-save.cmd\`).
 - Cerebro: pestaña Cerebro del dashboard, o \`node …/index.js mem-search texto\`.
 - Si el usuario **igual** lo pide en el chat: **una sola tool** (\`afn_dashboard\` / \`afn_note_save\` / \`afn_mem_search\`). **No** llames snapshot, diagram ni architecture. Abrí **solo** el campo \`url\` (\`http://127.0.0.1\`). **Nunca** \`.afn/_tmp/dashboard.html\`.
@@ -280,11 +280,18 @@ function writeHooks(projectRoot, nodeCmd) {
     version: 'v1',
     hooks: [
       {
-        name: 'AFN snapshot',
-        description: 'Pista corta (no el mapa completo) para no gastar tokens en cada mensaje.',
+        name: 'AFN local',
+        description: 'Dashboard / guardar readme / cerebro en local. Exit 2 = no mandar al LLM.',
         trigger: 'PromptSubmit',
-        action: { type: 'command', command: `${nodeCmd} snapshot --hint` },
-        timeout: 8,
+        action: { type: 'command', command: `${nodeCmd} prompt-gate` },
+        timeout: 25,
+      },
+      {
+        name: 'AFN local v1',
+        description: 'Igual para Kiro 1.x (UserPromptSubmit).',
+        trigger: 'UserPromptSubmit',
+        action: { type: 'command', command: `${nodeCmd} prompt-gate` },
+        timeout: 25,
       },
     ],
   });

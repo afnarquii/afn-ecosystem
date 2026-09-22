@@ -17,6 +17,7 @@ import { saveObservation, startSession, endSession, getMemContext, loadCerebro }
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile } from '../lib/task-notes.js';
+import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
@@ -181,7 +182,8 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.match(JSON.stringify(hook), /bootstrap/);
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
   const promptHook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-prompt-submit.json'), 'utf8'));
-  assert.match(JSON.stringify(promptHook), /snapshot --hint/);
+  assert.match(JSON.stringify(promptHook), /prompt-gate/);
+  assert.equal(JSON.stringify(promptHook).includes('snapshot --hint'), false);
   assert.equal(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-agent-stop.json')), false);
   assert.ok(fs.existsSync(path.join(project, '.afn', '_tmp', 'afn-dashboard.cmd')));
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-architecture.json')));
@@ -1004,8 +1006,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /JSON/);
   assert.match(html, /wb-sql-gutter/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.16/);
-  assert.match(html, /data-afn-version="1\.4\.16"/);
+  assert.match(html, /v1\.4\.17/);
+  assert.match(html, /data-afn-version="1\.4\.17"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1069,7 +1071,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.16/);
+    assert.match(liveHtml, /v1\.4\.17/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
     assert.match(liveHtml, /wb-sql-driver/);
@@ -1086,11 +1088,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.16',
+    version: '1.4.17',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.16');
+  assert.equal(c.version, '1.4.17');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
@@ -1176,6 +1178,25 @@ test('prompt hint es corto; note-save copia un md sin LLM', () => {
   assert.equal(r.ok, true);
   assert.equal(r.file, 'hu_102030_fondos.md');
   assert.ok(fs.existsSync(path.join(root, '.afn', 'notes', 'tareas', r.slug, 'hu_102030_fondos.md')));
+});
+
+test('prompt-gate intercepta dashboard y note-save; el resto no', async () => {
+  assert.equal(parseLocalIntent('abre dashboard AFN')?.kind, 'dashboard');
+  assert.equal(parseLocalIntent('abrir el dashboard sql')?.view, 'sql');
+  assert.equal(parseLocalIntent('guarda el readme hu102030')?.kind, 'note-save');
+  assert.equal(parseLocalIntent('guarda el readme hu_102030_fondos.md')?.file, 'hu_102030_fondos.md');
+  assert.equal(parseLocalIntent('busca en el cerebro fondos')?.kind, 'mem-search');
+  assert.equal(parseLocalIntent('cómo implemento el login'), null);
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.writeFileSync(path.join(root, 'hu102030.md'), '# HU\n');
+  const r = await runPromptGate(root, 'guarda el readme hu102030');
+  assert.equal(r.handled, true);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.message, /sin LLM/i);
+  const pass = await runPromptGate(root, 'explicame el flujo del api');
+  assert.equal(pass.handled, false);
+  assert.equal(pass.exitCode, 0);
 });
 
 
