@@ -154,6 +154,7 @@ function collectDashboard(root) {
     contextSafe: ctx && typeof ctx === 'object' ? redactSecrets(ctx) : null,
     flow,
     flowMd,
+    datosMd: readText(afnPath(root, 'diagrams', 'datos.md')),
     notes: listTaskNotes(root, { includeBody: true }),
   };
 }
@@ -175,7 +176,7 @@ function kindLabel(kind) {
 }
 
 function buildHtml(data) {
-  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd, notes = [] } = data;
+  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd, datosMd = '', notes = [] } = data;
   const obs = [...(cerebro.observations || [])].slice(-10).reverse();
   const sess = [...(cerebro.sessions || [])].slice(-6).reverse();
   const lastSess = sess[0];
@@ -283,6 +284,10 @@ function buildHtml(data) {
   const wsName = path.basename(root || '') || 'workspace';
   const readmeHtml = mdToHtml(flowMd);
   const hasReadme = Boolean(String(flowMd || '').trim());
+  const hasDatos = Boolean(String(datosMd || '').trim());
+  const datosHtml = hasDatos
+    ? mdToHtml(datosMd)
+    : '<p class="muted">En Kiro no hay pantalla de BD. Escribí: <strong>listá las tablas y PAs y guardalas en la arquitectura</strong>. Hace falta el MCP <code>afn-mcp-data-agent</code> en <code>.kiro/settings/mcp.json</code> (junto a afn-context) con servidor, base y usuario. Después pedí <strong>abre dashboard AFN</strong> y mirá esta pestaña.</p>';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -563,7 +568,7 @@ function buildHtml(data) {
     const i = rest.indexOf("/");
     showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
   }
-  else showView(["inicio","readme","mapa","diagramas","capas","howto","cerebro","reglas","notas"].includes(boot) ? boot : "readme");
+  else showView(["inicio","readme","datos","mapa","diagramas","capas","howto","cerebro","reglas","notas"].includes(boot) ? boot : "readme");
 </script>
 <style>
   :root {
@@ -652,6 +657,7 @@ function buildHtml(data) {
     <p id="q-empty" hidden>Sin coincidencias. Probá otro término.</p>
     <nav>
       <button type="button" data-go="readme">README</button>
+      <button type="button" data-go="datos">Datos${hasDatos ? ' (listo)' : ''}</button>
       <button type="button" data-go="notas">Notas (${notes.length})</button>
       <button type="button" data-go="inicio">Inicio</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
@@ -677,6 +683,11 @@ function buildHtml(data) {
       </div>
       <article id="readme-article" class="article" data-q="arquitectura readme nombres rutas endpoints flujo contenedores esquemas">${readmeHtml}</article>
     </section>
+    <section data-view="datos" hidden>
+      <h2>Tablas y procedimientos</h2>
+      <p class="lead">Esto se lista desde Kiro (chat), no con un explorador gráfico. Archivo: <code>.afn/diagrams/datos.md</code>.</p>
+      <article id="datos-article" class="article" data-q="tablas procedimientos esquema sql mongo pa stored">${datosHtml}</article>
+    </section>
     <section data-view="notas" hidden>
       <div id="notes-list">
         <h2>Notas de trabajo</h2>
@@ -698,6 +709,7 @@ function buildHtml(data) {
       <p class="lead">El README es la fuente. Los diagramas se abren a pantalla completa, con zoom y arrastre.</p>
       <div class="hero">
         <button type="button" data-go="readme" data-q="arquitectura readme rutas endpoints flujo nombres"><span class="k">README</span><strong>Arquitectura</strong><span class="muted">${hasReadme ? 'Abrir documento' : 'Todavía vacío'}</span></button>
+        <button type="button" data-go="datos" data-q="tablas procedimientos esquema sql mongo datos pa"><span class="k">BD</span><strong>Tablas y PAs</strong><span class="muted">${hasDatos ? 'Esquema vivo' : 'Listar desde Kiro'}</span></button>
         <button type="button" data-go="notas" data-q="notas wiki tareas entregas readme listo aprobado"><span class="k">Wiki</span><strong>${notes.length} entregas</strong><span class="muted">README por tarea</span></button>
         <button type="button" data-go="mapa" data-q="mapa proyectos conexiones flujo"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
         <button type="button" data-go="diagramas" data-q="diagramas mapas flujo componentes"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Pantalla completa + zoom</span></button>

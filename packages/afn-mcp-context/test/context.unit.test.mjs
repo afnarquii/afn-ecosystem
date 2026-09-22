@@ -828,6 +828,9 @@ test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit'
   const md = fs.readFileSync(path.join(root, 'ARQUITECTURA.md'), 'utf8');
   assert.match(md, /## 6b\. Origen de datos/);
   assert.match(md, /usp_GetOrder/);
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /data-view="datos"/);
+  assert.match(html, /usp_GetOrder/);
 });
 
 
