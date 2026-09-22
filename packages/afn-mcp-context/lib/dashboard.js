@@ -287,7 +287,7 @@ function buildHtml(data) {
   const hasDatos = Boolean(String(datosMd || '').trim());
   const datosHtml = hasDatos
     ? mdToHtml(datosMd)
-    : '<p class="muted">En Kiro no hay pantalla de BD. Escribí: <strong>listá las tablas y PAs y guardalas en la arquitectura</strong>. Hace falta el MCP <code>afn-mcp-data-agent</code> en <code>.kiro/settings/mcp.json</code> (junto a afn-context) con servidor, base y usuario. Después pedí <strong>abre dashboard AFN</strong> y mirá esta pestaña.</p>';
+    : '<p class="muted">El init deja la ficha en <code>.afn/db-connection.json</code> (motor/host/base, sin password). En Kiro no hay pantalla de BD. Escribí: <strong>listá las tablas y PAs y guardalas en la arquitectura</strong>. Hace falta el MCP <code>afn-mcp-data-agent</code> en <code>.kiro/settings/mcp.json</code> (junto a afn-context) con usuario y password. Después pedí <strong>abre dashboard AFN</strong> y mirá esta pestaña.</p>';
 
   return `<!DOCTYPE html>
 <html lang="es">

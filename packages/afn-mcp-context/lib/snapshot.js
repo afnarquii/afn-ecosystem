@@ -102,7 +102,7 @@ export function buildSnapshot(root) {
 
   try {
     if (fs.existsSync(afnPath(root, 'diagrams', 'datos.md')) || fs.existsSync(afnPath(root, 'db-connection.json'))) {
-      lines.push('Origen de datos en `.afn`. No conectes en cada turno. Si el usuario pide el esquema: `afn_data_sources` → MCP de BD → `afn_schema_commit`.');
+      lines.push('Origen en `.afn/db-connection.json` (lo escribe el init). No conectes en cada turno. Si el usuario pide el esquema: leé esa ficha → MCP de BD → `afn_schema_commit`.');
       lines.push('');
     }
   } catch {

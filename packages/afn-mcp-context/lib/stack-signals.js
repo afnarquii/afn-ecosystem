@@ -90,7 +90,7 @@ function dbKindFrom(text, deps) {
   const blob = `${text} ${deps}`.toLowerCase();
   if (/postgres|postgresql|pg\b/.test(blob)) return 'postgresql';
   if (/mysql|mariadb/.test(blob)) return 'mysql';
-  if (/\bmongodb|mongoose\b/.test(blob)) return 'mongodb';
+  if (/\bmongo(?:db)?\b|mongoose/.test(blob)) return 'mongodb';
   if (/\bsqlite\b/.test(blob)) return 'sqlite';
   if (/\bredis\b/.test(blob)) return 'redis';
   if (/\bsqlserver|mssql|tedious\b/.test(blob)) return 'sqlserver';

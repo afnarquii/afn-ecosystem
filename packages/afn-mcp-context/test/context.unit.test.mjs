@@ -17,7 +17,7 @@ import { saveObservation, startSession, endSession, getMemContext, loadCerebro }
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-notes.js';
-import { collectDataSources, commitLiveSchema } from '../lib/data-sources.js';
+import { collectDataSources, commitLiveSchema, inferDbOrigin } from '../lib/data-sources.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -181,8 +181,12 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.match(archHook.hooks[0].action.command, /architecture-status/);
   assert.equal(archHook.hooks[0].action.type === 'agent', false);
   assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
+  assert.ok(fs.existsSync(path.join(project, '.afn', 'db-connection.json')));
   const gi = fs.readFileSync(path.join(project, '.gitignore'), 'utf8');
   assert.match(gi, /\.kiro\/settings\/mcp\.json/);
+  const mcpAfter = JSON.parse(fs.readFileSync(mcpFile, 'utf8'));
+  assert.ok(mcpAfter.mcpServers['afn-mcp-data-agent']);
+  assert.equal(JSON.stringify(mcpAfter).toLowerCase().includes('password'), false);
 });
 
 test('setup kiro deja un AFN_PROJECT_ROOT distinto por workspace', () => {
@@ -831,6 +835,68 @@ test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit'
   const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(html, /data-view="datos"/);
   assert.match(html, /usp_GetOrder/);
+});
+
+test('afn-init escribe ficha de origen desde compose y no pisa ni guarda password', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.writeFileSync(
+    path.join(root, 'docker-compose.yml'),
+    'services:\n  db:\n    image: postgres:15\n    ports:\n      - "5432:5432"\n',
+  );
+  const inferred = inferDbOrigin(root);
+  assert.equal(inferred.dbEngine, 'postgresql');
+  assert.equal(inferred.evidence, 'docker-compose');
+  const a = bootstrapAfn(root);
+  const file = path.join(root, '.afn', 'db-connection.json');
+  assert.equal(fs.existsSync(file), true);
+  const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(j.dbEngine, 'postgresql');
+  assert.equal(j.needsCredentials, true);
+  assert.equal(j.host, 'localhost');
+  assert.equal(JSON.stringify(j).toLowerCase().includes('password'), false);
+  assert.equal(a.origin.skipped, false);
+  j.connectionName = 'no-pisar';
+  fs.writeFileSync(file, `${JSON.stringify(j, null, 2)}\n`);
+  const b = bootstrapAfn(root);
+  const j2 = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(j2.connectionName, 'no-pisar');
+  assert.equal(b.origin.skipped, true);
+});
+
+test('bootstrap con arquitectura ya hecha igual crea la ficha si falta', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  fs.unlinkSync(path.join(root, '.afn', 'db-connection.json'));
+  const b = bootstrapAfn(root);
+  assert.equal(fs.existsSync(path.join(root, '.afn', 'db-connection.json')), true);
+  assert.equal(b.origin.skipped, false);
+});
+
+test('setup kiro registra data-agent con host de la ficha, credenciales aparte', () => {
+  const home = tmp();
+  const project = tmp();
+  writePkg(path.join(project, 'api'), 'api', { dependencies: { mssql: '10' } });
+  fs.writeFileSync(
+    path.join(project, 'docker-compose.yml'),
+    'services:\n  db:\n    image: mcr.microsoft.com/mssql/server:2022-latest\n    ports:\n      - "1433:1433"\n',
+  );
+  fs.mkdirSync(path.join(project, '.afn', 'credentials'), { recursive: true });
+  fs.writeFileSync(
+    path.join(project, '.afn', 'credentials', 'data-agent.json'),
+    JSON.stringify({ DB_USER: 'sa', DB_PASSWORD: 'LocalOnly' }),
+  );
+  const r = setupAgent('kiro', { home, projectRoot: project });
+  assert.equal(r.dataAgent.merged, true);
+  const mcp = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'settings', 'mcp.json'), 'utf8'));
+  const agent = mcp.mcpServers['afn-mcp-data-agent'];
+  assert.equal(agent.env.DATA_AGENT_DRIVER, 'mssql');
+  assert.equal(agent.env.DB_SERVER, 'localhost');
+  assert.equal(agent.env.DB_PASSWORD, 'LocalOnly');
+  const origin = JSON.parse(fs.readFileSync(path.join(project, '.afn', 'db-connection.json'), 'utf8'));
+  assert.equal(origin.dbEngine, 'sqlserver');
+  assert.equal(JSON.stringify(origin).includes('LocalOnly'), false);
 });
 
 

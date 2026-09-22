@@ -156,7 +156,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_data_sources',
     description:
-      'Lista orígenes de datos del workspace (.afn/db-connection.json, perfiles, MCP data-agent/session-db) y PAs/colecciones mencionados en código. No conecta. No secretos. El LLM usa el MCP indicado y luego afn_schema_commit.',
+      'Lista orígenes de datos. El elegido está en .afn/db-connection.json (lo escribe el init). No conecta. No secretos. El LLM usa afn-mcp-data-agent (data_inspect_schema) y luego afn_schema_commit.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -189,7 +189,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_bootstrap',
     description:
-      'Crea .afn/ e inventario de repos (disco). No inventa flechas. Si falta el mapa, el LLM completa con afn_architecture_evidence + commit. refresh/force no pisan el cerebro.',
+      'Crea .afn/, inventario de repos (disco) y la ficha de origen .afn/db-connection.json (compose/env, sin passwords). No inventa flechas ni el host. Si falta el mapa, el LLM completa con afn_architecture_evidence + commit. refresh/force no pisan el cerebro ni la ficha de origen.',
     inputSchema: {
       type: 'object',
       properties: {

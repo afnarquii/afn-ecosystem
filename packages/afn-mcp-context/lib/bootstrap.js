@@ -7,6 +7,7 @@ import { isCatalogish, resolveWorkspaceRoot } from './resolve-root.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
 import { architectureExists } from './workspace-flow.js';
+import { ensureDbOriginFile } from './data-sources.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -88,6 +89,7 @@ export function bootstrapAfn(root, opts = {}) {
   if (existingCount && !force && !weakExisting && !richer) {
     const cfg = normalizeProjectsConfig({ ...existingNorm, architectureLocked: locked });
     const extra = enrichAfn(base, cfg, { recreateDiagram });
+    const origin = ensureDbOriginFile(base, cfg.projects);
     return {
       ok: true,
       skipped: true,
@@ -97,6 +99,7 @@ export function bootstrapAfn(root, opts = {}) {
       reason: recreateDiagram ? 'mapa-actualizado' : 'arquitectura-existe',
       diagram: extra.diagram,
       assets: extra.assets,
+      origin,
       refreshed: extra.diagram?.skipped === false,
       architectureLocked: locked,
       hint: 'Arquitectura en disco. No regenerar al abrir el proyecto ni al abrir el dashboard.',
@@ -111,12 +114,14 @@ export function bootstrapAfn(root, opts = {}) {
   });
   fs.writeFileSync(pjFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   const extra = enrichAfn(base, config, { recreateDiagram });
+  const origin = ensureDbOriginFile(base, config.projects);
   return {
     ok: true,
     skipped: false,
     wrote: true,
     root: base,
     config: extra.config || config,
+    origin,
     reason: force ? 'force' : weakExisting ? 'mapa-pobre-reescrito' : 'detectado',
     diagram: extra.diagram,
     assets: extra.assets,

@@ -6,6 +6,8 @@ Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el p
 
 Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace** (copia en `.afn/ARQUITECTURA.md`). Dashboard: README primero.
 
+Origen de datos: el init (`setup kiro` / `bootstrap`, equivalente a `/afn-init`) escribe `.afn/db-connection.json` con evidencia de disco (compose, `.env.example`). No adivina el host. Las credenciales no van a git.
+
 Guía de integración (Kiro / Cursor / Claude / genérico):  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)
 

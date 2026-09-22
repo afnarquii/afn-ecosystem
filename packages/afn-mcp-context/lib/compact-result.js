@@ -69,6 +69,7 @@ export function compactEvidence(ev = {}) {
 }
 
 export function compactBootstrap(r = {}) {
+  const origin = r.origin?.origin || {};
   return {
     ok: r.ok !== false,
     skipped: r.skipped === true,
@@ -78,11 +79,21 @@ export function compactBootstrap(r = {}) {
     architectureLocked: r.architectureLocked === true,
     projectCount: Array.isArray(r.config?.projects) ? r.config.projects.length : undefined,
     diagramSkipped: r.diagram ? r.diagram.skipped !== false : true,
+    origin: r.origin
+      ? {
+          skipped: r.origin.skipped === true,
+          file: '.afn/db-connection.json',
+          engine: origin.engine || '',
+          name: origin.name || '',
+          host: origin.host || '',
+          database: origin.database || '',
+        }
+      : undefined,
     hint:
       r.hint
       || (r.skipped
         ? 'Arquitectura en disco. No regenerar. Abrí el dashboard o pedí regenerá la arquitectura si cambió el sistema.'
-        : 'Inventario creado. ARQUITECTURA.md en la raíz. No completes con LLM salvo pedido explícito.'),
+        : 'Inventario creado. ARQUITECTURA.md en la raíz. Origen de datos: .afn/db-connection.json. No completes con LLM salvo pedido explícito.'),
   };
 }
 

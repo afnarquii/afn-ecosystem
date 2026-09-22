@@ -54,7 +54,8 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
-- Si pide **conectar el origen de datos / listar tablas y PAs**: en Kiro **no hay UI de BD**. El usuario escribe «listá las tablas y PAs y guardalas en la arquitectura». Entonces: \`data_inspect_schema\` del MCP **afn-mcp-data-agent** (tiene que estar en el mismo \`.kiro/settings/mcp.json\`) con \`sample: true\`. Luego \`afn_schema_commit\` y \`afn_dashboard\` (pestaña Datos). Si no está el MCP de datos, decí que hay que agregarlo (npx \`@afn-ecosystem/mcp-data-agent\` + env DB_SERVER/DB_DATABASE/DB_USER/DB_PASSWORD). No inventes tablas.
+- El origen de datos **no se adivina**. Lo escribe el init (\`afn_bootstrap\` / \`setup kiro\` / el equivalente de \`/afn-init\`) en \`.afn/db-connection.json\` (motor, host, database, evidencia de compose o \`.env.example\`). **Sin passwords**. Las credenciales van en \`.afn/credentials/data-agent.json\` (no git).
+- Si pide **conectar / listar tablas y PAs**: leé esa ficha. En Kiro **no hay UI de BD**. El usuario escribe «listá las tablas y PAs y guardalas en la arquitectura». Entonces: \`data_inspect_schema\` del MCP **afn-mcp-data-agent** (mismo \`.kiro/settings/mcp.json\`) con \`sample: true\`. Luego \`afn_schema_commit\` y \`afn_dashboard\` (pestaña Datos). Si \`needsCredentials\` o falta el MCP, pedí servidor/usuario/password; no inventes tablas ni el host.
 - Las tools de arquitectura devuelven un resumen. El JSON completo está en disco (\`workspace-flow.json\`, \`projects.json\`, \`ARQUITECTURA.md\`).
 - Si el snapshot dice mapa verificado o inventario en disco y nadie pidió regenerar: no toques el mapa.
 - Regenerar no borra observaciones ni \`MEMORY.md\`.
@@ -78,6 +79,39 @@ function mergeMcpServers(file, extra) {
   if (!cur.mcpServers || typeof cur.mcpServers !== 'object') cur.mcpServers = {};
   cur.mcpServers['afn-context'] = extra;
   writeJson(file, cur);
+}
+
+/**
+ * Registra afn-mcp-data-agent usando la ficha de init. No pisa un MCP ya configurado.
+ * Secretos solo desde .afn/credentials/data-agent.json (gitignored).
+ */
+function mergeDataAgentFromOrigin(mcpFile, pinRoot) {
+  if (!pinRoot) return { merged: false, reason: 'sin-workspace' };
+  const cur = readJson(mcpFile) || { mcpServers: {} };
+  if (!cur.mcpServers || typeof cur.mcpServers !== 'object') cur.mcpServers = {};
+  if (cur.mcpServers['afn-mcp-data-agent']) return { merged: false, reason: 'ya-existe' };
+  const origin = readJson(path.join(pinRoot, '.afn', 'db-connection.json')) || {};
+  const engine = String(origin.dbEngine || origin.engine || '').toLowerCase();
+  const driver = /mongo/.test(engine) ? 'mongodb' : /sqlserver|mssql/.test(engine) ? 'mssql' : '';
+  const cred = readJson(path.join(pinRoot, '.afn', 'credentials', 'data-agent.json')) || {};
+  const env = {};
+  if (driver) env.DATA_AGENT_DRIVER = driver;
+  if (origin.host) env.DB_SERVER = String(origin.host);
+  if (origin.port) env.DB_PORT = String(origin.port);
+  if (origin.database) env.DB_DATABASE = String(origin.database);
+  for (const [k, v] of Object.entries(cred && typeof cred === 'object' ? cred : {})) {
+    if (typeof v !== 'string' || !v) continue;
+    if (/password|secret|token|uri|user|database|server|host|port|driver/i.test(k)) env[k] = v;
+  }
+  cur.mcpServers['afn-mcp-data-agent'] = {
+    command: 'npx',
+    args: ['-y', '@afn-ecosystem/mcp-data-agent@latest'],
+    disabled: false,
+    env,
+    autoApprove: ['data_inspect_schema', 'data_list_entities', 'data_describe_entity', 'data_list_actions'],
+  };
+  writeJson(mcpFile, cur);
+  return { merged: true, driver: env.DATA_AGENT_DRIVER || driver || '' };
 }
 
 function afnContextServer(pinRoot) {
@@ -208,6 +242,7 @@ export function setupAgent(agent, opts = {}) {
     fs.writeFileSync(userSteering, USER_STEERING, 'utf8');
     written.push(userSteering);
     const boot = pinRoot ? bootstrapAfn(pinRoot, { ceiling: pinRoot }) : { ok: false, reason: 'raiz-catalogo' };
+    const dataAgent = pinRoot ? mergeDataAgentFromOrigin(mcpFile, pinRoot) : { merged: false };
     return {
       ok: true,
       agent: 'kiro',
@@ -216,8 +251,9 @@ export function setupAgent(agent, opts = {}) {
       mcpFile,
       userMcpStripped: stripped.stripped,
       bootstrap: boot,
+      dataAgent,
       note: pinRoot
-        ? `MCP de este workspace: ${mcpFile}. Abrí otro producto → setup kiro ahí (no comparte la ruta).`
+        ? `MCP de este workspace: ${mcpFile}. Origen: .afn/db-connection.json. Abrí otro producto → setup kiro ahí (no comparte la ruta).`
         : 'Corré setup otra vez desde el workspace del producto, no desde afn-ecosystem.',
     };
   }

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afnPath } from './paths.js';
 import { redactSecrets } from './redact.js';
 import { writeArchitectureReadmeFiles, mergeLiveDataIntoReadme } from './architecture-readme.js';
+import { scanComposeServices } from './stack-signals.js';
 
 const SKIP = new Set([
   'node_modules', '.git', 'dist', 'build', 'coverage', 'vendor',
@@ -42,6 +43,119 @@ function stripSecretFields(obj) {
 
 export function liveDataFile(root) {
   return afnPath(root, 'diagrams', 'datos.md');
+}
+
+const SKIP_ENGINE = new Set(['', 'redis', 'dynamodb']);
+
+function mcpForEngine() {
+  return 'afn-mcp-data-agent';
+}
+
+function parseEnvExampleOrigin(root) {
+  const names = ['.env.example', '.env.sample', '.env.template', 'env.example'];
+  let blob = '';
+  for (const n of names) blob += `\n${readText(path.join(root, n), 8_000)}`;
+  if (!blob.trim()) return null;
+  const engine = (() => {
+    const t = blob.toLowerCase();
+    if (/sqlserver|mssql|tedious/.test(t)) return 'sqlserver';
+    if (/postgres|postgresql/.test(t)) return 'postgresql';
+    if (/mysql|mariadb/.test(t)) return 'mysql';
+    if (/\bmongo(?:db)?\b/.test(t)) return 'mongodb';
+    if (/\bsqlite\b/.test(t)) return 'sqlite';
+    return '';
+  })();
+  const dbM = blob.match(
+    /^\s*(?:POSTGRES_DB|MYSQL_DATABASE|MONGO_INITDB_DATABASE|DB_DATABASE|DB_NAME|DATABASE_NAME)\s*=\s*["']?([^\s#"']+)/im,
+  );
+  const hostM = blob.match(
+    /^\s*(?:DB_SERVER|DB_HOST|SQL_HOST|MONGO_HOST|POSTGRES_HOST)\s*=\s*["']?([^\s#"']+)/im,
+  );
+  const portM = blob.match(
+    /^\s*(?:DB_PORT|SQL_PORT|MONGO_PORT|POSTGRES_PORT)\s*=\s*["']?(\d{2,5})/im,
+  );
+  const host = hostM?.[1] && !SECRET_KEY.test(hostM[1]) ? hostM[1] : '';
+  const database = dbM?.[1] && !SECRET_KEY.test(dbM[1]) ? dbM[1] : '';
+  if (!engine && !host && !database) return null;
+  return {
+    connectionName: database || engine || 'origen',
+    dbEngine: engine,
+    host,
+    port: portM ? Number(portM[1]) : null,
+    database,
+    evidence: '.env.example',
+  };
+}
+
+/**
+ * Origen candidato con evidencia de disco (compose, env.example, projects.db).
+ * Sin secretos. No conecta.
+ */
+export function inferDbOrigin(root, projects = []) {
+  const compose = (scanComposeServices(root) || []).find(
+    (s) => s.type === 'database' && !SKIP_ENGINE.has(String(s.db || '').toLowerCase()),
+  );
+  if (compose) {
+    const engine = compose.db === 'database' ? '' : compose.db;
+    return {
+      connectionName: compose.name || engine || 'db',
+      dbEngine: engine,
+      host: compose.port ? 'localhost' : '',
+      port: compose.port || null,
+      database: '',
+      evidence: 'docker-compose',
+    };
+  }
+  const env = parseEnvExampleOrigin(root);
+  if (env) return env;
+  const withDb = (projects || []).find((p) => p.db && !SKIP_ENGINE.has(String(p.db).toLowerCase()));
+  if (withDb) {
+    return {
+      connectionName: withDb.name || withDb.db,
+      dbEngine: withDb.db,
+      host: '',
+      port: null,
+      database: '',
+      evidence: `projects:${withDb.name}`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Ficha de origen del init (`/afn-init` / bootstrap). No pisa si ya existe.
+ * Nunca escribe password.
+ */
+export function ensureDbOriginFile(root, projects = []) {
+  const file = afnPath(root, 'db-connection.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (fs.existsSync(file)) {
+    return {
+      ok: true,
+      skipped: true,
+      path: '.afn/db-connection.json',
+      origin: sanitizeConn(readJson(file) || {}),
+    };
+  }
+  const inferred = inferDbOrigin(root, projects);
+  const body = {
+    version: 1,
+    connectionName: inferred?.connectionName || '',
+    dbEngine: inferred?.dbEngine || '',
+    host: inferred?.host || '',
+    port: inferred?.port || null,
+    database: inferred?.database || '',
+    evidence: inferred?.evidence || 'afn-init-sin-evidencia',
+    mcp: mcpForEngine(inferred?.dbEngine),
+    needsCredentials: true,
+  };
+  fs.writeFileSync(file, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+  return {
+    ok: true,
+    skipped: false,
+    path: '.afn/db-connection.json',
+    origin: sanitizeConn(body),
+  };
 }
 
 function sanitizeConn(raw) {

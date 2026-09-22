@@ -44,7 +44,7 @@ node C:\projects\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 
 `setup` escribe rutas **absolutas** a `index.js` (Windows/macOS/Linux). Engram, si existía en `mcp.json`, **se deja**.
 
-El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. Arma el **flujo cross-project**: rol, framework, BD, puerto, prefix, proxy, lambda, capas, quién llama qué, cómo desarrollar y probar. **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
+El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. Arma el **flujo cross-project**: rol, framework, BD, puerto, prefix, proxy, lambda, capas, quién llama qué, cómo desarrollar y probar. **También escribe** `.afn/db-connection.json` (motor/host/base con evidencia de compose o `.env.example`; **sin passwords**; no pisa si ya existe). `setup kiro` registra `afn-mcp-data-agent` en el mismo `mcp.json` usando esa ficha. **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
 
 Si Kiro arranca el MCP con cwd del paquete, `AFN_PROJECT_ROOT` queda anclado **en ese workspace** (`.kiro/settings/mcp.json` del producto). Cada producto tiene el suyo; no se comparte la ruta del usuario.
 
