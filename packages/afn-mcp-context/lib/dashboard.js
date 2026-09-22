@@ -408,6 +408,8 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   function showView(id) {
     document.querySelectorAll("[data-view]").forEach((n) => n.hidden = n.getAttribute("data-view") !== id);
     document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.go === id));
+    const sqlPreview = document.getElementById("wb-sql-inspect");
+    if (id !== "sql" && sqlPreview) sqlPreview.classList.remove("fs");
     if (id === "mapa") render(document.getElementById("flow-mermaid"), document.getElementById("flow-src").textContent);
     if (id === "capas") render(document.getElementById("layers-mermaid"), document.getElementById("layers-src").textContent);
     if (id === "howto") render(document.getElementById("e2e-mermaid"), document.getElementById("e2e-src").textContent);
@@ -603,6 +605,7 @@ ${workbenchScript()}
     --ok:#34d399; --bar:#0e141c;
   }
   * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
   .app { display:grid; grid-template-columns:240px 1fr; min-height:100%; }
   aside { background:var(--bar); border-right:1px solid var(--line); padding:0; display:flex; flex-direction:column; }
@@ -667,7 +670,7 @@ ${workbenchScript()}
   .sql-ed { width:100%; min-height:12rem; background:#0b1016; color:#e8eef5; border:1px solid var(--line); border-radius:10px; padding:.75rem .85rem; font:13px/1.45 Consolas,ui-monospace,monospace; tab-size:2; }
   .chk { display:block; padding:.28rem 0; }
   .chk input { margin-right:.4rem; }
-  section[data-view="sql"].sql-ide { max-width:none; min-height:calc(100vh - 5.2rem); display:flex; flex-direction:column; }
+  section[data-view="sql"].sql-ide:not([hidden]) { max-width:none; min-height:calc(100vh - 5.2rem); display:flex; flex-direction:column; }
   .sql-ide h2 { margin-bottom:.15rem; }
   .sql-ide-toolbar { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; margin:0 0 .7rem; }
   .sql-ide-toolbar label { display:flex; align-items:center; gap:.35rem; font-size:.78rem; color:var(--muted); }
