@@ -82,18 +82,21 @@ export function compactBootstrap(r = {}) {
     origin: r.origin
       ? {
           skipped: r.origin.skipped === true,
-          file: '.afn/db-connection.json',
+          file: '.afn/db-connections.json',
+          session: '.afn/db-connection.json',
+          count: r.origin.count || (Array.isArray(r.origin.origins) ? r.origin.origins.length : 1),
           engine: origin.engine || '',
           name: origin.name || '',
           host: origin.host || '',
           database: origin.database || '',
+          names: (r.origin.origins || []).map((o) => o.name || o.id).filter(Boolean).slice(0, 12),
         }
       : undefined,
     hint:
       r.hint
       || (r.skipped
         ? 'Arquitectura en disco. No regenerar. Abrí el dashboard o pedí regenerá la arquitectura si cambió el sistema.'
-        : 'Inventario creado. ARQUITECTURA.md en la raíz. Origen de datos: .afn/db-connection.json. No completes con LLM salvo pedido explícito.'),
+        : 'Inventario creado. ARQUITECTURA.md en la raíz. Orígenes: .afn/db-connections.json. No completes con LLM salvo pedido explícito.'),
   };
 }
 

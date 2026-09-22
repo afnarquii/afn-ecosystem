@@ -17,7 +17,7 @@ import { saveObservation, startSession, endSession, getMemContext, loadCerebro }
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-notes.js';
-import { collectDataSources, commitLiveSchema, inferDbOrigin } from '../lib/data-sources.js';
+import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins } from '../lib/data-sources.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -856,6 +856,8 @@ test('afn-init escribe ficha de origen desde compose y no pisa ni guarda passwor
   assert.equal(j.host, 'localhost');
   assert.equal(JSON.stringify(j).toLowerCase().includes('password'), false);
   assert.equal(a.origin.skipped, false);
+  const pack = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
+  assert.ok(pack.connections.some((c) => c.dbEngine === 'postgresql'));
   j.connectionName = 'no-pisar';
   fs.writeFileSync(file, `${JSON.stringify(j, null, 2)}\n`);
   const b = bootstrapAfn(root);
@@ -897,6 +899,54 @@ test('setup kiro registra data-agent con host de la ficha, credenciales aparte',
   const origin = JSON.parse(fs.readFileSync(path.join(project, '.afn', 'db-connection.json'), 'utf8'));
   assert.equal(origin.dbEngine, 'sqlserver');
   assert.equal(JSON.stringify(origin).includes('LocalOnly'), false);
+});
+
+test('varios repos / compose: varias fichas de origen, no una sola', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4', mssql: '10' } });
+  writePkg(path.join(root, 'catalog'), 'catalog', { dependencies: { mongoose: '8' } });
+  fs.writeFileSync(
+    path.join(root, 'docker-compose.yml'),
+    [
+      'services:',
+      '  sql:',
+      '    image: mcr.microsoft.com/mssql/server:2022-latest',
+      '    ports:',
+      '      - "1433:1433"',
+      '  mongo:',
+      '    image: mongo:6',
+      '    ports:',
+      '      - "27017:27017"',
+      '',
+    ].join('\n'),
+  );
+  fs.writeFileSync(path.join(root, 'api', '.env.example'), 'DB_SERVER=sql.interno\nDB_DATABASE=Pedidos\nDB_PORT=1433\n');
+  fs.writeFileSync(
+    path.join(root, 'catalog', '.env.example'),
+    'MONGO_HOST=mongo.interno\nMONGO_INITDB_DATABASE=catalog\n',
+  );
+  const inferred = inferDbOrigins(root, [
+    { name: 'api', path: './api', db: 'sqlserver' },
+    { name: 'catalog', path: './catalog', db: 'mongodb' },
+  ]);
+  const engines = new Set(inferred.map((o) => o.dbEngine));
+  assert.equal(engines.has('sqlserver'), true);
+  assert.equal(engines.has('mongodb'), true);
+  assert.ok(inferred.length >= 2);
+  const boot = bootstrapAfn(root);
+  assert.ok(boot.origin.count >= 2);
+  const pack = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
+  assert.ok(pack.connections.length >= 2);
+  assert.equal(JSON.stringify(pack).toLowerCase().includes('password'), false);
+  const home = tmp();
+  setupAgent('kiro', { home, projectRoot: root });
+  const mcp = JSON.parse(fs.readFileSync(path.join(root, '.kiro', 'settings', 'mcp.json'), 'utf8'));
+  const dataServers = Object.keys(mcp.mcpServers).filter((k) => /data-agent/.test(k));
+  assert.ok(dataServers.length >= 2, String(dataServers));
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /db-connections\.json/);
+  assert.match(html, /sqlserver|mssql/i);
+  assert.match(html, /mongo/i);
 });
 
 

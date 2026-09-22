@@ -416,17 +416,44 @@ export function scanComposeServices(root) {
   if (!file) return [];
   const src = readText(file, 30_000);
   const out = [];
-  if (/postgres|mysql|mongo|redis|mssql/i.test(src)) {
-    const db = dbKindFrom(src, '') || 'database';
-    const portM = src.match(/["']?(\d{4,5}):(?:5432|3306|27017|6379|1433)/);
+  const seen = new Set();
+  const chunks = src.split(/\n(?= {2}[A-Za-z0-9_.-]+:)/);
+  for (const chunk of chunks) {
+    const nameM = chunk.match(/^ {2}([A-Za-z0-9_.-]+):/);
+    if (!nameM) continue;
+    const name = nameM[1];
+    if (/^(services|volumes|networks|configs|secrets|x-[a-z0-9_-]+)$/i.test(name)) continue;
+    const img = chunk.match(/\bimage:\s*['"]?([^\s'"\n]+)/i);
+    const blob = `${name} ${img?.[1] || ''} ${chunk}`;
+    if (!/postgres|mysql|mariadb|mongo|mssql|sqlserver/i.test(blob)) continue;
+    const db = dbKindFrom(blob, '') || 'database';
+    if (db === 'redis') continue;
+    const portM = chunk.match(/["']?(\d{4,5}):(?:5432|3306|27017|6379|1433)/);
+    const key = `${name}:${db}:${portM?.[1] || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push({
-      name: db === 'database' ? 'db' : db,
+      name,
       type: 'database',
       db,
       port: portM ? Number(portM[1]) : undefined,
       role: 'datos',
       layer: 'data',
     });
+  }
+  if (!out.length && /postgres|mysql|mariadb|mongo|mssql|sqlserver/i.test(src)) {
+    const db = dbKindFrom(src, '') || 'database';
+    if (db !== 'redis') {
+      const portM = src.match(/["']?(\d{4,5}):(?:5432|3306|27017|6379|1433)/);
+      out.push({
+        name: db === 'database' ? 'db' : db,
+        type: 'database',
+        db,
+        port: portM ? Number(portM[1]) : undefined,
+        role: 'datos',
+        layer: 'data',
+      });
+    }
   }
   return out;
 }

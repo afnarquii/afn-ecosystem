@@ -51,20 +51,22 @@ function mcpForEngine() {
   return 'afn-mcp-data-agent';
 }
 
-function parseEnvExampleOrigin(root) {
+function engineFromBlob(blob) {
+  const t = String(blob || '').toLowerCase();
+  if (/sqlserver|mssql|tedious/.test(t)) return 'sqlserver';
+  if (/postgres|postgresql/.test(t)) return 'postgresql';
+  if (/mysql|mariadb/.test(t)) return 'mysql';
+  if (/\bmongo(?:db)?\b/.test(t)) return 'mongodb';
+  if (/\bsqlite\b/.test(t)) return 'sqlite';
+  return '';
+}
+
+function parseEnvExampleOrigin(dir, evidence = '.env.example') {
   const names = ['.env.example', '.env.sample', '.env.template', 'env.example'];
   let blob = '';
-  for (const n of names) blob += `\n${readText(path.join(root, n), 8_000)}`;
+  for (const n of names) blob += `\n${readText(path.join(dir, n), 8_000)}`;
   if (!blob.trim()) return null;
-  const engine = (() => {
-    const t = blob.toLowerCase();
-    if (/sqlserver|mssql|tedious/.test(t)) return 'sqlserver';
-    if (/postgres|postgresql/.test(t)) return 'postgresql';
-    if (/mysql|mariadb/.test(t)) return 'mysql';
-    if (/\bmongo(?:db)?\b/.test(t)) return 'mongodb';
-    if (/\bsqlite\b/.test(t)) return 'sqlite';
-    return '';
-  })();
+  const engine = engineFromBlob(blob);
   const dbM = blob.match(
     /^\s*(?:POSTGRES_DB|MYSQL_DATABASE|MONGO_INITDB_DATABASE|DB_DATABASE|DB_NAME|DATABASE_NAME)\s*=\s*["']?([^\s#"']+)/im,
   );
@@ -83,78 +85,224 @@ function parseEnvExampleOrigin(root) {
     host,
     port: portM ? Number(portM[1]) : null,
     database,
-    evidence: '.env.example',
+    evidence,
   };
 }
 
-/**
- * Origen candidato con evidencia de disco (compose, env.example, projects.db).
- * Sin secretos. No conecta.
- */
-export function inferDbOrigin(root, projects = []) {
-  const compose = (scanComposeServices(root) || []).find(
-    (s) => s.type === 'database' && !SKIP_ENGINE.has(String(s.db || '').toLowerCase()),
-  );
-  if (compose) {
-    const engine = compose.db === 'database' ? '' : compose.db;
-    return {
-      connectionName: compose.name || engine || 'db',
-      dbEngine: engine,
-      host: compose.port ? 'localhost' : '',
-      port: compose.port || null,
-      database: '',
-      evidence: 'docker-compose',
-    };
+function originId(o) {
+  const raw = [o.dbEngine || o.engine, o.host, o.port, o.database, o.project, o.connectionName]
+    .filter((x) => x !== undefined && x !== null && String(x) !== '')
+    .join('-')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 56);
+  return `init_${raw || 'origen'}`;
+}
+
+function sameishOrigin(a, b) {
+  const ea = String(a.dbEngine || a.engine || '').toLowerCase();
+  const eb = String(b.dbEngine || b.engine || '').toLowerCase();
+  if (!ea || !eb || ea !== eb) return false;
+  const hostA = String(a.host || '').toLowerCase();
+  const hostB = String(b.host || '').toLowerCase();
+  if (hostA && hostB && hostA !== hostB) return false;
+  const dbA = String(a.database || '').toLowerCase();
+  const dbB = String(b.database || '').toLowerCase();
+  if (dbA && dbB && dbA !== dbB) return false;
+  const pA = Number(a.port || 0);
+  const pB = Number(b.port || 0);
+  if (pA && pB && pA !== pB) return false;
+  if (!hostA && !hostB && !dbA && !dbB && !pA && !pB) {
+    return String(a.project || '') === String(b.project || '');
   }
-  const env = parseEnvExampleOrigin(root);
-  if (env) return env;
-  const withDb = (projects || []).find((p) => p.db && !SKIP_ENGINE.has(String(p.db).toLowerCase()));
-  if (withDb) {
-    return {
-      connectionName: withDb.name || withDb.db,
-      dbEngine: withDb.db,
-      host: '',
-      port: null,
-      database: '',
-      evidence: `projects:${withDb.name}`,
-    };
+  return true;
+}
+
+function mergeOrigin(into, extra) {
+  const evA = String(into.evidence || '');
+  const evB = String(extra.evidence || '');
+  return {
+    ...into,
+    connectionName: into.connectionName || extra.connectionName,
+    host: into.host || extra.host,
+    port: into.port || extra.port,
+    database: into.database || extra.database,
+    project: into.project || extra.project,
+    evidence: evA && evB && evA !== evB ? `${evA}+${evB}` : evA || evB,
+  };
+}
+
+function fromComposeService(s, project = '') {
+  if (!s || s.type !== 'database') return null;
+  const engine = s.db === 'database' ? '' : s.db;
+  if (SKIP_ENGINE.has(String(engine || '').toLowerCase())) return null;
+  return {
+    connectionName: s.name || engine || 'db',
+    dbEngine: engine,
+    host: s.port ? 'localhost' : '',
+    port: s.port || null,
+    database: '',
+    evidence: project ? `${project}:docker-compose` : 'docker-compose',
+    project,
+  };
+}
+
+function toConnRecord(inf) {
+  const id = inf.id || originId(inf);
+  return {
+    id,
+    name: inf.connectionName || inf.name || inf.dbEngine || id,
+    connectionName: inf.connectionName || inf.name || '',
+    dbEngine: inf.dbEngine || inf.engine || '',
+    engine: inf.dbEngine || inf.engine || '',
+    host: inf.host || '',
+    port: inf.port || null,
+    database: inf.database || '',
+    project: inf.project || '',
+    evidence: inf.evidence || 'afn-init',
+    mcp: mcpForEngine(),
+    needsCredentials: true,
+    scope: 'project',
+  };
+}
+
+function stripSecretsFromConn(c) {
+  if (!c || typeof c !== 'object') return {};
+  const out = { ...c };
+  for (const k of Object.keys(out)) {
+    if (SECRET_KEY.test(k)) delete out[k];
+    if (typeof out[k] === 'string' && /pwd=|password=|mongodb(\+srv)?:\/\/[^:]+:[^@]+@/i.test(out[k])) delete out[k];
   }
-  return null;
+  return out;
 }
 
 /**
- * Ficha de origen del init (`/afn-init` / bootstrap). No pisa si ya existe.
+ * Todos los orígenes con evidencia de disco (varios repos / varios compose).
+ * Sin secretos. No conecta.
+ */
+export function inferDbOrigins(root, projects = []) {
+  const list = [];
+  const push = (raw) => {
+    if (!raw) return;
+    const engine = String(raw.dbEngine || raw.engine || '').toLowerCase();
+    if (SKIP_ENGINE.has(engine) && !raw.host && !raw.database) return;
+    const hit = list.find((x) => sameishOrigin(x, raw));
+    if (hit) {
+      const idx = list.indexOf(hit);
+      list[idx] = mergeOrigin(hit, raw);
+      return;
+    }
+    list.push({ ...raw });
+  };
+
+  for (const s of scanComposeServices(root) || []) push(fromComposeService(s));
+  push(parseEnvExampleOrigin(root));
+
+  const rootAbs = path.resolve(root);
+  for (const p of projects || []) {
+    const dir = path.resolve(root, p.path || '.');
+    if (dir !== rootAbs) {
+      for (const s of scanComposeServices(dir) || []) push(fromComposeService(s, p.name));
+      const env = parseEnvExampleOrigin(dir, `${p.name}:.env.example`);
+      if (env) push({ ...env, project: p.name, connectionName: env.connectionName || p.name });
+    }
+    if (p.db && !SKIP_ENGINE.has(String(p.db).toLowerCase())) {
+      push({
+        connectionName: p.name || p.db,
+        dbEngine: p.db,
+        host: '',
+        port: null,
+        database: '',
+        evidence: `projects:${p.name}`,
+        project: p.name,
+      });
+    }
+  }
+
+  return list.map((o) => ({ ...o, id: originId(o) }));
+}
+
+export function inferDbOrigin(root, projects = []) {
+  return inferDbOrigins(root, projects)[0] || null;
+}
+
+function readConnectionsPack(root) {
+  const pack = readJson(afnPath(root, 'db-connections.json'));
+  const list = Array.isArray(pack?.connections) ? pack.connections : Array.isArray(pack) ? pack : [];
+  return list.map(stripSecretsFromConn).filter((c) => c && (c.id || c.name || c.connectionName));
+}
+
+/**
+ * Catálogo de orígenes del init. Varios repos → varias fichas.
+ * `.afn/db-connections.json` = lista. `.afn/db-connection.json` = sesión activa (la primera, no pisa).
  * Nunca escribe password.
  */
 export function ensureDbOriginFile(root, projects = []) {
-  const file = afnPath(root, 'db-connection.json');
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  if (fs.existsSync(file)) {
-    return {
-      ok: true,
-      skipped: true,
-      path: '.afn/db-connection.json',
-      origin: sanitizeConn(readJson(file) || {}),
-    };
+  fs.mkdirSync(afnPath(root), { recursive: true });
+  const packFile = afnPath(root, 'db-connections.json');
+  const sessionFile = afnPath(root, 'db-connection.json');
+  const inferred = inferDbOrigins(root, projects);
+  const existing = readConnectionsPack(root);
+  const byId = new Map();
+  for (const c of existing) {
+    const rec = toConnRecord(c);
+    byId.set(rec.id, { ...rec, ...stripSecretsFromConn(c), id: rec.id });
   }
-  const inferred = inferDbOrigin(root, projects);
-  const body = {
-    version: 1,
-    connectionName: inferred?.connectionName || '',
-    dbEngine: inferred?.dbEngine || '',
-    host: inferred?.host || '',
-    port: inferred?.port || null,
-    database: inferred?.database || '',
-    evidence: inferred?.evidence || 'afn-init-sin-evidencia',
-    mcp: mcpForEngine(inferred?.dbEngine),
-    needsCredentials: true,
-  };
-  fs.writeFileSync(file, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+  let added = 0;
+  for (const inf of inferred) {
+    const body = toConnRecord(inf);
+    if (byId.has(body.id)) continue;
+    const dup = [...byId.values()].find((x) => sameishOrigin(x, body));
+    if (dup) {
+      byId.set(dup.id, mergeOrigin(dup, body));
+      continue;
+    }
+    byId.set(body.id, body);
+    added += 1;
+  }
+  let connections = [...byId.values()];
+  if (!connections.length) {
+    if (fs.existsSync(sessionFile)) {
+      connections = [toConnRecord(stripSecretsFromConn(readJson(sessionFile) || {}))];
+    } else {
+      connections = [toConnRecord({ connectionName: '', dbEngine: '', evidence: 'afn-init-sin-evidencia' })];
+      added += 1;
+    }
+  }
+  fs.writeFileSync(packFile, `${JSON.stringify({ version: 1, connections }, null, 2)}\n`, 'utf8');
+
+  let sessionSkipped = true;
+  let sessionOrigin;
+  if (fs.existsSync(sessionFile)) {
+    sessionOrigin = sanitizeConn(readJson(sessionFile) || {});
+  } else {
+    const first = connections[0];
+    const sessionBody = {
+      version: 1,
+      id: first.id,
+      connectionName: first.connectionName || first.name || '',
+      dbEngine: first.dbEngine || first.engine || '',
+      host: first.host || '',
+      port: first.port || null,
+      database: first.database || '',
+      evidence: first.evidence || 'afn-init',
+      mcp: first.mcp || mcpForEngine(),
+      needsCredentials: true,
+    };
+    fs.writeFileSync(sessionFile, `${JSON.stringify(sessionBody, null, 2)}\n`, 'utf8');
+    sessionSkipped = false;
+    sessionOrigin = sanitizeConn(sessionBody);
+  }
+
   return {
     ok: true,
-    skipped: false,
-    path: '.afn/db-connection.json',
-    origin: sanitizeConn(body),
+    skipped: sessionSkipped && added === 0,
+    path: '.afn/db-connections.json',
+    session: '.afn/db-connection.json',
+    origin: sessionOrigin,
+    origins: connections.map(sanitizeConn),
+    count: connections.length,
   };
 }
 
@@ -166,6 +314,8 @@ function sanitizeConn(raw) {
     engine: String(c.engine || c.dbEngine || c.dbType || c.type || '').slice(0, 40),
     database: String(c.database || c.db || '').slice(0, 80),
     host: String(c.server || c.host || '').slice(0, 120),
+    port: c.port ? Number(c.port) || null : null,
+    project: String(c.project || '').slice(0, 80),
   };
 }
 
@@ -274,9 +424,12 @@ export function collectDataSources(root) {
     useMcp = mcp.find((m) => /session-db|global-db/.test(m.id)).id;
     how = 'Usá list_tables / describe_table / run_readonly_sql (solo SELECT TOP 1). Luego afn_schema_commit.';
   } else if (mcp.some((m) => /data-agent/.test(m.id))) {
-    useMcp = mcp.find((m) => /data-agent/.test(m.id)).id;
-    how = 'Usá data_list_entities, data_describe_entity, data_list_actions. Un data_find con limit 1. Luego afn_schema_commit.';
+    const agents = mcp.filter((m) => /data-agent/.test(m.id)).map((m) => m.id);
+    useMcp = agents.join(', ');
+    how = 'Usá data_inspect_schema del MCP de ese origen (sample:true). Si hay varios, elegí el id de .afn/db-connections.json. Luego afn_schema_commit.';
   }
+
+  const names = profiles.map((p) => `${p.name || p.id} (${p.engine || '?'})`).filter(Boolean);
 
   return {
     ok: true,
@@ -291,9 +444,9 @@ export function collectDataSources(root) {
       mcpSessionDbTools: ctxSafe.mcpSessionDbTools === true,
     },
     liveFile: fs.existsSync(liveDataFile(root)) ? '.afn/diagrams/datos.md' : '',
-    hint: preferred
-      ? `Origen: ${preferred.name || preferred.id} (${preferred.engine || 'motor ?'}). MCP: ${useMcp}. ${how}`
-      : `Sin db-connection.json. Hay ${profiles.length} perfiles y ${mcp.length} MCP de datos. ${how}`,
+    hint: profiles.length
+      ? `Orígenes (${profiles.length}): ${names.slice(0, 8).join('; ') || preferred.name}. Activo: ${preferred?.name || preferred?.id || '—'}. MCP: ${useMcp}. ${how}`
+      : `Sin db-connections.json. ${how}`,
   };
 }
 

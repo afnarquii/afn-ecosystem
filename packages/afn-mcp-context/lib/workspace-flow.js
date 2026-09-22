@@ -61,7 +61,7 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
   }
 
   for (const extra of scanComposeServices(root)) {
-    if (projects.some((p) => p.type === 'database')) continue;
+    if (!extra?.db || extra.db === 'redis') continue;
     uniqPush(
       projects,
       {

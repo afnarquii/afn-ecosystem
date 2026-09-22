@@ -155,6 +155,20 @@ function collectDashboard(root) {
     flow,
     flowMd,
     datosMd: readText(afnPath(root, 'diagrams', 'datos.md')),
+    dbOrigins: (() => {
+      const pack = readJson(afnPath(root, 'db-connections.json'));
+      const list = Array.isArray(pack?.connections) ? pack.connections : Array.isArray(pack) ? pack : [];
+      return list
+        .filter((c) => c && (c.id || c.name || c.connectionName))
+        .map((c) => ({
+          id: String(c.id || '').slice(0, 80),
+          name: String(c.name || c.connectionName || '').slice(0, 80),
+          engine: String(c.engine || c.dbEngine || '').slice(0, 40),
+          host: String(c.host || c.server || '').slice(0, 80),
+          database: String(c.database || '').slice(0, 80),
+          project: String(c.project || '').slice(0, 80),
+        }));
+    })(),
     notes: listTaskNotes(root, { includeBody: true }),
   };
 }
@@ -176,7 +190,7 @@ function kindLabel(kind) {
 }
 
 function buildHtml(data) {
-  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd, datosMd = '', notes = [] } = data;
+  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd, datosMd = '', notes = [], dbOrigins = [] } = data;
   const obs = [...(cerebro.observations || [])].slice(-10).reverse();
   const sess = [...(cerebro.sessions || [])].slice(-6).reverse();
   const lastSess = sess[0];
@@ -285,9 +299,17 @@ function buildHtml(data) {
   const readmeHtml = mdToHtml(flowMd);
   const hasReadme = Boolean(String(flowMd || '').trim());
   const hasDatos = Boolean(String(datosMd || '').trim());
+  const originsHtml = dbOrigins.length
+    ? `<div class="table-wrap"><table class="doc-table"><thead><tr><th>Id</th><th>Nombre</th><th>Motor</th><th>Host</th><th>Base</th><th>Repo</th></tr></thead><tbody>${dbOrigins
+        .map(
+          (o) =>
+            `<tr><td><code>${esc(o.id)}</code></td><td>${esc(o.name)}</td><td>${esc(o.engine)}</td><td>${esc(o.host)}</td><td>${esc(o.database)}</td><td>${esc(o.project)}</td></tr>`,
+        )
+        .join('')}</tbody></table></div>`
+    : '';
   const datosHtml = hasDatos
     ? mdToHtml(datosMd)
-    : '<p class="muted">El init deja la ficha en <code>.afn/db-connection.json</code> (motor/host/base, sin password). En Kiro no hay pantalla de BD. Escribí: <strong>listá las tablas y PAs y guardalas en la arquitectura</strong>. Hace falta el MCP <code>afn-mcp-data-agent</code> en <code>.kiro/settings/mcp.json</code> (junto a afn-context) con usuario y password. Después pedí <strong>abre dashboard AFN</strong> y mirá esta pestaña.</p>';
+    : '<p class="muted">El init arma el catálogo en <code>.afn/db-connections.json</code> (puede haber varios orígenes: un repo, un compose, un env). <code>db-connection.json</code> es solo la sesión activa. En Kiro no hay pantalla de BD. Escribí: <strong>listá las tablas de [nombre] y guardalas en la arquitectura</strong>. Un MCP <code>afn-mcp-data-agent</code> por origen mssql/mongo. Después pedí <strong>abre dashboard AFN</strong>.</p>';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -685,7 +707,8 @@ function buildHtml(data) {
     </section>
     <section data-view="datos" hidden>
       <h2>Tablas y procedimientos</h2>
-      <p class="lead">Esto se lista desde Kiro (chat), no con un explorador gráfico. Archivo: <code>.afn/diagrams/datos.md</code>.</p>
+      <p class="lead">Varios repos pueden tener varias fuentes. Catálogo: <code>.afn/db-connections.json</code>. Esquema vivo: <code>.afn/diagrams/datos.md</code>.</p>
+      ${originsHtml}
       <article id="datos-article" class="article" data-q="tablas procedimientos esquema sql mongo pa stored">${datosHtml}</article>
     </section>
     <section data-view="notas" hidden>

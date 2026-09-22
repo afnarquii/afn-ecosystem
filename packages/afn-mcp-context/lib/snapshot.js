@@ -101,8 +101,8 @@ export function buildSnapshot(root) {
   }
 
   try {
-    if (fs.existsSync(afnPath(root, 'diagrams', 'datos.md')) || fs.existsSync(afnPath(root, 'db-connection.json'))) {
-      lines.push('Origen en `.afn/db-connection.json` (lo escribe el init). No conectes en cada turno. Si el usuario pide el esquema: leé esa ficha → MCP de BD → `afn_schema_commit`.');
+    if (fs.existsSync(afnPath(root, 'diagrams', 'datos.md')) || fs.existsSync(afnPath(root, 'db-connection.json')) || fs.existsSync(afnPath(root, 'db-connections.json'))) {
+      lines.push('Orígenes en `.afn/db-connections.json` (los escribe el init; puede haber varios). Sesión activa: `db-connection.json`. No conectes en cada turno. Si el usuario pide el esquema: elegí el origen → MCP de BD → `afn_schema_commit`.');
       lines.push('');
     }
   } catch {
