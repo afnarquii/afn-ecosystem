@@ -4,9 +4,15 @@ Servidor MCP **stdio** (Node ≥18, cero deps) que lee y escribe `.afn/` del **w
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace** (copia en `.afn/ARQUITECTURA.md`). Dashboard: README primero; en `http://127.0.0.1` (v1.4.11+) la pestaña Orígenes es un formulario (host/puerto/base, sin password). También Elegir tablas/PAs y SQL (solo SELECT).
+Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace** (copia en `.afn/ARQUITECTURA.md`). Dashboard: README primero; en `http://127.0.0.1` (v1.4.12+) la pestaña Orígenes es un formulario (host/puerto/base) más el formato de `data-agent.json`. También Elegir tablas/PAs y SQL (solo SELECT).
 
-Origen de datos: el init (`setup kiro` / `bootstrap`, equivalente a `/afn-init`) escribe `.afn/db-connections.json` (varios orígenes si hay varios repos/compose) y `.afn/db-connection.json` (sesión activa). No adivina el host. Las credenciales no van a git.
+Origen de datos: el init escribe `.afn/db-connections.json` (host/puerto/base, sin passwords) y `.afn/db-connection.json` (sesión activa). Credenciales en `.afn/credentials/data-agent.json` (gitignored):
+
+```json
+{ "DB_USER": "sa", "DB_PASSWORD": "TU_PASSWORD" }
+```
+
+Varios orígenes: `{ "byId": { "origen_1": { "DB_USER": "sa", "DB_PASSWORD": "TU_PASSWORD" } } }`. Mongo: `{ "MONGODB_URI": "mongodb://USER:PASSWORD@host:27017/db" }`.
 
 Guía de integración (Kiro / Cursor / Claude / genérico):  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)

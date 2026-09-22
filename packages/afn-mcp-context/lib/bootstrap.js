@@ -135,6 +135,7 @@ function enrichAfn(base, config, opts = {}) {
   ensureAfnDirs(base);
   ensureMemoryStub(base);
   ensureGitignore(base);
+  ensureCredPrompt(base);
   if (!opts.recreateDiagram && architectureExists(base)) {
     return {
       diagram: { ok: true, skipped: true },
@@ -170,6 +171,45 @@ function enrichAfn(base, config, opts = {}) {
     if (next !== prev) fs.writeFileSync(pjFile, next, 'utf8');
   }
   return { diagram, assets, config: diagram.config || config };
+}
+
+function ensureCredPrompt(root) {
+  const dir = afnPath(root, 'prompts');
+  const file = path.join(dir, 'data-agent-credentials.md');
+  fs.mkdirSync(dir, { recursive: true });
+  if (fs.existsSync(file)) return;
+  fs.writeFileSync(
+    file,
+    [
+      '# Credenciales data-agent',
+      '',
+      'Archivo **gitignored**: `.afn/credentials/data-agent.json`.',
+      'Host, puerto y database van en el dashboard (Orígenes), no acá.',
+      '',
+      'Un origen (SQL Server / PostgreSQL):',
+      '',
+      '```json',
+      '{',
+      '  "DB_USER": "sa",',
+      '  "DB_PASSWORD": "TU_PASSWORD"',
+      '}',
+      '```',
+      '',
+      'Varios orígenes (la clave es el `id` de `db-connections.json`):',
+      '',
+      '```json',
+      '{',
+      '  "byId": {',
+      '    "origen_1": { "DB_USER": "sa", "DB_PASSWORD": "TU_PASSWORD" }',
+      '  }',
+      '}',
+      '```',
+      '',
+      'MongoDB: `{ "MONGODB_URI": "mongodb://USER:PASSWORD@localhost:27017/db" }`',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
 }
 
 function ensureMemoryStub(root) {

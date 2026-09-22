@@ -1,7 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { collectDashboard, buildHtml } from './dashboard.js';
-import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites } from './dashboard-query.js';
+import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile } from './dashboard-query.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
 import fs from 'node:fs';
@@ -63,7 +63,11 @@ async function handleApi(root, token, req, res, url) {
   }
   if (req.method === 'GET' && route === '/api/origins') {
     const pack = readJson(afnPath(root, 'db-connections.json')) || { connections: [] };
-    send(res, 200, { ok: true, connections: pack.connections || pack });
+    send(res, 200, {
+      ok: true,
+      connections: pack.connections || pack,
+      credentials: inspectCredentialsFile(root),
+    });
     return;
   }
   if (req.method === 'PUT' && route === '/api/origins') {

@@ -28,6 +28,25 @@ export function workbenchSections() {
           <button type="button" class="btn" id="wb-origins-reload">Recargar</button>
         </div>
       </div>
+      <div class="article" id="wb-cred-box" style="max-width:640px;margin-top:1.25rem">
+        <h3>Contraseña — <code>.afn/credentials/data-agent.json</code></h3>
+        <p id="wb-cred-status" class="muted" role="status">Host/puerto/base van arriba. Acá solo usuario y password. El archivo no se versiona.</p>
+        <p class="muted">Un origen (SQL Server o PostgreSQL):</p>
+        <pre class="sql-ed" id="wb-cred-example">{
+  "DB_USER": "sa",
+  "DB_PASSWORD": "TU_PASSWORD"
+}</pre>
+        <p class="muted">Varios orígenes (el <code>id</code> es el del JSON de orígenes, p. ej. <code>origen_1</code>):</p>
+        <pre class="sql-ed">{
+  "byId": {
+    "origen_1": { "DB_USER": "sa", "DB_PASSWORD": "TU_PASSWORD" }
+  }
+}</pre>
+        <p class="muted">MongoDB:</p>
+        <pre class="sql-ed">{
+  "MONGODB_URI": "mongodb://USER:PASSWORD@localhost:27017/db"
+}</pre>
+      </div>
       <details style="margin-top:1rem">
         <summary class="muted">JSON (varios orígenes)</summary>
         <textarea id="wb-origins-json" spellcheck="false" class="sql-ed" rows="10" placeholder='{ "connections": [] }'></textarea>
@@ -135,10 +154,25 @@ export function workbenchScript() {
       needsCredentials: true,
     };
   }
+  function renderCredStatus(c) {
+    const el = document.getElementById("wb-cred-status");
+    if (!el) return;
+    if (!c) {
+      el.textContent = "Host/puerto/base van arriba. Acá solo usuario y password.";
+      return;
+    }
+    if (!c.exists) el.textContent = "Falta el archivo. Creá .afn/credentials/data-agent.json con el JSON de ejemplo.";
+    else if (!c.validJson) el.textContent = "El archivo existe pero no es JSON válido.";
+    else if (c.shape === "empty") el.textContent = "El archivo está vacío. Pegá DB_USER y DB_PASSWORD.";
+    else if (!c.hasUser || !c.hasPassword) el.textContent = "El archivo existe pero falta DB_USER o DB_PASSWORD (o MONGODB_URI).";
+    else el.textContent = "Credenciales OK (hay usuario y password). No se muestran acá.";
+    el.style.color = (!c.exists || !c.validJson || !c.hasUser || !c.hasPassword) ? "#fbbf24" : "#34d399";
+  }
   async function loadOrigins() {
     const j = await apiCall("GET", "/api/origins");
     originsList = Array.isArray(j.connections) ? j.connections : [];
     fillOriginForm(originsList[0] || {});
+    renderCredStatus(j.credentials);
     const ta = document.getElementById("wb-origins-json");
     if (ta) ta.value = JSON.stringify({ connections: originsList }, null, 2);
     const sel = document.getElementById("wb-sql-origin");

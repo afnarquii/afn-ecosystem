@@ -21,7 +21,7 @@ import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, sa
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
-import { saveOriginsPack, normalizeOriginsInput } from '../lib/dashboard-query.js';
+import { saveOriginsPack, normalizeOriginsInput, inspectCredentialsFile } from '../lib/dashboard-query.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -987,8 +987,9 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Ejecutar/);
   assert.match(html, /wb-o-host/);
   assert.match(html, /Guardar origen/);
-  assert.match(html, /v1\.4\.11/);
-  assert.match(html, /data-afn-version="1\.4\.11"/);
+  assert.match(html, /DB_USER/);
+  assert.match(html, /v1\.4\.12/);
+  assert.match(html, /data-afn-version="1\.4\.12"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1029,10 +1030,20 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
       body: JSON.stringify({ sql: 'DELETE FROM t' }),
     });
     assert.equal(bad.ok, false);
+    const credDir = path.join(root, '.afn', 'credentials');
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(path.join(credDir, 'data-agent.json'), JSON.stringify({ DB_USER: 'sa', DB_PASSWORD: 'SuperSecretLeak' }));
+    const got = await fetch(`http://127.0.0.1:${info.port}/api/origins`, { headers });
+    const gj = await got.json();
+    assert.equal(gj.credentials.exists, true);
+    assert.equal(gj.credentials.hasUser, true);
+    assert.equal(gj.credentials.hasPassword, true);
+    assert.equal(JSON.stringify(gj).includes('SuperSecretLeak'), false);
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.11/);
+    assert.match(liveHtml, /v1\.4\.12/);
     assert.match(liveHtml, /wb-o-host/);
+    assert.match(liveHtml, /DB_USER/);
     assert.match(liveHtml, /window\.AFN_API=\{token:/);
   } finally {
     stopDashboardServer(root);
@@ -1046,11 +1057,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.11',
+    version: '1.4.12',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.11');
+  assert.equal(c.version, '1.4.12');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
@@ -1066,6 +1077,29 @@ test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
   assert.equal(JSON.stringify(pack).includes('secret'), false);
   const session = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connection.json'), 'utf8'));
   assert.equal(session.port, 5432);
+});
+
+test('inspectCredentialsFile no filtra el password y detecta el shape', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  const prompt = fs.readFileSync(path.join(root, '.afn', 'prompts', 'data-agent-credentials.md'), 'utf8');
+  assert.match(prompt, /DB_USER/);
+  const missing = inspectCredentialsFile(root);
+  assert.equal(missing.exists, false);
+  const dir = path.join(root, '.afn', 'credentials');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'data-agent.json'), JSON.stringify({ DB_USER: 'sa', DB_PASSWORD: 'NoLeak' }));
+  const flat = inspectCredentialsFile(root);
+  assert.equal(flat.exists, true);
+  assert.equal(flat.shape, 'flat');
+  assert.equal(flat.hasUser, true);
+  assert.equal(flat.hasPassword, true);
+  assert.equal(JSON.stringify(flat).includes('NoLeak'), false);
+  fs.writeFileSync(path.join(dir, 'data-agent.json'), JSON.stringify({ byId: { origen_1: { DB_USER: 'u', DB_PASSWORD: 'p' } } }));
+  const nested = inspectCredentialsFile(root);
+  assert.equal(nested.shape, 'byId');
+  assert.deepEqual(nested.ids, ['origen_1']);
 });
 
 

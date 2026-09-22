@@ -22,6 +22,69 @@ function loadOrigins(root) {
   return list;
 }
 
+export const DATA_AGENT_CREDENTIALS_EXAMPLE = {
+  flat: { DB_USER: 'sa', DB_PASSWORD: 'TU_PASSWORD' },
+  byId: { byId: { origen_1: { DB_USER: 'sa', DB_PASSWORD: 'TU_PASSWORD' } } },
+  mongo: { MONGODB_URI: 'mongodb://USER:PASSWORD@localhost:27017/db' },
+};
+
+function hasUserKey(o) {
+  return Boolean(o && (o.DB_USER || o.user || o.DB_USERNAME));
+}
+
+function hasSecretKey(o) {
+  return Boolean(o && (o.DB_PASSWORD || o.password || o.MONGODB_URI));
+}
+
+/** Estado del archivo de credenciales. Nunca devuelve valores secretos. */
+export function inspectCredentialsFile(root) {
+  const example = DATA_AGENT_CREDENTIALS_EXAMPLE;
+  const file = afnPath(root, 'credentials', 'data-agent.json');
+  if (!fs.existsSync(file)) {
+    return { exists: false, validJson: false, shape: 'missing', hasUser: false, hasPassword: false, ids: [], example };
+  }
+  const cred = readJson(file);
+  if (!cred || typeof cred !== 'object' || Array.isArray(cred)) {
+    return { exists: true, validJson: false, shape: 'invalid', hasUser: false, hasPassword: false, ids: [], example };
+  }
+  if (cred.byId && typeof cred.byId === 'object' && !Array.isArray(cred.byId)) {
+    const ids = Object.keys(cred.byId);
+    const vals = ids.map((k) => cred.byId[k]).filter((v) => v && typeof v === 'object');
+    return {
+      exists: true,
+      validJson: true,
+      shape: 'byId',
+      hasUser: vals.some(hasUserKey),
+      hasPassword: vals.some(hasSecretKey),
+      ids,
+      example,
+    };
+  }
+  if (cred.connections && typeof cred.connections === 'object' && !Array.isArray(cred.connections)) {
+    const ids = Object.keys(cred.connections);
+    const vals = ids.map((k) => cred.connections[k]).filter((v) => v && typeof v === 'object');
+    return {
+      exists: true,
+      validJson: true,
+      shape: 'connections',
+      hasUser: vals.some(hasUserKey),
+      hasPassword: vals.some(hasSecretKey),
+      ids,
+      example,
+    };
+  }
+  const keys = Object.keys(cred).filter((k) => typeof cred[k] === 'string');
+  return {
+    exists: true,
+    validJson: true,
+    shape: keys.length ? 'flat' : 'empty',
+    hasUser: hasUserKey(cred),
+    hasPassword: hasSecretKey(cred),
+    ids: [],
+    example,
+  };
+}
+
 function credsFor(root, id) {
   const cred = readJson(afnPath(root, 'credentials', 'data-agent.json')) || {};
   const nested = cred.byId?.[id] || cred.connections?.[id];
