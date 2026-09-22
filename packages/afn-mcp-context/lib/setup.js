@@ -50,12 +50,12 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **abre dashboard AFN**: solo \`afn_dashboard\`. **No** llames \`afn_diagram_generate\` ni \`afn_architecture_commit\`.
+- Si el usuario pide **abre dashboard AFN**: \`afn_dashboard\` (abre http://127.0.0.1: orígenes editables, elegir tablas/PAs, editor SQL SELECT). **No** llames \`afn_diagram_generate\` ni \`afn_architecture_commit\`.
 - Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
-- El origen de datos **no se adivina**. El init escribe **varios** perfiles en \`.afn/db-connections.json\` (un repo / un compose / un env.example puede ser otra fuente). \`.afn/db-connection.json\` es solo la sesión activa. **Sin passwords**. Credenciales: \`.afn/credentials/data-agent.json\` (plano o \`byId\`).
-- Si pide **conectar / listar tablas y PAs**: leé el catálogo. Si hay más de un origen, preguntá cuál (id/nombre) o usá el que el usuario nombró. En Kiro **no hay UI de BD**. Entonces: \`data_inspect_schema\` del MCP **afn-mcp-data-agent** (o \`afn-mcp-data-agent-<id>\` si hay varios) con \`sample: true\`. Luego \`afn_schema_commit\` indicando el nombre del origen. No mezcles tablas de dos bases. No inventes host ni tablas.
+- El origen de datos **no se adivina**. El init escribe **varios** perfiles en \`.afn/db-connections.json\`. \`.afn/db-connection.json\` es la sesión activa. **Sin passwords**. Credenciales: \`.afn/credentials/data-agent.json\`. En el dashboard se edita el JSON y se recorta el esquema (no hace falta cargar 100 tablas si el flujo usa 3).
+- Si pide **conectar / listar tablas y PAs**: leé el catálogo. Listá con \`data_inspect_schema\` + \`afn_schema_commit\`. Recortar en dashboard → Elegir tablas/PAs. SQL ad-hoc: pestaña SQL (solo SELECT). No mezcles dos bases. No inventes host ni tablas.
 - Las tools de arquitectura devuelven un resumen. El JSON completo está en disco (\`workspace-flow.json\`, \`projects.json\`, \`ARQUITECTURA.md\`).
 - Si el snapshot dice mapa verificado o inventario en disco y nadie pidió regenerar: no toques el mapa.
 - Regenerar no borra observaciones ni \`MEMORY.md\`.

@@ -5,7 +5,7 @@ import { resolveProjectRoot } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
 import { searchFacts } from './memory.js';
 import { saveObservation, searchCerebro, startSession, endSession, getMemContext } from './cerebro.js';
-import { writeDashboard } from './dashboard.js';
+import { openDashboard } from './dashboard.js';
 import { listTaskNotes, saveTaskNote, setTaskNoteStatus } from './task-notes.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
@@ -107,7 +107,7 @@ export async function handleContextTool(root, name, args = {}) {
     case 'afn_note_set_status':
       return setTaskNoteStatus(base, args.task, args.status);
     case 'afn_dashboard':
-      return writeDashboard(base, { open: args.open !== false, slug: args.slug });
+      return openDashboard(base, { open: args.open !== false, slug: args.slug });
     case 'afn_diagram_generate': {
       const recreate = args.recreate === true;
       if (!recreate && architectureExists(base)) {

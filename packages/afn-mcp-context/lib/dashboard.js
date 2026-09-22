@@ -12,6 +12,7 @@ import { loadAgentAssets } from './agent-assets.js';
 import { irToMermaid } from './diagram-ir.js';
 import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid, workspaceFlowMarkdown } from './workspace-flow.js';
 import { listTaskNotes } from './task-notes.js';
+import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 
 function readJson(file) {
   try {
@@ -189,7 +190,7 @@ function kindLabel(kind) {
   return map[kind] || kind;
 }
 
-function buildHtml(data) {
+function buildHtml(data, opts = {}) {
   const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd, datosMd = '', notes = [], dbOrigins = [] } = data;
   const obs = [...(cerebro.observations || [])].slice(-10).reverse();
   const sess = [...(cerebro.sessions || [])].slice(-6).reverse();
@@ -317,6 +318,7 @@ function buildHtml(data) {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AFN · ${esc(wsName)}</title>
+${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.token)},base:location.origin};</script>` : '<script>window.AFN_API=null;</script>'}
 <script type="module">
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
   mermaid.initialize({
@@ -590,7 +592,8 @@ function buildHtml(data) {
     const i = rest.indexOf("/");
     showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
   }
-  else showView(["inicio","readme","datos","mapa","diagramas","capas","howto","cerebro","reglas","notas"].includes(boot) ? boot : "readme");
+  else showView(["inicio","readme","datos","origenes","esquema","sql","mapa","diagramas","capas","howto","cerebro","reglas","notas"].includes(boot) ? boot : "readme");
+${workbenchScript()}
 </script>
 <style>
   :root {
@@ -660,7 +663,9 @@ function buildHtml(data) {
   #ov-stage { flex:1; overflow:hidden; cursor:grab; background:#0b1016; }
   #ov-stage:active { cursor:grabbing; }
   #ov-mermaid { min-height:100%; padding:1rem; }
-  .mermaid svg { display:block; }
+  .sql-ed { width:100%; min-height:12rem; background:#0b1016; color:#e8eef5; border:1px solid var(--line); border-radius:10px; padding:.75rem .85rem; font:13px/1.45 Consolas,ui-monospace,monospace; tab-size:2; }
+  .chk { display:block; padding:.28rem 0; }
+  .chk input { margin-right:.4rem; }
 </style>
 </head>
 <body>
@@ -680,6 +685,7 @@ function buildHtml(data) {
     <nav>
       <button type="button" data-go="readme">README</button>
       <button type="button" data-go="datos">Datos${hasDatos ? ' (listo)' : ''}</button>
+${workbenchNavButtons()}
       <button type="button" data-go="notas">Notas (${notes.length})</button>
       <button type="button" data-go="inicio">Inicio</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
@@ -711,6 +717,7 @@ function buildHtml(data) {
       ${originsHtml}
       <article id="datos-article" class="article" data-q="tablas procedimientos esquema sql mongo pa stored">${datosHtml}</article>
     </section>
+${workbenchSections()}
     <section data-view="notas" hidden>
       <div id="notes-list">
         <h2>Notas de trabajo</h2>
@@ -733,6 +740,9 @@ function buildHtml(data) {
       <div class="hero">
         <button type="button" data-go="readme" data-q="arquitectura readme rutas endpoints flujo nombres"><span class="k">README</span><strong>Arquitectura</strong><span class="muted">${hasReadme ? 'Abrir documento' : 'Todavía vacío'}</span></button>
         <button type="button" data-go="datos" data-q="tablas procedimientos esquema sql mongo datos pa"><span class="k">BD</span><strong>Tablas y PAs</strong><span class="muted">${hasDatos ? 'Esquema vivo' : 'Listar desde Kiro'}</span></button>
+        <button type="button" data-go="origenes" data-q="origenes db-connections json conexiones"><span class="k">Orígenes</span><strong>Editar conexiones</strong><span class="muted">db-connections.json</span></button>
+        <button type="button" data-go="esquema" data-q="elegir tablas procedimientos pa tables-config"><span class="k">Elegir</span><strong>Tablas / PAs</strong><span class="muted">Solo lo del flujo</span></button>
+        <button type="button" data-go="sql" data-q="sql consulta select editor"><span class="k">SQL</span><strong>Editor SELECT</strong><span class="muted">Como Reportes BD</span></button>
         <button type="button" data-go="notas" data-q="notas wiki tareas entregas readme listo aprobado"><span class="k">Wiki</span><strong>${notes.length} entregas</strong><span class="muted">README por tarea</span></button>
         <button type="button" data-go="mapa" data-q="mapa proyectos conexiones flujo"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
         <button type="button" data-go="diagramas" data-q="diagramas mapas flujo componentes"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Pantalla completa + zoom</span></button>
@@ -863,6 +873,21 @@ function openInBrowser(fileAbs, hash = '') {
   }
 }
 
+function openUrl(url) {
+  try {
+    if (process.platform === 'win32') {
+      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+    } else if (process.platform === 'darwin') {
+      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function writeDashboard(root, opts = {}) {
   const data = collectDashboard(root);
   const html = buildHtml(data);
@@ -872,11 +897,15 @@ export function writeDashboard(root, opts = {}) {
   fs.writeFileSync(file, html, 'utf8');
   const hash = opts.slug ? `#d-${opts.slug}` : '#readme';
   const shouldOpen = opts.open !== false;
-  const opened = shouldOpen ? openInBrowser(file, hash) : false;
+  let opened = false;
+  let url = `${pathToFileURL(file).href}${hash}`;
+  if (shouldOpen && opts.serve === false) {
+    opened = openInBrowser(file, hash);
+  }
   return {
     ok: true,
     file,
-    url: `${pathToFileURL(file).href}${hash}`,
+    url,
     opened,
     root: data.root,
     projects: data.projects.length,
@@ -886,8 +915,29 @@ export function writeDashboard(root, opts = {}) {
     notes: data.notes.length,
     readme: Boolean(String(data.flowMd || '').trim()),
     hint: opened
-      ? 'Dashboard abierto en el README. Diagramas: pantalla completa, rueda = zoom, arrastrar = mover.'
+      ? 'Dashboard abierto. Para editar orígenes y SQL usá el servidor local (afn_dashboard).'
       : `Abrí: ${file}`,
+  };
+}
+
+/** Abre el dashboard en http://127.0.0.1 (editar JSON, elegir tablas/PAs, SQL). */
+export async function openDashboard(root, opts = {}) {
+  const written = writeDashboard(root, { open: false, slug: opts.slug });
+  if (opts.open === false) return written;
+  const { startDashboardServer, dashboardPublicUrl } = await import('./dashboard-server.js');
+  const info = await startDashboardServer(root);
+  const hash = opts.slug ? `#d-${opts.slug}` : '#readme';
+  const url = dashboardPublicUrl(info, hash);
+  const opened = openUrl(url);
+  return {
+    ...written,
+    url,
+    opened,
+    server: true,
+    port: info.port,
+    hint: opened
+      ? 'Dashboard en 127.0.0.1: Orígenes, elegir tablas/PAs y editor SQL (solo SELECT).'
+      : `Abrí: ${url}`,
   };
 }
 

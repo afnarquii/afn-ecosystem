@@ -458,7 +458,11 @@ function sampleToLine(sample) {
   return txt.length > 280 ? `${txt.slice(0, 277)}…` : txt;
 }
 
-function buildDatosMarkdown(input = {}) {
+export function liveJsonFile(root) {
+  return afnPath(root, 'diagrams', 'datos-live.json');
+}
+
+export function buildDatosMarkdown(input = {}) {
   const engine = String(input.engine || '').slice(0, 40);
   const name = String(input.connectionName || input.source || 'BD').slice(0, 80);
   const lines = [
@@ -514,9 +518,22 @@ function buildDatosMarkdown(input = {}) {
  * Persiste esquema vivo (el LLM lo obtuvo del MCP de datos). No ejecuta SQL.
  */
 export function commitLiveSchema(root, input = {}) {
-  const md = buildDatosMarkdown(input);
+  const payload = {
+    version: 1,
+    source: String(input.source || '').slice(0, 80),
+    engine: String(input.engine || '').slice(0, 40),
+    connectionName: String(input.connectionName || input.source || 'BD').slice(0, 80),
+    connectionId: String(input.connectionId || '').slice(0, 80),
+    tables: Array.isArray(input.tables) ? input.tables : [],
+    procedures: Array.isArray(input.procedures) ? input.procedures : [],
+    calls: Array.isArray(input.calls) ? input.calls : [],
+  };
+  const jsonFile = liveJsonFile(root);
+  fs.mkdirSync(path.dirname(jsonFile), { recursive: true });
+  fs.writeFileSync(jsonFile, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  const selection = readDataSelection(root, payload.connectionId || payload.connectionName);
+  const md = buildDatosMarkdown(filterLiveBySelection(payload, selection));
   const file = liveDataFile(root);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, md.endsWith('\n') ? md : `${md}\n`, 'utf8');
   let arch = readText(path.join(root, 'ARQUITECTURA.md'), 200_000);
   if (!arch.trim()) arch = '# Arquitectura (punta a punta)\n\n## 6. Datos y esquemas\n\n';
@@ -525,9 +542,93 @@ export function commitLiveSchema(root, input = {}) {
   return {
     ok: true,
     file: '.afn/diagrams/datos.md',
+    live: '.afn/diagrams/datos-live.json',
     readme: wrote.rootFile,
-    tables: Array.isArray(input.tables) ? input.tables.length : 0,
-    procedures: Array.isArray(input.procedures) ? input.procedures.length : 0,
-    hint: 'Esquema vivo en ARQUITECTURA.md §6b y .afn/diagrams/datos.md. Regenerar arquitectura no debe inventar columnas; este archivo es la evidencia MCP.',
+    tables: payload.tables.length,
+    procedures: payload.procedures.length,
+    hint: 'Esquema vivo en ARQUITECTURA.md §6b. En el dashboard podés marcar cuáles tablas/PAs quedan (data-selection.json).',
   };
+}
+
+function selectionFile(root) {
+  return afnPath(root, 'data-selection.json');
+}
+
+export function readDataSelectionPack(root) {
+  const j = readJson(selectionFile(root));
+  const by = j?.byConnection && typeof j.byConnection === 'object' ? j.byConnection : {};
+  return { version: 1, byConnection: by };
+}
+
+export function readDataSelection(root, connectionId) {
+  const pack = readDataSelectionPack(root);
+  const id = String(connectionId || '_default');
+  return pack.byConnection[id] || pack.byConnection._default || null;
+}
+
+export function filterLiveBySelection(live, selection) {
+  const src = live && typeof live === 'object' ? live : {};
+  if (!selection || typeof selection !== 'object') return src;
+  const tables = Array.isArray(src.tables) ? src.tables : [];
+  const procs = Array.isArray(src.procedures) ? src.procedures : [];
+  const enabledT = Array.isArray(selection.enabledTables) ? new Set(selection.enabledTables) : null;
+  const enabledP = Array.isArray(selection.enabledProcedures) ? new Set(selection.enabledProcedures) : null;
+  const cols = selection.enabledColumns && typeof selection.enabledColumns === 'object' ? selection.enabledColumns : null;
+  const nextTables = enabledT
+    ? tables.filter((t) => enabledT.has(String(t.name || '')))
+    : tables;
+  const mapped = nextTables.map((t) => {
+    const name = String(t.name || '');
+    if (!cols || !Array.isArray(cols[name])) return t;
+    const allow = new Set(cols[name]);
+    const columns = (t.columns || []).filter((c) => allow.has(typeof c === 'string' ? c : c.name));
+    return { ...t, columns };
+  });
+  const nextProcs = enabledP ? procs.filter((p) => enabledP.has(String(p.name || ''))) : procs;
+  return { ...src, tables: mapped, procedures: nextProcs };
+}
+
+export function saveDataSelection(root, connectionId, selection = {}) {
+  const id = String(connectionId || '_default').slice(0, 80) || '_default';
+  const pack = readDataSelectionPack(root);
+  pack.byConnection[id] = {
+    enabledTables: Array.isArray(selection.enabledTables) ? selection.enabledTables.map((x) => String(x).slice(0, 80)) : undefined,
+    enabledProcedures: Array.isArray(selection.enabledProcedures)
+      ? selection.enabledProcedures.map((x) => String(x).slice(0, 80))
+      : undefined,
+    enabledColumns: selection.enabledColumns && typeof selection.enabledColumns === 'object' ? selection.enabledColumns : undefined,
+  };
+  fs.mkdirSync(afnPath(root), { recursive: true });
+  fs.writeFileSync(selectionFile(root), `${JSON.stringify(pack, null, 2)}\n`, 'utf8');
+  const live = readJson(liveJsonFile(root)) || {};
+  const filtered = filterLiveBySelection(live, pack.byConnection[id]);
+  const md = buildDatosMarkdown(filtered);
+  fs.mkdirSync(path.dirname(liveDataFile(root)), { recursive: true });
+  fs.writeFileSync(liveDataFile(root), md.endsWith('\n') ? md : `${md}\n`, 'utf8');
+  let arch = readText(path.join(root, 'ARQUITECTURA.md'), 200_000);
+  if (arch.trim()) {
+    writeArchitectureReadmeFiles(root, mergeLiveDataIntoReadme(root, arch));
+  }
+  const skillSafe = String(live.connectionName || id).replace(/[^\w\-.]/g, '_').slice(0, 40);
+  if (skillSafe) {
+    const skillDir = afnPath(root, 'skills', `db-schema-${skillSafe}`);
+    fs.mkdirSync(skillDir, { recursive: true });
+    const cfg = {
+      dbType: live.engine || '',
+      enabledTables: pack.byConnection[id].enabledTables || [],
+      enabledProcedures: pack.byConnection[id].enabledProcedures || [],
+      enabledColumns: pack.byConnection[id].enabledColumns || {},
+    };
+    fs.writeFileSync(path.join(skillDir, 'tables-config.json'), `${JSON.stringify(cfg, null, 2)}\n`, 'utf8');
+  }
+  return {
+    ok: true,
+    file: '.afn/data-selection.json',
+    tables: Array.isArray(filtered.tables) ? filtered.tables.length : 0,
+    procedures: Array.isArray(filtered.procedures) ? filtered.procedures.length : 0,
+  };
+}
+
+export function readLiveSchema(root) {
+  return readJson(liveJsonFile(root)) || { tables: [], procedures: [], calls: [] };
 }

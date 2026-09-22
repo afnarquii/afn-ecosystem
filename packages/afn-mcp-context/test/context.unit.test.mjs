@@ -17,7 +17,9 @@ import { saveObservation, startSession, endSession, getMemContext, loadCerebro }
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-notes.js';
-import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins } from '../lib/data-sources.js';
+import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
+import { assertSafeReadonlySql } from '../lib/sql-safety.js';
+import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -947,6 +949,70 @@ test('varios repos / compose: varias fichas de origen, no una sola', () => {
   assert.match(html, /db-connections\.json/);
   assert.match(html, /sqlserver|mssql/i);
   assert.match(html, /mongo/i);
+});
+
+test('sql-safety bloquea escrituras; selección recorta tablas del README', () => {
+  assert.equal(assertSafeReadonlySql('SELECT 1').ok, true);
+  assert.equal(assertSafeReadonlySql('DELETE FROM t').ok, false);
+  assert.equal(assertSafeReadonlySql('EXEC usp_x').ok, false);
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  commitLiveSchema(root, {
+    source: 'afn-mcp-data-agent',
+    engine: 'sqlserver',
+    connectionName: 'QA',
+    connectionId: 'qa',
+    tables: [
+      { name: 'Orders', columns: [{ name: 'id' }] },
+      { name: 'Noise', columns: [{ name: 'x' }] },
+    ],
+    procedures: [{ name: 'usp_GetOrder' }, { name: 'usp_Unused' }],
+  });
+  const sel = saveDataSelection(root, 'qa', {
+    enabledTables: ['Orders'],
+    enabledProcedures: ['usp_GetOrder'],
+  });
+  assert.equal(sel.tables, 1);
+  const datos = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'datos.md'), 'utf8');
+  assert.match(datos, /Orders/);
+  assert.equal(datos.includes('Noise'), false);
+  assert.equal(datos.includes('usp_Unused'), false);
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /data-view="sql"/);
+  assert.match(html, /data-view="origenes"/);
+  assert.match(html, /data-view="esquema"/);
+  assert.match(html, /Ejecutar/);
+});
+
+test('servidor local edita orígenes y rechaza DELETE', async () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
+  const info = await startDashboardServer(root);
+  try {
+    const headers = { 'x-afn-token': info.token, 'content-type': 'application/json' };
+    const put = await fetch(`http://127.0.0.1:${info.port}/api/origins`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        connections: [{ id: 'a', name: 'Pedidos', dbEngine: 'sqlserver', host: 'h1', password: 'no' }],
+      }),
+    });
+    const pj = await put.json();
+    assert.equal(pj.ok, true);
+    const disk = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
+    assert.equal(disk.connections[0].name, 'Pedidos');
+    assert.equal(JSON.stringify(disk).includes('no'), false);
+    const bad = await fetch(`http://127.0.0.1:${info.port}/api/sql`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ sql: 'DELETE FROM t' }),
+    });
+    assert.equal(bad.ok, false);
+  } finally {
+    stopDashboardServer(root);
+  }
 });
 
 

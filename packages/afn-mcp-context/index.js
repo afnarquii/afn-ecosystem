@@ -19,7 +19,7 @@ import { buildSnapshot } from './lib/snapshot.js';
 import { bootstrapAfn } from './lib/bootstrap.js';
 import { doctorAfn } from './lib/snapshot.js';
 import { startSession } from './lib/cerebro.js';
-import { writeDashboard } from './lib/dashboard.js';
+import { writeDashboard, openDashboard } from './lib/dashboard.js';
 import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent } from './lib/setup.js';
 import { FLOW_GENERATOR_VERSION } from './lib/version.js';
@@ -78,7 +78,7 @@ async function main() {
 
   if (cmd === 'dashboard') {
     const open = !argv.includes('--no-open');
-    const r = writeDashboard(root, { open });
+    const r = open ? await openDashboard(root, { open: true }) : writeDashboard(root, { open: false });
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
