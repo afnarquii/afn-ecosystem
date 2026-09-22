@@ -4,14 +4,34 @@ export function workbenchSections() {
   return `
     <section data-view="origenes" hidden>
       <h2>Orígenes de datos</h2>
-      <p class="lead">Editá <code>.afn/db-connections.json</code>. Sin passwords (van en <code>.afn/credentials/data-agent.json</code>). Hace falta el dashboard por <code>http://127.0.0.1</code> (no file://).</p>
-      <p id="wb-api-warn" class="muted" hidden>Este HTML se abrió como archivo. Pedí <strong>abre dashboard AFN</strong> para editar y ejecutar SQL.</p>
-      <div class="toolbar">
-        <button type="button" class="btn" id="wb-origins-reload">Recargar</button>
-        <button type="button" class="btn" id="wb-origins-save">Guardar orígenes</button>
-        <span id="wb-origins-msg" class="muted"></span>
+      <p class="lead">Completá host, puerto y base. La contraseña <strong>no</strong> va acá: archivo <code>.afn/credentials/data-agent.json</code>.</p>
+      <p id="wb-api-warn" class="muted" hidden style="color:#fbbf24">Esta pestaña no puede guardar: recargá con «abre dashboard AFN» (URL 127.0.0.1 con token).</p>
+      <p id="wb-origins-msg" class="muted" role="status"></p>
+      <div class="article" id="wb-origins-form" style="max-width:640px">
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Nombre</label>
+        <input id="wb-o-name" type="text" placeholder="Pedidos QA" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Motor</label>
+        <select id="wb-o-engine" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit">
+          <option value="sqlserver">SQL Server</option>
+          <option value="postgresql">PostgreSQL</option>
+          <option value="mysql">MySQL</option>
+          <option value="mongodb">MongoDB</option>
+        </select>
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Host</label>
+        <input id="wb-o-host" type="text" placeholder="localhost o el servidor" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Puerto</label>
+        <input id="wb-o-port" type="number" placeholder="1433 / 5432 / 3306" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Base / database</label>
+        <input id="wb-o-database" type="text" placeholder="nombre de la base" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
+        <div class="toolbar" style="margin-top:1rem">
+          <button type="button" class="btn" id="wb-origins-save">Guardar origen</button>
+          <button type="button" class="btn" id="wb-origins-reload">Recargar</button>
+        </div>
       </div>
-      <textarea id="wb-origins-json" spellcheck="false" class="sql-ed" rows="18" placeholder='{ "connections": [] }'></textarea>
+      <details style="margin-top:1rem">
+        <summary class="muted">JSON (varios orígenes)</summary>
+        <textarea id="wb-origins-json" spellcheck="false" class="sql-ed" rows="10" placeholder='{ "connections": [] }'></textarea>
+      </details>
     </section>
     <section data-view="esquema" hidden>
       <h2>Tablas y procedimientos para la arquitectura</h2>
@@ -74,31 +94,74 @@ export function workbenchScript() {
       body: body == null ? undefined : JSON.stringify(body),
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || r.statusText);
+    if (!r.ok) throw new Error(j.error === "token" ? "Token viejo: cerrá esta pestaña y pedí otra vez «abre dashboard AFN»." : (j.error || r.statusText));
     return j;
   }
   function setMsg(id, t, ok) {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = t || "";
-    el.style.color = ok === false ? "#fca5a5" : "";
+    el.style.color = ok === false ? "#fca5a5" : ok === true ? "#34d399" : "";
+    el.style.fontWeight = ok === true || ok === false ? "600" : "";
+  }
+  let originsList = [];
+  function fillOriginForm(c) {
+    const x = c || {};
+    const name = document.getElementById("wb-o-name");
+    const engine = document.getElementById("wb-o-engine");
+    const host = document.getElementById("wb-o-host");
+    const port = document.getElementById("wb-o-port");
+    const database = document.getElementById("wb-o-database");
+    if (name) name.value = x.name || x.connectionName || "";
+    const eng = String(x.engine || x.dbEngine || "sqlserver").toLowerCase();
+    if (engine) engine.value = /mongo/.test(eng) ? "mongodb" : /postgres/.test(eng) ? "postgresql" : /mysql/.test(eng) ? "mysql" : "sqlserver";
+    if (host) host.value = x.host || x.server || "";
+    if (port) port.value = x.port || "";
+    if (database) database.value = x.database || "";
+  }
+  function formToOrigin(prev) {
+    const engine = (document.getElementById("wb-o-engine")?.value || "sqlserver").trim();
+    const portRaw = document.getElementById("wb-o-port")?.value;
+    return {
+      ...(prev && typeof prev === "object" ? prev : {}),
+      id: prev?.id || "origen_1",
+      name: (document.getElementById("wb-o-name")?.value || "").trim() || "origen",
+      connectionName: (document.getElementById("wb-o-name")?.value || "").trim() || "origen",
+      dbEngine: engine,
+      engine,
+      host: (document.getElementById("wb-o-host")?.value || "").trim(),
+      port: portRaw ? Number(portRaw) : null,
+      database: (document.getElementById("wb-o-database")?.value || "").trim(),
+      needsCredentials: true,
+    };
   }
   async function loadOrigins() {
     const j = await apiCall("GET", "/api/origins");
-    document.getElementById("wb-origins-json").value = JSON.stringify({ connections: j.connections || [] }, null, 2);
+    originsList = Array.isArray(j.connections) ? j.connections : [];
+    fillOriginForm(originsList[0] || {});
+    const ta = document.getElementById("wb-origins-json");
+    if (ta) ta.value = JSON.stringify({ connections: originsList }, null, 2);
     const sel = document.getElementById("wb-sql-origin");
-    sel.innerHTML = (j.connections || []).map((c) => {
-      const id = c.id || c.name || "";
-      const label = (c.name || c.connectionName || id) + " · " + (c.engine || c.dbEngine || "");
-      return "<option value=\\"" + String(id).replace(/"/g,"") + "\\">" + label.replace(/</g,"") + "</option>";
-    }).join("");
+    if (sel) {
+      sel.innerHTML = originsList.map((c) => {
+        const id = c.id || c.name || "";
+        const label = (c.name || c.connectionName || id) + " · " + (c.engine || c.dbEngine || "");
+        return "<option value=\\"" + String(id).replace(/"/g,"") + "\\">" + label.replace(/</g,"") + "</option>";
+      }).join("");
+    }
   }
   document.getElementById("wb-origins-reload")?.addEventListener("click", () => loadOrigins().then(() => setMsg("wb-origins-msg","Recargado",true)).catch((e) => setMsg("wb-origins-msg", e.message, false)));
   document.getElementById("wb-origins-save")?.addEventListener("click", async () => {
     try {
-      const parsed = JSON.parse(document.getElementById("wb-origins-json").value);
-      await apiCall("PUT", "/api/origins", { connections: parsed.connections || parsed });
-      setMsg("wb-origins-msg", "Guardado en db-connections.json", true);
+      const first = formToOrigin(originsList[0] || { id: "origen_1" });
+      if (!first.host && !first.database) {
+        setMsg("wb-origins-msg", "Falta host o database", false);
+        return;
+      }
+      const rest = originsList.slice(1);
+      const connections = [first].concat(rest);
+      const j = await apiCall("PUT", "/api/origins", { connections });
+      setMsg("wb-origins-msg", "Guardado (" + (j.count || connections.length) + "). Password no se guarda acá.", true);
       await loadOrigins();
     } catch (e) { setMsg("wb-origins-msg", e.message, false); }
   });

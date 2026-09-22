@@ -21,6 +21,7 @@ import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, sa
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
+import { saveOriginsPack, normalizeOriginsInput } from '../lib/dashboard-query.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -984,8 +985,10 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /data-view="origenes"/);
   assert.match(html, /data-view="esquema"/);
   assert.match(html, /Ejecutar/);
-  assert.match(html, /v1\.4\.10/);
-  assert.match(html, /data-afn-version="1\.4\.10"/);
+  assert.match(html, /wb-o-host/);
+  assert.match(html, /Guardar origen/);
+  assert.match(html, /v1\.4\.11/);
+  assert.match(html, /data-afn-version="1\.4\.11"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1007,6 +1010,19 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     const disk = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
     assert.equal(disk.connections[0].name, 'Pedidos');
     assert.equal(JSON.stringify(disk).includes('no'), false);
+    const one = await fetch(`http://127.0.0.1:${info.port}/api/origins`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ host: 'db.local', port: 1433, database: 'Pedidos', dbEngine: 'sqlserver', name: 'QA' }),
+    });
+    const oj = await one.json();
+    assert.equal(oj.ok, true);
+    const disk2 = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
+    assert.equal(disk2.connections[0].host, 'db.local');
+    assert.equal(disk2.connections[0].database, 'Pedidos');
+    const session = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connection.json'), 'utf8'));
+    assert.equal(session.host, 'db.local');
+    assert.equal(JSON.stringify(session).includes('password'), false);
     const bad = await fetch(`http://127.0.0.1:${info.port}/api/sql`, {
       method: 'POST',
       headers,
@@ -1015,7 +1031,8 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(bad.ok, false);
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.10/);
+    assert.match(liveHtml, /v1\.4\.11/);
+    assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /window\.AFN_API=\{token:/);
   } finally {
     stopDashboardServer(root);
@@ -1029,11 +1046,26 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.10',
+    version: '1.4.11',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.10');
+  assert.equal(c.version, '1.4.11');
+});
+
+test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  const wrapped = normalizeOriginsInput({ host: 'h', database: 'd', dbEngine: 'sqlserver' });
+  assert.equal(wrapped.length, 1);
+  const r = saveOriginsPack(root, { host: 'h', port: 5432, database: 'd', password: 'secret', dbEngine: 'postgresql' });
+  assert.equal(r.ok, true);
+  const pack = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
+  assert.equal(pack.connections[0].host, 'h');
+  assert.equal(pack.connections[0].database, 'd');
+  assert.equal(JSON.stringify(pack).includes('secret'), false);
+  const session = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connection.json'), 'utf8'));
+  assert.equal(session.port, 5432);
 });
 
 

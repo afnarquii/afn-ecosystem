@@ -54,7 +54,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
-- El origen de datos **no se adivina**. El init escribe **varios** perfiles en \`.afn/db-connections.json\`. \`.afn/db-connection.json\` es la sesión activa. **Sin passwords**. Credenciales: \`.afn/credentials/data-agent.json\`. En el dashboard se edita el JSON y se recorta el esquema (no hace falta cargar 100 tablas si el flujo usa 3).
+- El origen de datos **no se adivina**. El init escribe **varios** perfiles en \`.afn/db-connections.json\`. \`.afn/db-connection.json\` es la sesión activa. **Sin passwords**. Credenciales: \`.afn/credentials/data-agent.json\`. En el dashboard (pestaña Orígenes) hay un formulario host/puerto/base; Guardar escribe el JSON. Recortar esquema en Elegir tablas/PAs.
 - Si pide **conectar / listar tablas y PAs**: leé el catálogo. Listá con \`data_inspect_schema\` + \`afn_schema_commit\`. Recortar en dashboard → Elegir tablas/PAs. SQL ad-hoc: pestaña SQL (solo SELECT). No mezcles dos bases. No inventes host ni tablas.
 - Las tools de arquitectura devuelven un resumen. El JSON completo está en disco (\`workspace-flow.json\`, \`projects.json\`, \`ARQUITECTURA.md\`).
 - Si el snapshot dice mapa verificado o inventario en disco y nadie pidió regenerar: no toques el mapa.

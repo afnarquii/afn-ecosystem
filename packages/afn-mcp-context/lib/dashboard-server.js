@@ -68,7 +68,7 @@ async function handleApi(root, token, req, res, url) {
   }
   if (req.method === 'PUT' && route === '/api/origins') {
     const raw = JSON.parse((await readBody(req)) || '{}');
-    const r = saveOriginsPack(root, raw.connections);
+    const r = saveOriginsPack(root, raw.connections || raw);
     send(res, r.ok ? 200 : 400, r);
     return;
   }

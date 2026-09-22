@@ -175,17 +175,49 @@ export function saveSqlFavorites(root, favorites) {
   return list;
 }
 
+export function normalizeOriginsInput(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.connections)) return raw.connections;
+  if (raw && typeof raw === 'object' && (raw.host || raw.database || raw.dbEngine || raw.engine || raw.name || raw.connectionName)) {
+    return [raw];
+  }
+  return null;
+}
+
 export function saveOriginsPack(root, connections) {
   const SECRET = /password|secret|token|connectionstring|connstr|pwd/i;
-  if (!Array.isArray(connections)) return { ok: false, error: 'connections debe ser un array' };
-  const clean = connections.map((c) => {
+  const list = normalizeOriginsInput(connections);
+  if (!list) return { ok: false, error: 'Mandá una lista connections o un origen con host/database' };
+  const clean = list.map((c, i) => {
     const o = c && typeof c === 'object' ? { ...c } : {};
     for (const k of Object.keys(o)) {
       if (SECRET.test(k)) delete o[k];
     }
+    if (!o.id) o.id = `origen_${i + 1}`;
+    if (!o.name) o.name = o.connectionName || o.database || o.host || o.id;
+    if (o.dbEngine && !o.engine) o.engine = o.dbEngine;
+    if (o.engine && !o.dbEngine) o.dbEngine = o.engine;
+    o.needsCredentials = true;
+    o.scope = o.scope || 'project';
     return o;
   });
   fs.mkdirSync(afnPath(root), { recursive: true });
   fs.writeFileSync(afnPath(root, 'db-connections.json'), `${JSON.stringify({ version: 1, connections: clean }, null, 2)}\n`, 'utf8');
-  return { ok: true, count: clean.length };
+  const first = clean[0];
+  if (first) {
+    const session = {
+      version: 1,
+      id: first.id,
+      connectionName: first.connectionName || first.name || '',
+      dbEngine: first.dbEngine || first.engine || '',
+      host: first.host || '',
+      port: first.port || null,
+      database: first.database || '',
+      evidence: first.evidence || 'dashboard',
+      mcp: first.mcp || 'afn-mcp-data-agent',
+      needsCredentials: true,
+    };
+    fs.writeFileSync(afnPath(root, 'db-connection.json'), `${JSON.stringify(session, null, 2)}\n`, 'utf8');
+  }
+  return { ok: true, count: clean.length, saved: true };
 }
