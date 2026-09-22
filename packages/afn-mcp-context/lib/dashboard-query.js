@@ -111,7 +111,7 @@ function engineOf(origin) {
 }
 
 /**
- * Ejecuta SELECT. El driver sale del data-agent / npx, no del package.json del producto.
+ * Ejecuta SELECT. mssql sale de require.resolve del pack (dependencia directa), no de npx ni del producto.
  */
 export function sqlDriverStatus(root) {
   return driverProbe({ roots: [root, process.env.AFN_PROJECT_ROOT, process.cwd()] });

@@ -10,7 +10,7 @@ import { saveFact, searchFacts, loadFacts } from '../lib/memory.js';
 import { buildSnapshot, doctorAfn } from '../lib/snapshot.js';
 import { handleContextTool } from '../lib/handle-tool.js';
 import { redactSecrets } from '../lib/redact.js';
-import { setupAgent } from '../lib/setup.js';
+import { setupAgent, packHasSqlDriver } from '../lib/setup.js';
 import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js';
 import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
@@ -22,7 +22,7 @@ import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
 import { saveOriginsPack, normalizeOriginsInput, inspectCredentialsFile } from '../lib/dashboard-query.js';
-import { findInstalledDriver, loadSqlDriver, resetSqlDriverCache } from '../lib/sql-driver.js';
+import { findInstalledDriver, loadSqlDriver, resetSqlDriverCache, resolvePackDriver } from '../lib/sql-driver.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -990,8 +990,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Guardar origen/);
   assert.match(html, /DB_USER/);
   assert.match(html, /no es un HTML estático/i);
-  assert.match(html, /v1\.4\.13/);
-  assert.match(html, /data-afn-version="1\.4\.13"/);
+  assert.match(html, /v1\.4\.14/);
+  assert.match(html, /data-afn-version="1\.4\.14"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1045,9 +1045,10 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     const hj = await health.json();
     assert.equal(hj.ok, true);
     assert.ok(hj.driver);
+    assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.13/);
+    assert.match(liveHtml, /v1\.4\.14/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
     assert.match(liveHtml, /wb-sql-driver/);
@@ -1064,11 +1065,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.13',
+    version: '1.4.14',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.13');
+  assert.equal(c.version, '1.4.14');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
@@ -1116,15 +1117,29 @@ test('sql-driver encuentra mssql en node_modules del workspace, sin npm i en el 
   fs.mkdirSync(pkg, { recursive: true });
   fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: 'mssql', main: 'index.js' }));
   fs.writeFileSync(path.join(pkg, 'index.js'), 'module.exports = { connect() { return { ok: true }; } };\n');
-  const dir = findInstalledDriver('mssql', { roots: [root], scanNpx: false, scanPack: false });
+  const dir = findInstalledDriver('mssql', { roots: [root], scanPack: false });
   assert.equal(dir, pkg);
-  const loaded = await loadSqlDriver('mssql', { roots: [root], scanNpx: false, scanPack: false, allowNpx: false, fresh: true });
+  const loaded = await loadSqlDriver('mssql', { roots: [root], scanPack: false, fresh: true });
   assert.equal(loaded.ok, true);
   assert.equal(typeof loaded.module.connect, 'function');
-  const missing = findInstalledDriver('mssql', { roots: [tmp()], scanNpx: false, scanPack: false });
+  const missing = findInstalledDriver('mssql', { roots: [tmp()], scanPack: false });
   assert.equal(missing, '');
-  const blocked = await loadSqlDriver('evil', { allowNpx: false });
+  const blocked = await loadSqlDriver('evil');
   assert.equal(blocked.ok, false);
+});
+
+test('sql-driver resuelve mssql del pack con require.resolve, sin npx', async () => {
+  const src = fs.readFileSync(new URL('../lib/sql-driver.js', import.meta.url), 'utf8');
+  assert.equal(src.includes('npx.cmd'), false);
+  assert.equal(src.includes('execFile'), false);
+  resetSqlDriverCache();
+  assert.equal(packHasSqlDriver(), true);
+  const dir = resolvePackDriver('mssql');
+  assert.ok(dir && dir.includes('mssql'));
+  const loaded = await loadSqlDriver('mssql', { roots: [], fresh: true });
+  assert.equal(loaded.ok, true);
+  assert.equal(loaded.source, 'pack');
+  assert.equal(typeof loaded.module.connect, 'function');
 });
 
 

@@ -21,7 +21,7 @@ import { doctorAfn } from './lib/snapshot.js';
 import { startSession } from './lib/cerebro.js';
 import { writeDashboard, openDashboard } from './lib/dashboard.js';
 import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
-import { setupAgent } from './lib/setup.js';
+import { setupAgent, ensurePackSqlDeps } from './lib/setup.js';
 import { FLOW_GENERATOR_VERSION } from './lib/version.js';
 import { architectureStatus } from './lib/architecture-llm.js';
 import { compactBootstrap, compactDiagramResult, compactDashboard } from './lib/compact-result.js';
@@ -105,7 +105,9 @@ async function main() {
 
   if (cmd === 'setup') {
     const agent = String(argv[1] || 'kiro').toLowerCase();
+    const packDeps = ensurePackSqlDeps({ install: true });
     const r = setupAgent(agent, { projectRoot: root });
+    r.packDeps = packDeps;
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;

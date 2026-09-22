@@ -69,7 +69,7 @@ export function workbenchSections() {
     </section>
     <section data-view="sql" hidden>
       <h2>Consulta SQL</h2>
-      <p class="lead">No es un HTML estático: Node en <code>127.0.0.1</code> ejecuta el SELECT. El driver (mssql/pg) se toma del data-agent / npx; <strong>no</strong> hace falta <code>npm i mssql</code> en el producto. Primera consulta puede tardar si npx aún no lo tenía.</p>
+      <p class="lead">No es un HTML estático: Node en <code>127.0.0.1</code> ejecuta el SELECT. <code>mssql</code> es dependencia de este pack (<code>require.resolve('mssql')</code>, sin npx). En el clone: <code>cd packages/afn-mcp-context && npm install</code>. <strong>No</strong> instales paquetes en el repo del producto.</p>
       <p id="wb-sql-driver" class="muted">Driver: comprobando…</p>
       <div class="toolbar">
         <label class="muted">Origen <select id="wb-sql-origin"></select></label>
@@ -269,7 +269,7 @@ export function workbenchScript() {
   }
   async function runSql() {
     try {
-      setMsg("wb-sql-msg", "Ejecutando… (si es la primera vez, npx puede tardar un minuto)");
+      setMsg("wb-sql-msg", "Ejecutando…");
       const j = await apiCall("POST", "/api/sql", {
         sql: document.getElementById("wb-sql-ed").value,
         connectionId: document.getElementById("wb-sql-origin").value,
@@ -333,9 +333,9 @@ export function workbenchScript() {
       const el = document.getElementById("wb-sql-driver");
       if (!el) return;
       const d = j.driver || {};
-      const mssql = d.mssql === "ready" ? "SQL Server listo" : "SQL Server se descarga en la primera consulta (npx)";
+      const mssql = d.mssql === "ready" ? "SQL Server listo" : "SQL Server: npm install en packages/afn-mcp-context";
       const pg = d.pg === "ready" ? " · PostgreSQL listo" : "";
-      el.textContent = "Driver: " + mssql + pg + ". No instales paquetes en el repo del producto.";
+      el.textContent = "Driver: " + mssql + pg + ". require.resolve del pack, sin npx. No instales paquetes en el producto.";
     }).catch(() => {});
   }
 `;

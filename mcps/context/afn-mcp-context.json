@@ -11,5 +11,5 @@
   "env": {
     "AFN_PROJECT_ROOT": "${workspaceFolder}"
   },
-  "_comment": "Instalación: clonar este repo y `node packages/afn-mcp-context/index.js setup kiro` (o cursor/claude). El setup rellena AFN_MCP_CONTEXT_ENTRY. Alternativa futura: npx @afn-ecosystem/mcp-context@latest cuando el paquete esté en npm."
+  "_comment": "Instalación: clonar este repo, `cd packages/afn-mcp-context && npm install` (mssql es dep del pack; sin npx -p mssql) y `node index.js setup kiro` (o cursor/claude). El setup rellena AFN_MCP_CONTEXT_ENTRY."
 }

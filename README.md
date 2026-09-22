@@ -60,9 +60,12 @@ Memoria de **producto** (proyectos, flujo, hechos), no de charla. Engram **opcio
 
 ```bash
 git clone https://github.com/afnarquii/afn-ecosystem.git
+cd afn-ecosystem/packages/afn-mcp-context && npm install
 cd /ruta/del/producto
 node /ruta/afn-ecosystem/packages/afn-mcp-context/index.js setup kiro
 ```
+
+`mssql` es dependencia del pack del dashboard (`require.resolve`, pin 11.x). No uses `npx -p mssql` ni `npm i mssql` en el producto.
 
 Tests: `cd packages/afn-mcp-context && npm test`
 

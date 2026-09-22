@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot, isCatalogish } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
@@ -8,6 +10,49 @@ import { bootstrapAfn } from './bootstrap.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = path.resolve(here, '..');
 export const ENTRY = path.join(PACKAGE_ROOT, 'index.js');
+const packRequire = createRequire(path.join(PACKAGE_ROOT, 'package.json'));
+
+/** mssql es dep del pack. Sin npx -p en runtime. */
+export function packHasSqlDriver() {
+  try {
+    packRequire.resolve('mssql');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Instala deps del pack (mssql pin 11.x) si falta. engine-strict off: EBADENGINE de nested deps no tumba el install.
+ * @param {{ install?: boolean }} [opts]
+ */
+export function ensurePackSqlDeps(opts = {}) {
+  if (packHasSqlDriver()) return { ok: true, installed: false, source: 'pack' };
+  if (opts.install !== true) {
+    return {
+      ok: false,
+      installed: false,
+      error: 'mssql no está en node_modules del pack. cd packages/afn-mcp-context && npm install',
+    };
+  }
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const r = spawnSync(npm, ['install', '--omit=dev', '--no-fund', '--no-audit'], {
+    cwd: PACKAGE_ROOT,
+    timeout: 180000,
+    windowsHide: true,
+    encoding: 'utf8',
+    env: { ...process.env, npm_config_engine_strict: 'false' },
+    shell: process.platform === 'win32',
+  });
+  if (r.status !== 0) {
+    return {
+      ok: false,
+      installed: false,
+      error: String(r.stderr || r.stdout || 'npm install falló').slice(0, 400),
+    };
+  }
+  return { ok: packHasSqlDriver(), installed: true, source: 'pack' };
+}
 
 function readJson(file) {
   try {

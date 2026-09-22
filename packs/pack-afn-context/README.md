@@ -32,6 +32,7 @@ SQLite: **solo** `.afn/memory/` en el repo (local, gitignored). No es el Cerebro
 ```bash
 git clone https://github.com/afnarquii/afn-ecosystem.git
 cd afn-ecosystem/packages/afn-mcp-context
+npm install
 node --test test/context.unit.test.mjs
 ```
 
@@ -44,7 +45,7 @@ node C:\projects\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 
 `setup` escribe rutas **absolutas** a `index.js` (Windows/macOS/Linux). Engram, si existía en `mcp.json`, **se deja**.
 
-El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. Arma el **flujo cross-project**: rol, framework, BD, puerto, prefix, proxy, lambda, capas, quién llama qué, cómo desarrollar y probar. **También escribe** `.afn/db-connections.json` (varios orígenes: un compose, un repo o un `.env.example` pueden ser fuentes distintas; **sin passwords**; no pisa perfiles ya guardados) y `.afn/db-connection.json` como sesión activa. `setup kiro` registra un MCP `afn-mcp-data-agent` por origen mssql/mongo. El dashboard (`afn_dashboard`) abre `http://127.0.0.1`: editar orígenes, marcar qué tablas/PAs entran a la arquitectura, editor SQL solo SELECT (como Reportes BD del IDE). **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
+El bootstrap (hook SessionStart, tool `afn_bootstrap` y el propio `setup`) detecta **repos hermanos**, `packages/` / `apps/` y repos solo-git — el mismo espíritu que `/afn-init`. Arma el **flujo cross-project**: rol, framework, BD, puerto, prefix, proxy, lambda, capas, quién llama qué, cómo desarrollar y probar. **También escribe** `.afn/db-connections.json` (varios orígenes: un compose, un repo o un `.env.example` pueden ser fuentes distintas; **sin passwords**; no pisa perfiles ya guardados) y `.afn/db-connection.json` como sesión activa. `setup kiro` registra un MCP `afn-mcp-data-agent` por origen mssql/mongo. El dashboard (`afn_dashboard`) abre `http://127.0.0.1`: editar orígenes, marcar qué tablas/PAs entran a la arquitectura, editor SQL solo SELECT (como Reportes BD del IDE). El SELECT usa `mssql` del pack (`require.resolve`, sin `npx -p mssql`). **No** toma `packages/afn-mcp-context` ni el clone de este catálogo como el producto. Si ya había un `projects.json` con un solo nodo `mcp-context`, lo reescribe.
 
 Si Kiro arranca el MCP con cwd del paquete, `AFN_PROJECT_ROOT` queda anclado **en ese workspace** (`.kiro/settings/mcp.json` del producto). Cada producto tiene el suyo; no se comparte la ruta del usuario.
 
@@ -66,6 +67,8 @@ Política: solo Kiro. Compañeros **sin** Engram.
 
 ```bash
 git clone https://github.com/afnarquii/afn-ecosystem.git C:\tools\afn-ecosystem
+cd C:\tools\afn-ecosystem\packages\afn-mcp-context
+npm install
 ```
 
 ### 2. En el repo de trabajo
@@ -101,6 +104,8 @@ Actualizar en la empresa:
 ```bash
 cd C:\tools\afn-ecosystem
 git pull
+cd C:\tools\afn-ecosystem\packages\afn-mcp-context
+npm install
 cd C:\work\mi-monorepo
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 ```
