@@ -683,19 +683,25 @@ ${workbenchScript()}
   .sql-statusbar { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:.4rem .75rem; background:#0e141c; border-bottom:1px solid var(--line); font:12px/1.4 Consolas,ui-monospace,monospace; color:var(--muted); }
   .sql-rowbar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.35rem .65rem; background:#121a24; border-bottom:1px solid var(--line); }
   .sql-rowbar .btn { padding:.28rem .55rem; font-size:.78rem; }
+  .sql-ico { min-width:2rem; }
   .sql-grid-wrap { overflow:auto; flex:1; min-height:0; margin:0; }
   #wb-sql-grid { min-width:100%; font:12.5px/1.4 Consolas,"Cascadia Mono",ui-monospace,monospace; }
   #wb-sql-grid th { position:sticky; top:0; background:#15202c; z-index:1; white-space:nowrap; }
   #wb-sql-grid td { white-space:nowrap; max-width:28rem; overflow:hidden; text-overflow:ellipsis; }
-  #wb-sql-grid td.sql-ck, #wb-sql-grid th.sql-ck { width:2rem; text-align:center; cursor:pointer; }
-  #wb-sql-grid td.sql-rn { color:var(--muted); cursor:pointer; user-select:none; }
+  #wb-sql-grid td.sql-ck, #wb-sql-grid th.sql-ck, #wb-sql-grid td.sql-lupa, #wb-sql-grid th.sql-lupa { width:2.1rem; text-align:center; padding:.25rem .35rem; }
   #wb-sql-grid td.sql-val { cursor:copy; }
+  #wb-sql-grid tbody tr { cursor:pointer; }
   #wb-sql-grid tbody tr:hover td { background:#1a2533; }
-  #wb-sql-grid tbody tr.on td { background:#16332c; }
-  .sql-inspect { border-top:1px solid var(--line); background:#0b1016; max-height:38%; display:flex; flex-direction:column; min-height:8rem; flex-shrink:0; }
+  #wb-sql-grid tbody tr.on td { background:#1e3a5f; }
+  .sql-lupa-btn { display:inline-flex; align-items:center; justify-content:center; width:1.7rem; height:1.7rem; border:1px solid #2a4a6a; background:#16324a; color:#7dd3fc; border-radius:6px; cursor:pointer; }
+  .sql-lupa-btn:hover, .sql-lupa-btn.on { background:#2563eb; border-color:#3b82f6; color:#fff; }
+  .sql-inspect { border-top:1px solid var(--line); background:#0b1016; height:250px; min-height:200px; max-height:40vh; display:flex; flex-direction:column; flex-shrink:0; }
   .sql-inspect[hidden] { display:none; }
-  .sql-inspect-bar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.35rem .65rem; background:#0e141c; border-bottom:1px solid var(--line); font-size:.78rem; }
-  .sql-inspect-body { margin:0; padding:.7rem .85rem; overflow:auto; flex:1; font:12.5px/1.5 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; white-space:pre-wrap; word-break:break-word; }
+  .sql-inspect.fs { position:fixed; inset:0; z-index:50; height:100%; max-height:none; min-height:0; border:0; background:#0b1016; }
+  .sql-inspect-bar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.4rem .65rem; background:#111827; border-bottom:1px solid var(--line); font-size:.78rem; }
+  .sql-inspect-spacer { flex:1; }
+  .sql-inspect-body { margin:0; padding:.85rem 1rem; overflow:auto; flex:1; font:13px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#e5e7eb; white-space:pre-wrap; word-break:break-word; background:#0b1016; }
+  .sql-inspect .btn.on { background:#2563eb; border-color:#2563eb; color:#fff; }
   #wb-sql-favs { margin:.65rem 0 0; }
 </style>
 </head>

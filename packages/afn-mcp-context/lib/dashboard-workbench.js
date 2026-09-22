@@ -69,7 +69,7 @@ export function workbenchSections() {
     </section>
     <section data-view="sql" hidden class="sql-ide">
       <h2>Consulta SQL</h2>
-      <p class="lead">Editor de solo lectura: <code>SELECT</code>, <code>WITH</code> y <code>EXEC dbo.NombrePA @p = 1</code>. F5 o Ctrl+Enter ejecuta. Marcá filas (o Todas) para ver JSON/TXT y descargar una, varias o todas.</p>
+      <p class="lead">Editor de solo lectura: <code>SELECT</code>, <code>WITH</code> y <code>EXEC dbo.NombrePA @p = 1</code>. F5 o Ctrl+Enter. Lupa por fila o casillas para varias: previsualizador JSON/Texto (igual que Connect BD).</p>
       <p id="wb-sql-driver" class="muted">Driver: comprobando…</p>
       <div class="sql-ide-toolbar">
         <label>Origen <select id="wb-sql-origin"></select></label>
@@ -99,24 +99,23 @@ ORDER BY 1, 2;</textarea>
             <span id="wb-sql-meta"></span>
           </div>
           <div class="sql-rowbar" id="wb-sql-rowbar">
-            <button type="button" class="btn" id="wb-sql-sel-all-btn">Todas</button>
-            <button type="button" class="btn" id="wb-sql-sel-none">Ninguna</button>
-            <span class="muted" id="wb-sql-sel-count">0 seleccionadas</span>
-            <button type="button" class="btn" id="wb-sql-view-json" title="Ver filas elegidas en JSON">Ver JSON</button>
-            <button type="button" class="btn" id="wb-sql-view-txt">Ver TXT</button>
+            <span class="muted" id="wb-sql-sel-count">Sin resultados</span>
+            <button type="button" class="btn sql-ico" id="wb-sql-view-json" title="Previsualización JSON/Texto">👁</button>
             <button type="button" class="btn" id="wb-sql-copy-sel">Copiar</button>
             <button type="button" class="btn" id="wb-sql-dl-json">↓ JSON</button>
-            <button type="button" class="btn" id="wb-sql-dl-txt">↓ TXT</button>
+            <button type="button" class="btn" id="wb-sql-dl-txt">↓ Texto</button>
             <button type="button" class="btn" id="wb-sql-dl-xls">↓ Excel</button>
           </div>
           <div class="table-wrap sql-grid-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
           <div class="sql-inspect" id="wb-sql-inspect" hidden>
             <div class="sql-inspect-bar">
-              <span id="wb-sql-inspect-title">Fila</span>
+              <span id="wb-sql-inspect-title">Previsualización</span>
               <button type="button" class="btn" data-inspect-fmt="json">JSON</button>
-              <button type="button" class="btn" data-inspect-fmt="txt">TXT</button>
+              <button type="button" class="btn" data-inspect-fmt="txt">Texto</button>
+              <span class="sql-inspect-spacer"></span>
               <button type="button" class="btn" id="wb-sql-inspect-copy">Copiar</button>
-              <button type="button" class="btn" id="wb-sql-inspect-dl">Descargar esta</button>
+              <button type="button" class="btn" id="wb-sql-inspect-dl">Descargar</button>
+              <button type="button" class="btn sql-ico" id="wb-sql-inspect-fs" title="Pantalla completa">⛶</button>
               <button type="button" class="btn" id="wb-sql-inspect-close">Cerrar</button>
             </div>
             <pre id="wb-sql-inspect-body" class="sql-inspect-body"></pre>
@@ -301,6 +300,8 @@ export function workbenchScript() {
   let lastClickRi = 0;
   let inspectRi = -1;
   let inspectFmt = "json";
+  let previewRows = [];
+  let previewOpen = false;
   function cellEsc(v) {
     return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
   }
@@ -329,20 +330,57 @@ export function workbenchScript() {
     if (selected.size) return [...selected].sort((a,b) => a - b).map((i) => lastRows[i]).filter(Boolean);
     return lastRows;
   }
-  function rowTxt(row) {
-    return lastCols.map((c) => c + ": " + String(row[c] ?? "")).join("\\n");
-  }
   function rowsJson(rows) {
-    return JSON.stringify(rows.length === 1 ? rows[0] : { columns: lastCols, rows, count: rows.length }, null, 2);
+    return JSON.stringify(rows || [], null, 2);
   }
   function rowsTxt(rows) {
-    if (rows.length === 1) return rowTxt(rows[0]);
-    return [lastCols.join("\\t")].concat(rows.map((r) => lastCols.map((c) => String(r[c] ?? "").replace(/\\t/g," ").replace(/\\n/g," ")).join("\\t"))).join("\\n");
+    const data = rows || [];
+    const head = lastCols.join("\\t");
+    const body = data.map((r) => lastCols.map((c) => {
+      const v = r[c];
+      if (v === null || v === undefined || v === "") return "NULL";
+      return String(v).replace(/\\t/g," ").replace(/\\n/g," ");
+    }).join("\\t"));
+    return [head].concat(body).join("\\n");
   }
-  function syncSelUi() {
+  function previewContent() {
+    return inspectFmt === "txt" ? rowsTxt(previewRows) : rowsJson(previewRows);
+  }
+  function paintPreview() {
+    const box = document.getElementById("wb-sql-inspect");
+    const body = document.getElementById("wb-sql-inspect-body");
+    const title = document.getElementById("wb-sql-inspect-title");
+    const eye = document.getElementById("wb-sql-view-json");
+    if (!box || !body) return;
+    if (!previewOpen || !previewRows.length) {
+      box.hidden = true;
+      box.classList.remove("fs");
+      if (eye) eye.classList.remove("on");
+      return;
+    }
+    box.hidden = false;
+    const n = previewRows.length;
+    if (title) title.textContent = "Previsualización (" + n + " fila" + (n === 1 ? "" : "s") + ")";
+    body.textContent = previewContent();
+    document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-inspect-fmt") === inspectFmt));
+    if (eye) eye.classList.add("on");
+  }
+  function openPreview(rows) {
+    previewRows = (rows || []).filter(Boolean);
+    previewOpen = previewRows.length > 0;
+    paintPreview();
+  }
+  function closePreview() {
+    previewOpen = false;
+    previewRows = [];
+    paintPreview();
+  }
+  function syncSelUi(opts) {
     const n = selected.size;
     const el = document.getElementById("wb-sql-sel-count");
-    if (el) el.textContent = n ? (n + " seleccionada" + (n === 1 ? "" : "s") + " · exporta esas") : (lastRows.length ? lastRows.length + " filas · exportá todas o marcá filas" : "sin filas");
+    if (el) el.textContent = lastRows.length
+      ? (n ? (lastRows.length + " filas · " + n + " seleccionada" + (n === 1 ? "" : "s")) : (lastRows.length + " filas"))
+      : "Sin resultados";
     document.querySelectorAll("#wb-sql-grid tbody tr").forEach((tr) => {
       const i = Number(tr.getAttribute("data-ri"));
       const on = selected.has(i);
@@ -352,60 +390,44 @@ export function workbenchScript() {
     });
     const all = document.getElementById("wb-sql-sel-all");
     if (all) all.checked = lastRows.length > 0 && selected.size === lastRows.length;
+    if (opts?.autoPreview !== false) {
+      if (selected.size) openPreview(pickRows());
+      else closePreview();
+    }
   }
-  function showInspect(ri, fmt) {
-    inspectRi = ri;
-    if (fmt) inspectFmt = fmt;
-    const box = document.getElementById("wb-sql-inspect");
-    const body = document.getElementById("wb-sql-inspect-body");
-    const title = document.getElementById("wb-sql-inspect-title");
-    const row = lastRows[ri];
-    if (!box || !body || !row) return;
-    box.hidden = false;
-    if (title) title.textContent = "Fila " + (ri + 1) + " / " + lastRows.length;
-    body.textContent = inspectFmt === "txt" ? rowTxt(row) : JSON.stringify(row, null, 2);
-    document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-inspect-fmt") === inspectFmt));
-  }
+  const LUPA = "<svg viewBox=\\"0 0 24 24\\" width=\\"14\\" height=\\"14\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2.2\\"><circle cx=\\"11\\" cy=\\"11\\" r=\\"6.5\\"/><path d=\\"M20 20l-3.5-3.5\\"/></svg>";
   function renderGrid(cols, rows) {
     lastCols = cols || [];
     lastRows = rows || [];
     selected = new Set();
     inspectRi = -1;
+    closePreview();
     const thead = document.querySelector("#wb-sql-grid thead");
     const tbody = document.querySelector("#wb-sql-grid tbody");
-    const inspect = document.getElementById("wb-sql-inspect");
-    if (inspect) inspect.hidden = true;
     if (!lastCols.length) {
       thead.innerHTML = "";
       tbody.innerHTML = "";
-      syncSelUi();
+      syncSelUi({ autoPreview: false });
       return;
     }
-    thead.innerHTML = "<tr><th class=sql-ck><input type=checkbox id=wb-sql-sel-all title=Todas></th><th class=sql-rn>#</th>" + lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("") + "</tr>";
+    thead.innerHTML = "<tr><th class=sql-ck><input type=checkbox id=wb-sql-sel-all title=Todas></th><th class=sql-lupa title=Previsualizar></th>" + lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("") + "</tr>";
     tbody.innerHTML = lastRows.map((row, ri) => {
       const cells = lastCols.map((c) => {
         const raw = row[c] ?? "";
         return "<td class=sql-val title=\\"" + cellEsc(raw) + "\\" data-ri=\\"" + ri + "\\" data-c=\\"" + cellEsc(c) + "\\">" + cellEsc(String(raw).slice(0,240)) + "</td>";
       }).join("");
-      return "<tr data-ri=\\"" + ri + "\\"><td class=sql-ck><input type=checkbox data-ri=\\"" + ri + "\\"></td><td class=sql-rn data-ri=\\"" + ri + "\\">" + (ri + 1) + "</td>" + cells + "</tr>";
+      return "<tr data-ri=\\"" + ri + "\\"><td class=sql-ck><input type=checkbox data-ri=\\"" + ri + "\\"></td><td class=sql-lupa><button type=button class=sql-lupa-btn data-lupa=\\"" + ri + "\\" title=\\"Previsualizar fila\\">" + LUPA + "</button></td>" + cells + "</tr>";
     }).join("");
     const meta = document.getElementById("wb-sql-meta");
-    if (meta) meta.textContent = lastCols.length + " columnas · # o casilla selecciona · clic valor copia · doble clic abre JSON";
-    syncSelUi();
+    if (meta) meta.textContent = lastCols.length + " columnas · lupa o clic = preview · casilla = varias · clic valor copia";
+    syncSelUi({ autoPreview: false });
   }
-  function toggleRange(ri, additive, range) {
-    if (range) {
-      const a = Math.min(lastClickRi, ri);
-      const b = Math.max(lastClickRi, ri);
-      if (!additive) selected = new Set();
-      for (let i = a; i <= b; i++) selected.add(i);
-    } else if (additive) {
-      if (selected.has(ri)) selected.delete(ri); else selected.add(ri);
-    } else {
-      selected = new Set([ri]);
-    }
+  function previewOne(ri) {
+    if (!lastRows[ri]) return;
+    selected.add(ri);
     lastClickRi = ri;
-    syncSelUi();
+    syncSelUi({ autoPreview: false });
+    openPreview([lastRows[ri]]);
   }
   async function runSql() {
     try {
@@ -461,61 +483,26 @@ export function workbenchScript() {
   });
   document.getElementById("wb-sql-grid")?.addEventListener("click", (e) => {
     if (e.target.closest("input[type=checkbox]") || e.target.closest("th")) return;
+    const lupa = e.target.closest("[data-lupa]");
+    if (lupa) {
+      e.preventDefault();
+      e.stopPropagation();
+      previewOne(Number(lupa.getAttribute("data-lupa")));
+      return;
+    }
     const tr = e.target.closest("tbody tr");
     if (!tr || !lastCols.length) return;
     const ri = Number(tr.getAttribute("data-ri"));
     if (!Number.isFinite(ri)) return;
-    if (e.target.closest("td.sql-rn") || e.target.closest("td.sql-ck")) {
-      toggleRange(ri, e.ctrlKey || e.metaKey, e.shiftKey);
-      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) showInspect(ri);
+    const td = e.target.closest("td.sql-val");
+    if (td) {
+      const c = td.getAttribute("data-c");
+      const val = lastRows[ri] ? String(lastRows[ri][c] ?? "") : "";
+      navigator.clipboard?.writeText(val).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
       return;
     }
-    const td = e.target.closest("td.sql-val");
-    if (!td) return;
-    const c = td.getAttribute("data-c");
-    const val = lastRows[ri] ? String(lastRows[ri][c] ?? "") : "";
-    navigator.clipboard?.writeText(val).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
+    previewOne(ri);
   });
-  document.getElementById("wb-sql-grid")?.addEventListener("dblclick", (e) => {
-    const tr = e.target.closest("tbody tr");
-    if (!tr) return;
-    const ri = Number(tr.getAttribute("data-ri"));
-    if (!Number.isFinite(ri)) return;
-    selected = new Set([ri]);
-    lastClickRi = ri;
-    syncSelUi();
-    showInspect(ri, "json");
-  });
-  function inspectPayload() {
-    if (inspectRi >= 0 && lastRows[inspectRi]) return { rows: [lastRows[inspectRi]], one: true, i: inspectRi };
-    const rows = pickRows();
-    return { rows, one: rows.length === 1, i: selected.size === 1 ? [...selected][0] : -1 };
-  }
-  function inspectText(fmt) {
-    const p = inspectPayload();
-    if (!p.rows.length) return "";
-    if (fmt === "txt") return p.one ? rowTxt(p.rows[0]) : rowsTxt(p.rows);
-    return p.one ? JSON.stringify(p.rows[0], null, 2) : rowsJson(p.rows);
-  }
-  function refreshInspect() {
-    const box = document.getElementById("wb-sql-inspect");
-    const body = document.getElementById("wb-sql-inspect-body");
-    const title = document.getElementById("wb-sql-inspect-title");
-    const p = inspectPayload();
-    if (!box || !body || !p.rows.length) return;
-    box.hidden = false;
-    if (title) title.textContent = p.one ? ("Fila " + ((p.i >= 0 ? p.i : 0) + 1) + " / " + lastRows.length) : (p.rows.length + " filas");
-    body.textContent = inspectText(inspectFmt);
-    document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-inspect-fmt") === inspectFmt));
-  }
-  function viewSel(fmt) {
-    if (!lastRows.length) { setMsg("wb-sql-msg", "No hay resultados", false); return; }
-    inspectFmt = fmt;
-    if (selected.size === 1) inspectRi = [...selected][0];
-    else if (selected.size > 1) inspectRi = -2;
-    else inspectRi = lastRows.length === 1 ? 0 : -2;
-    refreshInspect();
-  }
   function needRows() {
     if (!pickRows().length) { setMsg("wb-sql-msg", "No hay resultados para exportar", false); return false; }
     return true;
@@ -536,9 +523,7 @@ export function workbenchScript() {
   }
   function dlJson() {
     if (!needRows()) return;
-    const rows = pickRows();
-    const body = rows.length === 1 ? JSON.stringify(rows[0], null, 2) : JSON.stringify({ columns: lastCols, rows, count: rows.length, exportedAt: new Date().toISOString() }, null, 2);
-    downloadBlob("consulta" + fileTag() + "-" + stamp() + ".json", "application/json", body);
+    downloadBlob("consulta" + fileTag() + "-" + stamp() + ".json", "application/json", rowsJson(pickRows()));
   }
   function dlTxt() {
     if (!needRows()) return;
@@ -558,39 +543,37 @@ export function workbenchScript() {
   document.getElementById("wb-sql-dl-json")?.addEventListener("click", dlJson);
   document.getElementById("wb-sql-dl-txt")?.addEventListener("click", dlTxt);
   document.getElementById("wb-sql-dl-xls")?.addEventListener("click", dlXls);
-  document.getElementById("wb-sql-sel-all-btn")?.addEventListener("click", () => {
-    selected = new Set(lastRows.map((_, i) => i));
-    syncSelUi();
+  document.getElementById("wb-sql-view-json")?.addEventListener("click", () => {
+    if (previewOpen) { closePreview(); return; }
+    if (!lastRows.length) { setMsg("wb-sql-msg", "No hay resultados", false); return; }
+    openPreview(selected.size ? pickRows() : lastRows);
   });
-  document.getElementById("wb-sql-sel-none")?.addEventListener("click", () => {
-    selected = new Set();
-    syncSelUi();
-  });
-  document.getElementById("wb-sql-view-json")?.addEventListener("click", () => viewSel("json"));
-  document.getElementById("wb-sql-view-txt")?.addEventListener("click", () => viewSel("txt"));
   document.getElementById("wb-sql-copy-sel")?.addEventListener("click", () => {
-    if (!needRows()) return;
-    const t = inspectFmt === "txt" ? rowsTxt(pickRows()) : rowsJson(pickRows());
+    const t = previewOpen ? previewContent() : (needRows() ? (inspectFmt === "txt" ? rowsTxt(pickRows()) : rowsJson(pickRows())) : "");
+    if (!t) return;
     navigator.clipboard?.writeText(t).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
   });
   document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.addEventListener("click", () => {
     inspectFmt = b.getAttribute("data-inspect-fmt") || "json";
-    refreshInspect();
+    paintPreview();
   }));
   document.getElementById("wb-sql-inspect-copy")?.addEventListener("click", () => {
-    const t = document.getElementById("wb-sql-inspect-body")?.textContent || "";
-    navigator.clipboard?.writeText(t).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
+    navigator.clipboard?.writeText(previewContent()).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
   });
   document.getElementById("wb-sql-inspect-dl")?.addEventListener("click", () => {
-    const p = inspectPayload();
-    if (!p.rows.length) return;
+    if (!previewRows.length) return;
     const ext = inspectFmt === "txt" ? "txt" : "json";
-    const tag = p.one ? ("-fila" + ((p.i >= 0 ? p.i : 0) + 1)) : fileTag();
-    downloadBlob("consulta" + tag + "-" + stamp() + "." + ext, ext === "json" ? "application/json" : "text/plain;charset=utf-8", inspectText(inspectFmt));
+    downloadBlob("consulta-preview-" + stamp() + "." + ext, ext === "json" ? "application/json" : "text/plain;charset=utf-8", previewContent());
   });
-  document.getElementById("wb-sql-inspect-close")?.addEventListener("click", () => {
+  document.getElementById("wb-sql-inspect-fs")?.addEventListener("click", () => {
+    document.getElementById("wb-sql-inspect")?.classList.toggle("fs");
+  });
+  document.getElementById("wb-sql-inspect-close")?.addEventListener("click", closePreview);
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
     const box = document.getElementById("wb-sql-inspect");
-    if (box) box.hidden = true;
+    if (box?.classList.contains("fs")) { box.classList.remove("fs"); e.preventDefault(); }
+    else if (previewOpen) closePreview();
   });
   syncGutter();
   async function loadFavs() {
