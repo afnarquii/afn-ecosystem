@@ -76,9 +76,46 @@ export const CONTEXT_TOOLS = [
     },
   },
   {
+    name: 'afn_note_save',
+    description:
+      'Guarda un README/entrega de UNA tarea en .afn/notes/tareas/<slug>/ (varios .md por tarea). No es ARQUITECTURA.md ni el cerebro. Solo si el usuario pidió dejarlo listo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'Slug o nombre de la tarea' },
+        title: { type: 'string' },
+        filename: { type: 'string', description: 'readme.md, e2e.md, decision.md…' },
+        markdown: { type: 'string' },
+        status: { type: 'string', description: 'draft | listo | aprobado' },
+      },
+      required: ['markdown'],
+    },
+  },
+  {
+    name: 'afn_note_list',
+    description: 'Lista las entregas/wiki de tareas en .afn/notes/tareas/.',
+    inputSchema: {
+      type: 'object',
+      properties: { task: { type: 'string' } },
+    },
+  },
+  {
+    name: 'afn_note_set_status',
+    description:
+      'Marca una tarea de la wiki: draft, listo (el autor la da por hecha) o aprobado (revisión funcional). El dashboard solo lee; este tool escribe.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string' },
+        status: { type: 'string', description: 'draft | listo | aprobado' },
+      },
+      required: ['task', 'status'],
+    },
+  },
+  {
     name: 'afn_dashboard',
     description:
-      'HTML: README de arquitectura (nombres, rutas, flujo), vista gráfica opcional, memoria. Abre el navegador.',
+      'HTML: README de arquitectura, wiki de tareas (.afn/notes/tareas), diagramas. Abre el navegador.',
     inputSchema: {
       type: 'object',
       properties: {

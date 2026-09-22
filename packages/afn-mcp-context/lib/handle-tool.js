@@ -6,6 +6,7 @@ import { bootstrapAfn } from './bootstrap.js';
 import { searchFacts } from './memory.js';
 import { saveObservation, searchCerebro, startSession, endSession, getMemContext } from './cerebro.js';
 import { writeDashboard } from './dashboard.js';
+import { listTaskNotes, saveTaskNote, setTaskNoteStatus } from './task-notes.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
@@ -86,6 +87,16 @@ export async function handleContextTool(root, name, args = {}) {
       return startSession(base, args);
     case 'afn_session_summary':
       return endSession(base, args);
+    case 'afn_note_save':
+      return saveTaskNote(base, args);
+    case 'afn_note_list': {
+      const all = listTaskNotes(base);
+      const slug = String(args.task || '').trim();
+      const notes = slug ? all.filter((n) => n.slug === slug || n.title.toLowerCase().includes(slug.toLowerCase())) : all;
+      return { ok: true, notes, dir: '.afn/notes/tareas' };
+    }
+    case 'afn_note_set_status':
+      return setTaskNoteStatus(base, args.task, args.status);
     case 'afn_dashboard':
       return writeDashboard(base, { open: args.open !== false, slug: args.slug });
     case 'afn_diagram_generate': {

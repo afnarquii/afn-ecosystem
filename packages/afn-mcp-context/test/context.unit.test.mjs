@@ -16,6 +16,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
+import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-notes.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -732,6 +733,41 @@ test('README E2E incluye esquema prisma/SQL y openapi si existen en disco', () =
   assert.match(md, /schema\.prisma|init\.sql|openapi/i);
   assert.match(md, /## 4\. Flujo E2E/);
 });
+
+test('wiki de tareas: varios md, status y dashboard; no pisa ARQUITECTURA.md', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  bootstrapAfn(root);
+  const a = saveTaskNote(root, {
+    task: 'Login OAuth',
+    title: 'Login OAuth',
+    filename: 'readme.md',
+    markdown: '# Login OAuth\n\nFlujo UI → API /auth.\n',
+  });
+  assert.equal(a.ok, true);
+  assert.match(a.rel, /\.afn\/notes\/tareas\/login-oauth\/readme\.md/);
+  const b = saveTaskNote(root, {
+    task: 'Login OAuth',
+    filename: 'e2e.md',
+    markdown: '# E2E login\n\n1. Abrir /login\n',
+  });
+  assert.equal(b.ok, true);
+  const listed = listTaskNotes(root);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].docs.length, 2);
+  const st = setTaskNoteStatus(root, 'login-oauth', 'aprobado');
+  assert.equal(st.status, 'aprobado');
+  const bad = saveTaskNote(root, { task: 'x', filename: '../secret.md', markdown: '# no' });
+  assert.equal(bad.ok, false);
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /data-view="notas"/);
+  assert.match(html, /Login OAuth/);
+  assert.match(html, /data-note-task=/);
+  assert.match(html, /data-note-back/);
+  const arch = fs.readFileSync(path.join(root, 'ARQUITECTURA.md'), 'utf8');
+  assert.equal(arch.includes('Login OAuth'), false);
+});
+
 
 
 

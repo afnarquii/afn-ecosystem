@@ -9,6 +9,7 @@ import { isWeakProjectsMap } from './detect-projects.js';
 import { loadAgentAssets } from './agent-assets.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
 import { architectureReadmeBrief, workspaceFlowMarkdown } from './architecture-readme.js';
+import { listTaskNotes } from './task-notes.js';
 
 function readJson(file) {
   try {
@@ -81,6 +82,12 @@ export function buildSnapshot(root) {
   if (Array.isArray(assets.assets) && assets.assets.length) {
     const kinds = [...new Set(assets.assets.map((a) => a.kind))].slice(0, 6).join(', ');
     lines.push(`Reglas/skills (${assets.assets.length}): ${kinds}`);
+    lines.push('');
+  }
+
+  const noteIndex = listTaskNotes(root);
+  if (noteIndex.length) {
+    lines.push(`Entregas wiki (${noteIndex.length}): ${noteIndex.slice(0, 8).map((n) => `${n.slug} [${n.status}]`).join(', ')}. Completo: dashboard → Notas.`);
     lines.push('');
   }
 

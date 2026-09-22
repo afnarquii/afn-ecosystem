@@ -50,7 +50,9 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (abre en el README; diagramas a pantalla completa con zoom). No regeneres nada para verlo.
+- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (README de arquitectura; pestaña Notas = wiki de entregas). No regeneres nada para verlo.
+- Si pide **guardar el README de esta tarea / dejarlo listo**: \`afn_note_save\` (task, title, filename, markdown). Varios .md por tarea en \`.afn/notes/tareas/<slug>/\`. **No** mezclar con \`ARQUITECTURA.md\` ni volcar el chat.
+- Si pide **marcar terminado / aprobar funcional**: \`afn_note_set_status\` (\`listo\` o \`aprobado\`). El dashboard no escribe a disco.
 - Regenerar o crear arquitectura: el disco lista repos, rutas y flechas **evidentes**. **El LLM** lee \`filesToRead\` y hace \`afn_architecture_commit\`. El resultado es un **README** (no un diagrama). **No inventes** puertos, \`/api\`, flechas ni BDs.
 - El snapshot y el cerebro (\`.afn/memory/cerebro.json\`) deben alcanzar para preguntar: nombres, endpoints, flujo, cómo correr, hechos.
 - Primera vez (falta mapa verificado) o el usuario pide “regenerá la arquitectura”: \`afn_diagram_generate\` recreate → \`afn_architecture_evidence\` → leer \`filesToRead\` → \`afn_architecture_commit\`.

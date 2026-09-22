@@ -11,6 +11,7 @@ import { listDiagramIrs } from './diagram-store.js';
 import { loadAgentAssets } from './agent-assets.js';
 import { irToMermaid } from './diagram-ir.js';
 import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid, workspaceFlowMarkdown } from './workspace-flow.js';
+import { listTaskNotes } from './task-notes.js';
 
 function readJson(file) {
   try {
@@ -153,6 +154,7 @@ function collectDashboard(root) {
     contextSafe: ctx && typeof ctx === 'object' ? redactSecrets(ctx) : null,
     flow,
     flowMd,
+    notes: listTaskNotes(root, { includeBody: true }),
   };
 }
 
@@ -173,7 +175,7 @@ function kindLabel(kind) {
 }
 
 function buildHtml(data) {
-  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd } = data;
+  const { root, projects, rels, cerebro, memoryMd, diagrams, ignorePaths, contextSafe, assets, flow, flowMd, notes = [] } = data;
   const obs = [...(cerebro.observations || [])].slice(-10).reverse();
   const sess = [...(cerebro.sessions || [])].slice(-6).reverse();
   const lastSess = sess[0];
@@ -190,6 +192,21 @@ function buildHtml(data) {
       edges: d.edges,
     })),
   );
+  const notesPayload = JSON.stringify(
+    notes.map((n) => ({
+      slug: n.slug,
+      title: n.title,
+      status: n.status,
+      updatedAt: n.updatedAt,
+      docs: (n.docs || []).map((d) => ({
+        name: d.name,
+        title: d.title,
+        markdown: d.markdown || '',
+        html: mdToHtml(d.markdown || ''),
+      })),
+    })),
+  );
+  const statusLabel = (s) => ({ draft: 'Borrador', listo: 'Listo', aprobado: 'Aprobado' }[s] || s);
   const listed = flow?.projects || projects;
   const portRows = listed
     .map((p) => {
@@ -221,6 +238,20 @@ function buildHtml(data) {
         )
         .join('')
     : `<div class="empty">Aún no hay diagramas. El README de arquitectura está en la pestaña Arquitectura.</div>`;
+
+  const noteCards = notes.length
+    ? notes
+        .map(
+          (n) =>
+            `<button type="button" class="tile" data-note-task="${esc(n.slug)}" data-q="${esc([n.title, n.slug, n.status, ...(n.docs || []).map((d) => d.title)].join(' '))}">
+              <span class="k">${esc(statusLabel(n.status))}</span>
+              <strong>${esc(n.title)}</strong>
+              <span class="muted">${(n.docs || []).length} documentos · ${esc(n.slug)}</span>
+              <span class="cta">Abrir tarea →</span>
+            </button>`,
+        )
+        .join('')
+    : `<div class="empty">Todavía no hay entregas. En Kiro pedí <strong>guardá el README de esta tarea</strong>. Quedan en <code>.afn/notes/tareas/</code>, no en ARQUITECTURA.md.</div>`;
 
   const assetRows = assets.length
     ? assets
@@ -270,6 +301,8 @@ function buildHtml(data) {
   });
   const diagrams = JSON.parse(document.getElementById("diagrams-data").textContent);
   const bySlug = Object.fromEntries(diagrams.map((d) => [d.slug, d]));
+  const notes = JSON.parse(document.getElementById("notes-data")?.textContent || "[]");
+  const notesBy = Object.fromEntries(notes.map((n) => [n.slug, n]));
   const flowMd = document.getElementById("flow-md")?.textContent || "";
   const stage = { s: 1, x: 0, y: 0, drag: false, px: 0, py: 0 };
 
@@ -348,6 +381,48 @@ function buildHtml(data) {
     if (id === "mapa") render(document.getElementById("flow-mermaid"), document.getElementById("flow-src").textContent);
     if (id === "capas") render(document.getElementById("layers-mermaid"), document.getElementById("layers-src").textContent);
     if (id === "howto") render(document.getElementById("e2e-mermaid"), document.getElementById("e2e-src").textContent);
+    if (id === "notas" && !location.hash.startsWith("#n-")) {
+      const list = document.getElementById("notes-list");
+      const reader = document.getElementById("notes-reader");
+      if (list) list.hidden = false;
+      if (reader) reader.hidden = true;
+    }
+  }
+
+  function showNote(slug, file) {
+    showView("notas");
+    const list = document.getElementById("notes-list");
+    const reader = document.getElementById("notes-reader");
+    const t = notesBy[slug];
+    if (!t) {
+      if (list) list.hidden = false;
+      if (reader) reader.hidden = true;
+      if (location.hash !== "#notas") location.hash = "notas";
+      return;
+    }
+    if (list) list.hidden = true;
+    if (reader) reader.hidden = false;
+    const doc = (t.docs || []).find((d) => d.name === file) || t.docs[0];
+    const crumb = document.getElementById("note-crumb");
+    const st = document.getElementById("note-status");
+    if (crumb) crumb.textContent = t.title;
+    if (st) st.textContent = t.status === "aprobado" ? "Aprobado" : t.status === "listo" ? "Listo" : "Borrador";
+    const toc = document.getElementById("note-toc");
+    if (toc) {
+      toc.innerHTML = (t.docs || []).map((d) => {
+        const on = doc && d.name === doc.name ? " on" : "";
+        return '<button type="button" class="btn' + on + '" data-note-task="' + t.slug + '" data-note-file="' + d.name.replace(/"/g, "") + '">' + (d.title || d.name) + "</button>";
+      }).join("");
+    }
+    const art = document.getElementById("note-article");
+    if (art) art.innerHTML = (doc && doc.html) || "<p class='muted'>Vacío.</p>";
+    const dl = document.getElementById("note-dl");
+    if (dl) {
+      dl.dataset.slug = t.slug;
+      dl.dataset.file = doc ? doc.name : "nota.md";
+    }
+    const hash = "n-" + t.slug + (doc ? "/" + doc.name : "");
+    if (location.hash.replace("#", "") !== hash) location.hash = hash;
   }
 
   async function openCanvas(title, src, file) {
@@ -396,6 +471,16 @@ function buildHtml(data) {
   window.addEventListener("click", (e) => {
     const go = e.target.closest("[data-go]");
     if (go) { e.preventDefault(); showView(go.dataset.go); location.hash = go.dataset.go; }
+    const noteBtn = e.target.closest("[data-note-task]");
+    if (noteBtn) { e.preventDefault(); showNote(noteBtn.dataset.noteTask, noteBtn.dataset.noteFile || ""); }
+    if (e.target.closest("[data-note-back]")) { e.preventDefault(); showNote("", ""); }
+    if (e.target.closest("[data-dl-note]")) {
+      e.preventDefault();
+      const b = document.getElementById("note-dl");
+      const t = notesBy[b?.dataset.slug];
+      const doc = (t?.docs || []).find((d) => d.name === b?.dataset.file);
+      downloadText(b?.dataset.file || "nota.md", doc?.markdown || "");
+    }
     const open = e.target.closest("[data-open]");
     if (open) { e.preventDefault(); openDiagram(open.dataset.open); }
     const canvas = e.target.closest("[data-canvas]");
@@ -464,11 +549,21 @@ function buildHtml(data) {
   window.addEventListener("hashchange", () => {
     const h = location.hash.replace("#", "");
     if (h.startsWith("d-")) openDiagram(h.slice(2));
+    else if (h.startsWith("n-")) {
+      const rest = h.slice(2);
+      const i = rest.indexOf("/");
+      showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
+    }
     else if (h) showView(h);
   });
   const boot = location.hash.replace("#", "") || "readme";
   if (boot.startsWith("d-")) openDiagram(boot.slice(2));
-  else showView(["inicio","readme","mapa","diagramas","capas","howto","cerebro","reglas"].includes(boot) ? boot : "readme");
+  else if (boot.startsWith("n-")) {
+    const rest = boot.slice(2);
+    const i = rest.indexOf("/");
+    showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
+  }
+  else showView(["inicio","readme","mapa","diagramas","capas","howto","cerebro","reglas","notas"].includes(boot) ? boot : "readme");
 </script>
 <style>
   :root {
@@ -509,7 +604,7 @@ function buildHtml(data) {
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:.7rem; }
   .toolbar { display:flex; gap:.45rem; flex-wrap:wrap; margin:0 0 .9rem; }
   .btn { background:#1a2533; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:.45rem .8rem; font:inherit; cursor:pointer; }
-  .btn:hover { border-color:var(--acc); color:var(--acc); }
+  .btn.on { border-color:var(--acc); color:var(--acc); }
   #flow-src, #layers-src, #e2e-src, #flow-md { display:none; }
   .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:1rem 1.1rem; color:var(--muted); }
   table { width:100%; border-collapse:collapse; font-size:.86rem; }
@@ -557,6 +652,7 @@ function buildHtml(data) {
     <p id="q-empty" hidden>Sin coincidencias. Probá otro término.</p>
     <nav>
       <button type="button" data-go="readme">README</button>
+      <button type="button" data-go="notas">Notas (${notes.length})</button>
       <button type="button" data-go="inicio">Inicio</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
       <button type="button" data-go="diagramas">Diagramas (${diagrams.length})</button>
@@ -581,11 +677,28 @@ function buildHtml(data) {
       </div>
       <article id="readme-article" class="article" data-q="arquitectura readme nombres rutas endpoints flujo contenedores esquemas">${readmeHtml}</article>
     </section>
+    <section data-view="notas" hidden>
+      <div id="notes-list">
+        <h2>Notas de trabajo</h2>
+        <p class="lead">Wiki de entregas por tarea (<code>.afn/notes/tareas/</code>). Distinto del README de arquitectura. Para guardar: en Kiro, «dejá el README de esta tarea». Para marcar terminado o aprobar: «marcala como listo/aprobado» (el dashboard no escribe a disco).</p>
+        <div class="grid">${noteCards}</div>
+      </div>
+      <div id="notes-reader" hidden>
+        <div class="toolbar">
+          <button type="button" class="btn" data-note-back>← Volver a notas</button>
+          <button type="button" class="btn" id="note-dl" data-dl-note>Descargar .md</button>
+        </div>
+        <p class="muted"><span id="note-crumb"></span> · <span id="note-status"></span></p>
+        <div id="note-toc" class="toolbar"></div>
+        <article id="note-article" class="article"></article>
+      </div>
+    </section>
     <section data-view="inicio" hidden>
       <h2>Qué hay en este workspace</h2>
       <p class="lead">El README es la fuente. Los diagramas se abren a pantalla completa, con zoom y arrastre.</p>
       <div class="hero">
         <button type="button" data-go="readme" data-q="arquitectura readme rutas endpoints flujo nombres"><span class="k">README</span><strong>Arquitectura</strong><span class="muted">${hasReadme ? 'Abrir documento' : 'Todavía vacío'}</span></button>
+        <button type="button" data-go="notas" data-q="notas wiki tareas entregas readme listo aprobado"><span class="k">Wiki</span><strong>${notes.length} entregas</strong><span class="muted">README por tarea</span></button>
         <button type="button" data-go="mapa" data-q="mapa proyectos conexiones flujo"><span class="k">Mapa</span><strong>${projects.length} proyectos</strong><span class="muted">${rels.length} conexiones</span></button>
         <button type="button" data-go="diagramas" data-q="diagramas mapas flujo componentes"><span class="k">Diagramas</span><strong>${diagrams.length} mapas</strong><span class="muted">Pantalla completa + zoom</span></button>
         <button type="button" data-go="capas" data-q="capas presentación api datos e2e trazabilidad"><span class="k">Capas</span><strong>Presentación · API · datos</strong><span class="muted">Quién llama qué</span></button>
@@ -692,6 +805,7 @@ function buildHtml(data) {
   </div>
 </div>
 <script type="application/json" id="diagrams-data">${payload.replace(/</g, '\\u003c')}</script>
+<script type="application/json" id="notes-data">${notesPayload.replace(/</g, '\\u003c')}</script>
 <script type="text/plain" id="flow-md">${esc(flowMd || '')}</script>
 </body>
 </html>
@@ -734,6 +848,7 @@ export function writeDashboard(root, opts = {}) {
     observations: data.cerebro.observations.length,
     diagrams: data.diagrams.length,
     assets: data.assets.length,
+    notes: data.notes.length,
     readme: Boolean(String(data.flowMd || '').trim()),
     hint: opened
       ? 'Dashboard abierto en el README. Diagramas: pantalla completa, rueda = zoom, arrastrar = mover.'
