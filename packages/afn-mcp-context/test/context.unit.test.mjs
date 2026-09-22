@@ -175,6 +175,10 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.match(JSON.stringify(hook), /bootstrap/);
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-architecture.json')));
+  const archHook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-architecture.json'), 'utf8'));
+  assert.equal(archHook.hooks[0].action.type, 'command');
+  assert.match(archHook.hooks[0].action.command, /architecture-status/);
+  assert.equal(archHook.hooks[0].action.type === 'agent', false);
   assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
   const gi = fs.readFileSync(path.join(project, '.gitignore'), 'utf8');
   assert.match(gi, /\.kiro\/settings\/mcp\.json/);
@@ -431,11 +435,17 @@ test('afn_diagram_generate sin recreate no pisa; con recreate sí', async () => 
   fs.unlinkSync(visible);
   const skip = await handleContextTool(root, 'afn_diagram_generate', {});
   assert.equal(skip.skipped, true);
+  assert.equal(skip.flow, undefined);
+  assert.equal(skip.config, undefined);
+  assert.equal(skip.evidence, undefined);
   assert.equal(fs.existsSync(visible), true);
   assert.match(fs.readFileSync(visible, 'utf8'), /Arquitectura|Contenedores/);
   const gen = await handleContextTool(root, 'afn_diagram_generate', { recreate: true });
   assert.equal(gen.ok, true);
   assert.equal(gen.skipped, false);
+  assert.equal(gen.flow, undefined);
+  assert.equal(gen.config, undefined);
+  assert.ok(!JSON.stringify(gen).includes('"ir"'));
 });
 
 test('regenerar arquitectura no borra observaciones del cerebro', async () => {
@@ -502,6 +512,7 @@ test('afn_architecture_commit rechaza nodos inventados y acepta evidencia', asyn
   });
   assert.equal(ok.llmReviewed, true);
   assert.ok(ok.relationships.some((r) => r.from === 'web' && r.to === 'api'));
+  assert.equal(ok.diagram, undefined);
   const flow = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'diagrams', 'workspace-flow.json'), 'utf8'));
   assert.equal(flow.llmReviewed, true);
 });
@@ -661,6 +672,7 @@ test('snapshot prioriza README de nombres, rutas y cerebro', () => {
   const snap = buildSnapshot(root);
   assert.match(snap.markdown, /Arquitectura|Contenedores|Comunicación|Flujo E2E/);
   assert.match(snap.markdown, /arquitectura\.md|:5173|:4000|sin evidencia/);
+  assert.equal(snap.markdown.includes('afn_architecture_evidence'), false);
   assert.ok(snap.markdown.length <= 3200);
 });
 

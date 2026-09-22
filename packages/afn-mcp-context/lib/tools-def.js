@@ -115,7 +115,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_dashboard',
     description:
-      'HTML: README de arquitectura, wiki de tareas (.afn/notes/tareas), diagramas. Abre el navegador.',
+      'Abre el HTML (README, wiki de tareas, diagramas). Nunca regenera arquitectura.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -127,7 +127,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_diagram_generate',
     description:
-      'Regenera el inventario de arquitectura (disco, sin inventar). No borra el cerebro. Después el LLM debe leer filesToRead y llamar afn_architecture_commit. Solo si el usuario lo pidió o es la primera vez.',
+      'Regenera el inventario de arquitectura. SOLO si el usuario pidió «regenerá la arquitectura» o hay cambio estructural confirmado. No al abrir el proyecto ni el dashboard. Devuelve un resumen (el JSON vive en disco).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -144,7 +144,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_architecture_commit',
     description:
-      'Guarda el mapa que el LLM verificó en archivos reales. Rechaza paths o nodos que no existan. No borra observaciones.',
+      'Guarda el mapa verificado. Rechaza paths/nodos inventados. Devuelve un resumen, no el flujo completo. No borra observaciones. Solo tras regenerate pedido por el usuario.',
     inputSchema: {
       type: 'object',
       properties: {

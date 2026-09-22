@@ -10,6 +10,7 @@ import { loadAgentAssets } from './agent-assets.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
 import { architectureReadmeBrief, workspaceFlowMarkdown } from './architecture-readme.js';
 import { listTaskNotes } from './task-notes.js';
+import { structuralDrift } from './architecture-llm.js';
 
 function readJson(file) {
   try {
@@ -65,10 +66,18 @@ export function buildSnapshot(root) {
   const weak = isWeakProjectsMap(cfg);
   const flow = loadWorkspaceFlow(root);
   lines.push(`Workspace: \`${root}\``);
-  if (flow?.llmReviewed !== true) {
-    lines.push('ARQUITECTURA PENDIENTE: `afn_architecture_evidence` → leer filesToRead → `afn_architecture_commit`. No inventes puertos, prefix, flechas ni BDs.');
+  const drift = structuralDrift(root);
+  if (!flow) {
+    lines.push('Sin mapa de arquitectura. Bootstrap lo crea. No llames afn_diagram_generate en cada turno.');
+  } else if (drift.drifted) {
+    const bits = [...(drift.added || []).map((n) => `+${n}`), ...(drift.removed || []).map((n) => `-${n}`)].join(', ');
+    lines.push(`Cambio estructural (${bits}). Regenerá la arquitectura **solo** si el usuario lo pide. No lo hagas al abrir el dashboard.`);
   } else {
-    lines.push('Arquitectura verificada. Documento: `ARQUITECTURA.md` (raíz del workspace).');
+    lines.push(
+      flow.llmReviewed === true
+        ? 'Arquitectura verificada. Documento: `ARQUITECTURA.md`. No regeneres salvo pedido explícito o cambio estructural.'
+        : 'Inventario en disco (`ARQUITECTURA.md`). No llames afn_diagram_generate / afn_architecture_commit salvo «regenerá la arquitectura».',
+    );
   }
   lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura cerrada' : ''));
   if (weak) {

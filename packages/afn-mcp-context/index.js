@@ -5,7 +5,8 @@
  *   node index.js snapshot     → markdown a stdout (hook PromptSubmit)
  *   node index.js bootstrap    → .afn/ sin LLM
  *   node index.js dashboard    → HTML cerebro/mapa (navegador)
- *   node index.js architecture [--recreate]  → inventario de disco; el LLM completa sin inventar
+ *   node index.js architecture [--recreate]  → inventario (solo a pedido)
+ *   node index.js architecture-status        → ¿existe el mapa? no regenera
  *   node index.js session-start
  *   node index.js setup kiro|cursor|claude|generic
  */
@@ -22,6 +23,8 @@ import { writeDashboard } from './lib/dashboard.js';
 import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent } from './lib/setup.js';
 import { FLOW_GENERATOR_VERSION } from './lib/version.js';
+import { architectureStatus } from './lib/architecture-llm.js';
+import { compactBootstrap, compactDiagramResult } from './lib/compact-result.js';
 import fs from 'node:fs';
 
 const VERSION = FLOW_GENERATOR_VERSION;
@@ -54,7 +57,7 @@ async function main() {
     const lock = argv.includes('--lock');
     const unlock = argv.includes('--unlock');
     const r = bootstrapAfn(root, { force, refresh, lock, unlock, ceiling: root });
-    process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(compactBootstrap(r), null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
   }
@@ -88,8 +91,15 @@ async function main() {
       fs.mkdirSync(afnPath(root), { recursive: true });
       fs.writeFileSync(afnPath(root, 'projects.json'), `${JSON.stringify(r.config, null, 2)}\n`, 'utf8');
     }
-    process.stdout.write(`${JSON.stringify({ ok: r.ok, skipped: r.skipped, files: r.files, hint: r.hint }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(compactDiagramResult(r), null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
+    return;
+  }
+
+  if (cmd === 'architecture-status') {
+    const r = architectureStatus(root);
+    process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
+    process.exit(0);
     return;
   }
 
@@ -102,7 +112,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh]|architecture [--recreate]|doctor|dashboard|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|snapshot|bootstrap [--force|--refresh]|architecture [--recreate]|architecture-status|doctor|dashboard|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

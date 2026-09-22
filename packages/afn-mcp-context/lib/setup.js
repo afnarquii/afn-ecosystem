@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot, isCatalogish } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
-import { LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = path.resolve(here, '..');
@@ -46,17 +45,16 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 ## Tokens
 
-- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. La fuente es \`ARQUITECTURA.md\` **en la raíz del workspace** (C4/arc42: contexto, contenedores, comunicación, E2E, rutas, esquemas). **No** vuelques el repo ni uses mermaid como contexto.
+- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. La fuente es \`ARQUITECTURA.md\` **en la raíz del workspace**. **No** vuelques el repo.
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **ver** el mapa / **abre dashboard AFN**: \`afn_dashboard\` (README de arquitectura; pestaña Notas = wiki de entregas). No regeneres nada para verlo.
-- Si pide **guardar el README de esta tarea / dejarlo listo**: \`afn_note_save\` (task, title, filename, markdown). Varios .md por tarea en \`.afn/notes/tareas/<slug>/\`. **No** mezclar con \`ARQUITECTURA.md\` ni volcar el chat.
-- Si pide **marcar terminado / aprobar funcional**: \`afn_note_set_status\` (\`listo\` o \`aprobado\`). El dashboard no escribe a disco.
-- Regenerar o crear arquitectura: el disco lista repos, rutas y flechas **evidentes**. **El LLM** lee \`filesToRead\` y hace \`afn_architecture_commit\`. El resultado es un **README** (no un diagrama). **No inventes** puertos, \`/api\`, flechas ni BDs.
-- El snapshot y el cerebro (\`.afn/memory/cerebro.json\`) deben alcanzar para preguntar: nombres, endpoints, flujo, cómo correr, hechos.
-- Primera vez (falta mapa verificado) o el usuario pide “regenerá la arquitectura”: \`afn_diagram_generate\` recreate → \`afn_architecture_evidence\` → leer \`filesToRead\` → \`afn_architecture_commit\`.
-- Si el snapshot dice \`llmReviewed\` / mapa verificado y nadie pidió regenerar: no toques el mapa.
+- Si el usuario pide **abre dashboard AFN**: solo \`afn_dashboard\`. **No** llames \`afn_diagram_generate\` ni \`afn_architecture_commit\`.
+- Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
+- **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
+- Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
+- Las tools de arquitectura devuelven un resumen. El JSON completo está en disco (\`workspace-flow.json\`, \`projects.json\`, \`ARQUITECTURA.md\`).
+- Si el snapshot dice mapa verificado o inventario en disco y nadie pidió regenerar: no toques el mapa.
 - Regenerar no borra observaciones ni \`MEMORY.md\`.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
@@ -64,8 +62,8 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 
 - Solo los **activos**. \`ignorePaths\` / \`status: deprecated\` no existen para el flujo.
 - Si el usuario dice que un paquete ya no se usa: \`afn_project_ignore\`.
-- Si falta \`.afn/\` o el mapa es un solo \`mcp-context\`: \`afn_bootstrap\` y el LLM completa con evidencia (no inventa).
-- Al entrar, SessionStart corre bootstrap: **crea** el mapa si no existe; **si ya existe, no lo regenera**.
+- Si falta \`.afn/\` o el mapa es un solo \`mcp-context\`: \`afn_bootstrap\` (inventario de disco). El LLM no completa el mapa solo.
+- Al entrar, SessionStart corre bootstrap: **crea** el mapa si no existe; **si ya existe, no lo regenera** y no dispara el LLM.
 - **No** tomes \`packages/afn-mcp-context\` ni el clone de \`afn-ecosystem\` como el producto.
 
 ## Convivencia
@@ -128,13 +126,11 @@ function writeHooks(projectRoot, nodeCmd) {
     version: 'v1',
     hooks: [
       {
-        name: 'AFN architecture from code',
-        description: 'Si el mapa no está verificado, el agente lee evidencia de disco y commitea sin inventar.',
+        name: 'AFN architecture status',
+        description: 'Comprueba si el mapa existe. No regenera. No llama al LLM.',
         trigger: 'SessionStart',
-        action: {
-          type: 'agent',
-          prompt: `${LLM_ARCHITECTURE_PROMPT}\nSi el snapshot o afn_architecture_evidence dice llmReviewed=true, no hagas nada.`,
-        },
+        action: { type: 'command', command: `${nodeCmd} architecture-status` },
+        timeout: 15,
       },
     ],
   });

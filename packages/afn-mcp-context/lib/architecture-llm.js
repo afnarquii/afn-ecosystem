@@ -156,6 +156,54 @@ export function collectArchitectureEvidence(root) {
   };
 }
 
+/**
+ * ¿El disco tiene contenedores que el mapa no tiene (o al revés)?
+ * No regenera: solo avisa. Ignora nodos inferidos (BD/cloud).
+ */
+export function structuralDrift(root) {
+  const detected = detectProjects(root);
+  const flow = loadWorkspaceFlow(root);
+  if (!flow) return { drifted: false, missing: true, added: [], removed: [] };
+  const diskNames = new Set((detected.projects || []).map((p) => p.name));
+  const mapped = (flow.projects || []).filter((p) => p.type !== 'database' && p.type !== 'cloud' && p.path);
+  const flowNames = new Set(mapped.map((p) => p.name));
+  const added = [...diskNames].filter((n) => !flowNames.has(n));
+  const removed = [...flowNames].filter((n) => !diskNames.has(n));
+  return { drifted: added.length + removed.length > 0, missing: false, added, removed };
+}
+
+export function architectureStatus(root) {
+  const flow = loadWorkspaceFlow(root);
+  const drift = structuralDrift(root);
+  if (!flow) {
+    return {
+      ok: true,
+      exists: false,
+      llmReviewed: false,
+      drifted: false,
+      hint: 'Sin mapa. Bootstrap lo crea si falta. No llames afn_diagram_generate en cada turno.',
+    };
+  }
+  if (drift.drifted) {
+    return {
+      ok: true,
+      exists: true,
+      llmReviewed: flow.llmReviewed === true,
+      drifted: true,
+      added: drift.added,
+      removed: drift.removed,
+      hint: `Cambio estructural en disco (${[...drift.added, ...drift.removed].join(', ')}). Regenerá la arquitectura solo si el usuario lo pide.`,
+    };
+  }
+  return {
+    ok: true,
+    exists: true,
+    llmReviewed: flow.llmReviewed === true,
+    drifted: false,
+    hint: 'Arquitectura en disco. No regenerar al abrir el proyecto ni el dashboard.',
+  };
+}
+
 function applyDiskPort(root, rel, incomingPort, rejected, name) {
   const abs = path.resolve(root, rel || '.');
   const disk = findPortEvidence(abs);
@@ -292,9 +340,9 @@ export function commitArchitecture(root, input = {}) {
       committed: true,
       llmReviewed: true,
       rejected,
+      readme: diagram.readmeFile || path.join(root, 'ARQUITECTURA.md'),
       projects: cfg.projects,
       relationships: cfg.relationships,
-      diagram,
       hint: rejected.length
         ? `Guardé lo verificado. Rechacé ${rejected.length} ítem(s) sin disco (no se inventan puertos ni nodos).`
         : `README para el LLM: ARQUITECTURA.md en la raíz. El cerebro no se tocó.`,

@@ -9,9 +9,17 @@ import { writeDashboard } from './dashboard.js';
 import { listTaskNotes, saveTaskNote, setTaskNoteStatus } from './task-notes.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
-import { loadWorkspaceFlow } from './workspace-flow.js';
+import { architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
+import {
+  compactBootstrap,
+  compactCommit,
+  compactDiagramResult,
+  compactEvidence,
+  compactProject,
+  compactRel,
+} from './compact-result.js';
 import {
   activeProjects,
   activeRelationships,
@@ -41,13 +49,15 @@ export async function handleContextTool(root, name, args = {}) {
   const base = resolveProjectRoot(root || process.env.AFN_PROJECT_ROOT);
   switch (name) {
     case 'afn_bootstrap':
-      return bootstrapAfn(base, {
-        force: args.force === true,
-        refresh: args.refresh === true,
-        lock: args.lock === true,
-        unlock: args.unlock === true || args.lock === false,
-        ceiling: base,
-      });
+      return compactBootstrap(
+        bootstrapAfn(base, {
+          force: args.force === true,
+          refresh: args.refresh === true,
+          lock: args.lock === true,
+          unlock: args.unlock === true || args.lock === false,
+          ceiling: base,
+        }),
+      );
     case 'afn_context_snapshot':
       return buildSnapshot(base);
     case 'afn_projects_flow': {
@@ -65,12 +75,10 @@ export async function handleContextTool(root, name, args = {}) {
         ok: true,
         root: base,
         mode: flow?.mode,
-        projects,
-        relationships: rels,
+        projects: projects.map(compactProject),
+        relationships: rels.map(compactRel),
         layers: flow?.layers || null,
-        e2e: flow?.e2e || [],
-        how: flow?.how || null,
-        readme: '.afn/diagrams/arquitectura.md',
+        readme: path.join(base, 'ARQUITECTURA.md'),
         ignorePaths: cfg.ignorePaths,
       };
     }
@@ -101,27 +109,28 @@ export async function handleContextTool(root, name, args = {}) {
       return writeDashboard(base, { open: args.open !== false, slug: args.slug });
     case 'afn_diagram_generate': {
       const recreate = args.recreate === true;
-      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate, llmReviewed: false });
+      if (!recreate && architectureExists(base)) {
+        const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate: false });
+        const compact = compactDiagramResult({ ...r, root: base });
+        compact.hint = `Arquitectura ya estaba en disco. README: ${compact.readme || path.join(base, 'ARQUITECTURA.md')}. No regeneré. Pedí «regenerá la arquitectura» para recrear.`;
+        return compact;
+      }
+      const r = persistWorkspaceFlowDiagram(base, readProjects(base), { recreate: true, llmReviewed: false });
       if (r.config && !r.skipped) writeProjects(base, r.config);
-      const evidence = collectArchitectureEvidence(base);
-      const needsLlm = recreate || evidence.needsLlm;
+      const evidence = compactEvidence(collectArchitectureEvidence(base));
       return {
-        ...r,
-        root: base,
-        needsLlm,
-        llmReviewed: needsLlm ? false : evidence.llmReviewed,
+        ...compactDiagramResult({ ...r, root: base }),
+        needsLlm: true,
+        llmReviewed: false,
         evidence,
-        prompt: needsLlm ? LLM_ARCHITECTURE_PROMPT : undefined,
-        readme: r.readmeFile || path.join(base, 'ARQUITECTURA.md'),
-        hint: r.skipped && !recreate
-          ? `README: ${r.readmeFile || path.join(base, 'ARQUITECTURA.md')}. Si querés rehacer el inventario, pedí regenerar con recreate.`
-          : `README para el LLM (abrilo): ${r.readmeFile || path.join(base, 'ARQUITECTURA.md')}. Luego filesToRead → afn_architecture_commit.`,
+        prompt: LLM_ARCHITECTURE_PROMPT,
+        hint: `Inventario de disco. Leé filesToRead y llamá afn_architecture_commit. README: ${r.readmeFile || path.join(base, 'ARQUITECTURA.md')}.`,
       };
     }
     case 'afn_architecture_evidence':
-      return collectArchitectureEvidence(base);
+      return compactEvidence(collectArchitectureEvidence(base));
     case 'afn_architecture_commit':
-      return commitArchitecture(base, args);
+      return compactCommit(commitArchitecture(base, args));
     case 'afn_agent_assets':
       return persistAgentAssets(base);
     case 'afn_doctor':
