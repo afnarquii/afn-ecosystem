@@ -134,6 +134,6 @@ export function compactDashboard(r = {}) {
       r.hint
       || (http
         ? `Abrí exactamente esta URL en el navegador: ${http}`
-        : 'Pedí afn_dashboard otra vez; tiene que devolver http://127.0.0.1'),
+        : 'Corré node …/index.js dashboard (sin Kiro). Tiene que ser http://127.0.0.1'),
   };
 }

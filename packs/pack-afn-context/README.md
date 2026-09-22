@@ -110,6 +110,15 @@ cd C:\work\mi-monorepo
 node C:\tools\afn-ecosystem\packages\afn-mcp-context\index.js setup kiro
 ```
 
+`setup kiro` **sí** hay que correrlo esta vez: saca el hook AgentStop (gastaba un turno extra) y deja PromptSubmit en una pista de ~3 líneas. Después, dashboard/notas/cerebro **sin chat**:
+
+```bash
+cd C:\work\mi-monorepo
+.afn\_tmp\afn-dashboard.cmd
+.afn\_tmp\afn-note-save.cmd hu_102030_fondos.md
+.afn\_tmp\afn-mem-search.cmd fondos
+```
+
 Regenerar a mano (sin chat):
 
 ```bash

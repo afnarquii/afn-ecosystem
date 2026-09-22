@@ -44,9 +44,17 @@ export function buildAskBrief(root) {
 }
 
 /**
- * Bloque compacto para inyectar al prompt (ahorro de tokens).
+ * Pista corta para PromptSubmit. No inyectar el snapshot completo (gasta tokens en cada mensaje).
  * @param {string} root
  */
+export function buildPromptHint(root) {
+  const md = [
+    'AFN: mapa en ARQUITECTURA.md. Cerebro en .afn/memory/cerebro.json.',
+    'SIN tokens de chat: node …/afn-mcp-context/index.js dashboard | note-save archivo.md | mem-search texto.',
+    'No abras el dashboard ni guardes notes ni busques cerebro por el chat. No regeneres arquitectura.',
+  ].join('\n');
+  return { ok: true, markdown: `${md}\n`, root: root || '', hint: true };
+}
 export function buildSnapshot(root) {
   const lines = [
     '=== AFN CONTEXT (README de arquitectura — no reexplores el repo si esto alcanza) ===',

@@ -960,18 +960,21 @@ export async function openDashboard(root, opts = {}) {
   const written = writeDashboard(root, { open: false, slug: opts.slug });
   if (opts.open === false) return written;
   const { startDashboardServer, dashboardPublicUrl } = await import('./dashboard-server.js');
-  const info = await startDashboardServer(root);
-  const hash = opts.slug ? `#d-${opts.slug}` : '#readme';
+  let hash = '#readme';
+  if (opts.hash) hash = String(opts.hash).startsWith('#') ? String(opts.hash) : `#${opts.hash}`;
+  else if (opts.slug) hash = `#d-${opts.slug}`;
+  const info = await startDashboardServer(root, { port: opts.port });
   const url = dashboardPublicUrl(info, hash);
-  const opened = openUrl(url);
+  const opened = opts.browser === false ? false : openUrl(url);
   return {
     ...written,
     url,
     opened,
     server: true,
+    reused: info.reused === true,
     port: info.port,
     version: FLOW_GENERATOR_VERSION,
-    hint: `Dashboard v${FLOW_GENERATOR_VERSION} en ${url} — izquierda: Orígenes, Elegir tablas/PAs, SQL. Si dice «archivo local» no es esta URL.`,
+    hint: `Dashboard v${FLOW_GENERATOR_VERSION} en ${url} — CLI sin tokens: node …/index.js dashboard. Si dice «archivo local» no es esta URL.`,
   };
 }
 

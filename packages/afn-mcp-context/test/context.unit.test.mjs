@@ -7,7 +7,7 @@ import { applyIgnorePath, activeProjects, activeRelationships, normalizeProjects
 import { detectProjects, inferProjectType, inferPort } from '../lib/detect-projects.js';
 import { bootstrapAfn } from '../lib/bootstrap.js';
 import { saveFact, searchFacts, loadFacts } from '../lib/memory.js';
-import { buildSnapshot, doctorAfn } from '../lib/snapshot.js';
+import { buildSnapshot, buildPromptHint, doctorAfn } from '../lib/snapshot.js';
 import { handleContextTool } from '../lib/handle-tool.js';
 import { redactSecrets } from '../lib/redact.js';
 import { setupAgent, packHasSqlDriver } from '../lib/setup.js';
@@ -16,7 +16,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
-import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-notes.js';
+import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile } from '../lib/task-notes.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
@@ -180,6 +180,10 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   const hook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json'), 'utf8'));
   assert.match(JSON.stringify(hook), /bootstrap/);
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
+  const promptHook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-prompt-submit.json'), 'utf8'));
+  assert.match(JSON.stringify(promptHook), /snapshot --hint/);
+  assert.equal(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-agent-stop.json')), false);
+  assert.ok(fs.existsSync(path.join(project, '.afn', '_tmp', 'afn-dashboard.cmd')));
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-architecture.json')));
   const archHook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-architecture.json'), 'utf8'));
   assert.equal(archHook.hooks[0].action.type, 'command');
@@ -1000,15 +1004,15 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /JSON/);
   assert.match(html, /wb-sql-gutter/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.15/);
-  assert.match(html, /data-afn-version="1\.4\.15"/);
+  assert.match(html, /v1\.4\.16/);
+  assert.match(html, /data-afn-version="1\.4\.16"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
   const root = tmp();
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
   bootstrapAfn(root);
-  const info = await startDashboardServer(root);
+  const info = await startDashboardServer(root, { port: 0 });
   try {
     const headers = { 'x-afn-token': info.token, 'content-type': 'application/json' };
     const put = await fetch(`http://127.0.0.1:${info.port}/api/origins`, {
@@ -1065,7 +1069,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.15/);
+    assert.match(liveHtml, /v1\.4\.16/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
     assert.match(liveHtml, /wb-sql-driver/);
@@ -1082,11 +1086,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.15',
+    version: '1.4.16',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.15');
+  assert.equal(c.version, '1.4.16');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
@@ -1157,6 +1161,21 @@ test('sql-driver resuelve mssql del pack con require.resolve, sin npx', async ()
   assert.equal(loaded.ok, true);
   assert.equal(loaded.source, 'pack');
   assert.equal(typeof loaded.module.connect, 'function');
+});
+
+test('prompt hint es corto; note-save copia un md sin LLM', () => {
+  const h = buildPromptHint(tmp());
+  assert.equal(h.hint, true);
+  assert.ok(h.markdown.length < 500);
+  assert.match(h.markdown, /dashboard/);
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  const src = path.join(root, 'hu_102030_fondos.md');
+  fs.writeFileSync(src, '# HU fondos\n\nDetalle.\n');
+  const r = saveTaskNoteFromFile(root, src);
+  assert.equal(r.ok, true);
+  assert.equal(r.file, 'hu_102030_fondos.md');
+  assert.ok(fs.existsSync(path.join(root, '.afn', 'notes', 'tareas', r.slug, 'hu_102030_fondos.md')));
 });
 
 

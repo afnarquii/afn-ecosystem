@@ -136,8 +136,32 @@ export function saveTaskNote(root, input = {}) {
     rel: path.posix.join('.afn/notes/tareas', slug, file),
     status,
     title,
-    hint: 'Quedó en .afn/notes/tareas. Pedí abre dashboard AFN → Notas. No mezclar con ARQUITECTURA.md.',
+    hint: 'Quedó en .afn/notes/tareas. Dashboard → Notas (CLI: node … dashboard notas). No mezclar con ARQUITECTURA.md.',
   };
+}
+
+/**
+ * Copia un .md del disco al wiki de tareas. Sin LLM.
+ * @param {string} root
+ * @param {string} filePath
+ */
+export function saveTaskNoteFromFile(root, filePath) {
+  const raw = String(filePath || '').trim().replace(/^["']|["']$/g, '');
+  if (!raw) return { ok: false, error: 'indica el archivo .md' };
+  const candidates = [path.resolve(process.cwd(), raw), path.resolve(root, raw)];
+  if (path.isAbsolute(raw)) candidates.unshift(raw);
+  const file = candidates.find((f) => {
+    try {
+      return fs.existsSync(f) && fs.statSync(f).isFile();
+    } catch {
+      return false;
+    }
+  });
+  if (!file) return { ok: false, error: `no existe ${raw}` };
+  const markdown = fs.readFileSync(file, 'utf8');
+  const base = path.basename(file);
+  const stem = base.replace(/\.md$/i, '');
+  return saveTaskNote(root, { task: stem, title: stem, filename: base, markdown });
 }
 
 /**

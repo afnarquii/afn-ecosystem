@@ -89,21 +89,20 @@ const STEERING = `# Memoria y mapa AFN (.afn)
 
 Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto están en \`.afn/\`, no en el historial de chat.
 
-## Tokens
+## Tokens (no gastar chat en operativos)
 
-- Al empezar: \`afn_context_snapshot\` y \`afn_mem_context\`. La fuente es \`ARQUITECTURA.md\` **en la raíz del workspace**. **No** vuelques el repo.
-- Buscá con \`afn_mem_search\` antes de re-explorar.
-- Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
-- Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **abre dashboard AFN**: \`afn_dashboard\`. Abrí **solo** el campo \`url\` (\`http://127.0.0.1:…\`). **Nunca** abras \`.afn/_tmp/dashboard.html\` ni una ruta \`C:\\\`. Ahí ves versión, Orígenes, Elegir tablas/PAs y SQL. **No** llames \`afn_diagram_generate\` ni \`afn_architecture_commit\`.
-- Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
+- **Dashboard, guardar un .md y consultar cerebro NO van por el chat.** El chat consume el modelo (snapshot + tools + AgentStop).
+- Dashboard sin tokens: en la raíz del producto \`.afn/_tmp/afn-dashboard.cmd\` o \`node …/packages/afn-mcp-context/index.js dashboard\` (queda en \`http://127.0.0.1:5847\`). Pestaña: \`dashboard sql\` / \`dashboard cerebro\`.
+- Guardar un README: \`node …/index.js note-save hu_102030_fondos.md\` (o \`.afn/_tmp/afn-note-save.cmd\`).
+- Cerebro: pestaña Cerebro del dashboard, o \`node …/index.js mem-search texto\`.
+- Si el usuario **igual** lo pide en el chat: **una sola tool** (\`afn_dashboard\` / \`afn_note_save\` / \`afn_mem_search\`). **No** llames snapshot, diagram ni architecture. Abrí **solo** el campo \`url\` (\`http://127.0.0.1\`). **Nunca** \`.afn/_tmp/dashboard.html\`.
+- Al empezar un trabajo de código (no un comando operativo): \`afn_context_snapshot\` si hace falta. Fuente: \`ARQUITECTURA.md\` en la raíz. **No** vuelques el repo.
+- Guardá **hechos** con \`afn_mem_save\` solo si el usuario pidió recordar algo. No transcripts.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
-- Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
-- El origen de datos **no se adivina**. El init escribe **varios** perfiles en \`.afn/db-connections.json\`. \`.afn/db-connection.json\` es la sesión activa. **Sin passwords**. Credenciales: \`.afn/credentials/data-agent.json\`. En el dashboard (pestaña Orígenes) hay un formulario host/puerto/base; Guardar escribe el JSON. Recortar esquema en Elegir tablas/PAs.
-- Si pide **conectar / listar tablas y PAs**: leé el catálogo. Listá con \`data_inspect_schema\` + \`afn_schema_commit\`. Recortar en dashboard → Elegir tablas/PAs. SQL ad-hoc: pestaña SQL (SELECT o EXEC de PA de consulta). No mezcles dos bases. No inventes host ni tablas.
-- Las tools de arquitectura devuelven un resumen. El JSON completo está en disco (\`workspace-flow.json\`, \`projects.json\`, \`ARQUITECTURA.md\`).
-- Si el snapshot dice mapa verificado o inventario en disco y nadie pidió regenerar: no toques el mapa.
-- Regenerar no borra observaciones ni \`MEMORY.md\`.
+- Regenerar **solo** si el usuario dice “regenerá la arquitectura”. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
+- El origen de datos **no se adivina**. Init → \`.afn/db-connections.json\`. Credenciales: \`.afn/credentials/data-agent.json\`. SQL: pestaña SQL del dashboard (SELECT o EXEC de PA).
+- Si pide **conectar / listar tablas y PAs**: catálogo + \`data_inspect_schema\` + \`afn_schema_commit\`. No inventes host ni tablas.
+- Las tools de arquitectura devuelven un resumen. Completo en disco.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
 ## Proyectos
@@ -282,28 +281,37 @@ function writeHooks(projectRoot, nodeCmd) {
     hooks: [
       {
         name: 'AFN snapshot',
-        description: 'Inyecta mapa compacto al prompt.',
+        description: 'Pista corta (no el mapa completo) para no gastar tokens en cada mensaje.',
         trigger: 'PromptSubmit',
-        action: { type: 'command', command: `${nodeCmd} snapshot` },
-        timeout: 20,
+        action: { type: 'command', command: `${nodeCmd} snapshot --hint` },
+        timeout: 8,
       },
     ],
   });
-  writeJson(path.join(dir, 'afn-agent-stop.json'), {
-    version: 'v1',
-    hooks: [
-      {
-        name: 'AFN persist fact',
-        description: 'El stop de Kiro a menudo no trae el texto; la tool MCP es la fuente de verdad.',
-        trigger: 'AgentStop',
-        action: {
-          type: 'agent',
-          prompt:
-            'Si este turno cambió APIs, un bugfix o una decisión, llamá afn_mem_save. No inventes arquitectura. Solo regenerá el mapa si el usuario lo pidió, con evidencia de disco + afn_architecture_commit.',
-        },
-      },
-    ],
-  });
+  try {
+    fs.unlinkSync(path.join(dir, 'afn-agent-stop.json'));
+  } catch {
+    /* el hook agent gastaba un turno LLM extra en cada stop */
+  }
+  writeLocalLaunchers(projectRoot);
+}
+
+function writeLocalLaunchers(projectRoot) {
+  const dir = path.join(projectRoot, '.afn', '_tmp');
+  fs.mkdirSync(dir, { recursive: true });
+  const node = process.execPath;
+  const dashCmd = `@echo off\r\ncd /d "${projectRoot}"\r\n"${node}" "${ENTRY}" dashboard %*\r\necho.\r\necho Dashboard local: no usa tokens de Kiro. Ctrl+C para parar.\r\n`;
+  fs.writeFileSync(path.join(dir, 'afn-dashboard.cmd'), dashCmd, 'utf8');
+  fs.writeFileSync(
+    path.join(dir, 'afn-note-save.cmd'),
+    `@echo off\r\ncd /d "${projectRoot}"\r\n"${node}" "${ENTRY}" note-save %*\r\n`,
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'afn-mem-search.cmd'),
+    `@echo off\r\ncd /d "${projectRoot}"\r\n"${node}" "${ENTRY}" mem-search %*\r\n`,
+    'utf8',
+  );
 }
 
 /**
@@ -348,7 +356,7 @@ export function setupAgent(agent, opts = {}) {
       bootstrap: boot,
       dataAgent,
       note: pinRoot
-        ? `MCP de este workspace: ${mcpFile}. Orígenes: .afn/db-connections.json. Abrí otro producto → setup kiro ahí (no comparte la ruta).`
+        ? `MCP: ${mcpFile}. Dashboard SIN tokens: .afn/_tmp/afn-dashboard.cmd (http://127.0.0.1:5847). note-save / mem-search en .afn/_tmp. No pidas esas cosas en el chat.`
         : 'Corré setup otra vez desde el workspace del producto, no desde afn-ecosystem.',
     };
   }

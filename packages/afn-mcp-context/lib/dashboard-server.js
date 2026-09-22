@@ -1,10 +1,14 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { collectDashboard, buildHtml } from './dashboard.js';
 import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
-import fs from 'node:fs';
+
+/** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
+export const AFN_DASHBOARD_PORT = 5847;
 
 const live = new Map();
 
@@ -110,6 +114,30 @@ async function handleApi(root, token, req, res, url) {
   send(res, 404, { ok: false, error: 'not_found' });
 }
 
+export function readDashboardPointer(root) {
+  return readJson(afnPath(root, '_tmp', 'dashboard.json'));
+}
+
+function persistDashboardPointer(root, info) {
+  const dir = afnPath(root, '_tmp');
+  fs.mkdirSync(dir, { recursive: true });
+  const url = String(info.url || '');
+  fs.writeFileSync(path.join(dir, 'dashboard-url.txt'), `${url}\n`, 'utf8');
+  fs.writeFileSync(
+    path.join(dir, 'dashboard.json'),
+    `${JSON.stringify({ url, port: info.port, token: info.token, pid: process.pid }, null, 2)}\n`,
+    'utf8',
+  );
+}
+
+function preferredPort(opts = {}) {
+  if (opts.port === 0) return 0;
+  if (opts.port != null && Number(opts.port) > 0) return Number(opts.port);
+  const env = Number(process.env.AFN_DASHBOARD_PORT);
+  if (Number.isFinite(env) && env > 0) return env;
+  return AFN_DASHBOARD_PORT;
+}
+
 /**
  * Servidor loopback para editar orígenes / esquema y correr SELECT / EXEC.
  * @param {string} root
@@ -117,6 +145,42 @@ async function handleApi(root, token, req, res, url) {
  */
 export function startDashboardServer(root, opts = {}) {
   const abs = String(root || '');
+  const prev = live.get(abs);
+  if (prev?.ready) return prev.ready;
+  if (opts.port !== 0) {
+    const saved = readDashboardPointer(abs);
+    const wantPort = preferredPort(opts);
+    if (saved?.url && Number(saved.port) === wantPort) {
+      const reused = {
+        server: null,
+        token: saved.token,
+        root: abs,
+        port: saved.port,
+        url: saved.url,
+        reused: true,
+        ready: null,
+      };
+      reused.ready = Promise.resolve()
+        .then(async () => {
+          const ac = new AbortController();
+          const t = setTimeout(() => ac.abort(), 600);
+          try {
+            const r = await fetch(`http://127.0.0.1:${saved.port}/`, { signal: ac.signal });
+            if (r.ok) return reused;
+          } catch {
+            /* arrancar de nuevo */
+          } finally {
+            clearTimeout(t);
+          }
+          return startFreshDashboardServer(abs, opts, wantPort);
+        });
+      return reused.ready;
+    }
+  }
+  return startFreshDashboardServer(abs, opts, preferredPort(opts));
+}
+
+function startFreshDashboardServer(abs, opts, want) {
   const prev = live.get(abs);
   if (prev?.ready) return prev.ready;
   const token = crypto.randomBytes(16).toString('hex');
@@ -136,16 +200,26 @@ export function startDashboardServer(root, opts = {}) {
   });
   const info = { server, token, root: abs, port: 0, url: '', ready: null };
   info.ready = new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.once('listening', () => {
+    const finish = () => {
       const addr = server.address();
       info.port = addr.port;
       info.url = `http://127.0.0.1:${addr.port}/?token=${token}`;
+      persistDashboardPointer(abs, info);
       resolve(info);
+    };
+    server.once('listening', finish);
+    server.once('error', (err) => {
+      if (want && err && err.code === 'EADDRINUSE') {
+        server.removeAllListeners('listening');
+        server.once('listening', finish);
+        server.listen(0, '127.0.0.1');
+        return;
+      }
+      reject(err);
     });
   });
   live.set(abs, info);
-  server.listen(Number(opts.port) || 0, '127.0.0.1');
+  server.listen(want, '127.0.0.1');
   return info.ready;
 }
 
