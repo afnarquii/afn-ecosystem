@@ -1005,9 +1005,13 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Excel/);
   assert.match(html, /JSON/);
   assert.match(html, /wb-sql-gutter/);
+  assert.match(html, /wb-sql-inspect/);
+  assert.match(html, /wb-sql-view-json/);
+  assert.match(html, /wb-sql-sel-all-btn/);
+  assert.match(html, /Descargar esta/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.17/);
-  assert.match(html, /data-afn-version="1\.4\.17"/);
+  assert.match(html, /v1\.4\.18/);
+  assert.match(html, /data-afn-version="1\.4\.18"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1071,7 +1075,8 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.17/);
+    assert.match(liveHtml, /v1\.4\.18/);
+    assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
     assert.match(liveHtml, /wb-sql-driver/);
@@ -1088,11 +1093,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.17',
+    version: '1.4.18',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.17');
+  assert.equal(c.version, '1.4.18');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {

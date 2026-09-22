@@ -69,7 +69,7 @@ export function workbenchSections() {
     </section>
     <section data-view="sql" hidden class="sql-ide">
       <h2>Consulta SQL</h2>
-      <p class="lead">Editor de solo lectura: <code>SELECT</code>, <code>WITH</code> y <code>EXEC dbo.NombrePA @p = 1</code>. F5 o Ctrl+Enter ejecuta. Exportá a Excel, JSON o TXT.</p>
+      <p class="lead">Editor de solo lectura: <code>SELECT</code>, <code>WITH</code> y <code>EXEC dbo.NombrePA @p = 1</code>. F5 o Ctrl+Enter ejecuta. Marcá filas (o Todas) para ver JSON/TXT y descargar una, varias o todas.</p>
       <p id="wb-sql-driver" class="muted">Driver: comprobando…</p>
       <div class="sql-ide-toolbar">
         <label>Origen <select id="wb-sql-origin"></select></label>
@@ -98,7 +98,29 @@ ORDER BY 1, 2;</textarea>
             <span id="wb-sql-msg">Listo. F5 ejecuta.</span>
             <span id="wb-sql-meta"></span>
           </div>
+          <div class="sql-rowbar" id="wb-sql-rowbar">
+            <button type="button" class="btn" id="wb-sql-sel-all-btn">Todas</button>
+            <button type="button" class="btn" id="wb-sql-sel-none">Ninguna</button>
+            <span class="muted" id="wb-sql-sel-count">0 seleccionadas</span>
+            <button type="button" class="btn" id="wb-sql-view-json" title="Ver filas elegidas en JSON">Ver JSON</button>
+            <button type="button" class="btn" id="wb-sql-view-txt">Ver TXT</button>
+            <button type="button" class="btn" id="wb-sql-copy-sel">Copiar</button>
+            <button type="button" class="btn" id="wb-sql-dl-json">↓ JSON</button>
+            <button type="button" class="btn" id="wb-sql-dl-txt">↓ TXT</button>
+            <button type="button" class="btn" id="wb-sql-dl-xls">↓ Excel</button>
+          </div>
           <div class="table-wrap sql-grid-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
+          <div class="sql-inspect" id="wb-sql-inspect" hidden>
+            <div class="sql-inspect-bar">
+              <span id="wb-sql-inspect-title">Fila</span>
+              <button type="button" class="btn" data-inspect-fmt="json">JSON</button>
+              <button type="button" class="btn" data-inspect-fmt="txt">TXT</button>
+              <button type="button" class="btn" id="wb-sql-inspect-copy">Copiar</button>
+              <button type="button" class="btn" id="wb-sql-inspect-dl">Descargar esta</button>
+              <button type="button" class="btn" id="wb-sql-inspect-close">Cerrar</button>
+            </div>
+            <pre id="wb-sql-inspect-body" class="sql-inspect-body"></pre>
+          </div>
         </div>
       </div>
       <div id="wb-sql-favs" class="toolbar"></div>
@@ -275,6 +297,10 @@ export function workbenchScript() {
   });
   let lastRows = [];
   let lastCols = [];
+  let selected = new Set();
+  let lastClickRi = 0;
+  let inspectRi = -1;
+  let inspectFmt = "json";
   function cellEsc(v) {
     return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
   }
@@ -299,18 +325,87 @@ export function workbenchScript() {
     g.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\\n");
     g.scrollTop = ta.scrollTop;
   }
+  function pickRows() {
+    if (selected.size) return [...selected].sort((a,b) => a - b).map((i) => lastRows[i]).filter(Boolean);
+    return lastRows;
+  }
+  function rowTxt(row) {
+    return lastCols.map((c) => c + ": " + String(row[c] ?? "")).join("\\n");
+  }
+  function rowsJson(rows) {
+    return JSON.stringify(rows.length === 1 ? rows[0] : { columns: lastCols, rows, count: rows.length }, null, 2);
+  }
+  function rowsTxt(rows) {
+    if (rows.length === 1) return rowTxt(rows[0]);
+    return [lastCols.join("\\t")].concat(rows.map((r) => lastCols.map((c) => String(r[c] ?? "").replace(/\\t/g," ").replace(/\\n/g," ")).join("\\t"))).join("\\n");
+  }
+  function syncSelUi() {
+    const n = selected.size;
+    const el = document.getElementById("wb-sql-sel-count");
+    if (el) el.textContent = n ? (n + " seleccionada" + (n === 1 ? "" : "s") + " · exporta esas") : (lastRows.length ? lastRows.length + " filas · exportá todas o marcá filas" : "sin filas");
+    document.querySelectorAll("#wb-sql-grid tbody tr").forEach((tr) => {
+      const i = Number(tr.getAttribute("data-ri"));
+      const on = selected.has(i);
+      tr.classList.toggle("on", on);
+      const ck = tr.querySelector("input[type=checkbox]");
+      if (ck) ck.checked = on;
+    });
+    const all = document.getElementById("wb-sql-sel-all");
+    if (all) all.checked = lastRows.length > 0 && selected.size === lastRows.length;
+  }
+  function showInspect(ri, fmt) {
+    inspectRi = ri;
+    if (fmt) inspectFmt = fmt;
+    const box = document.getElementById("wb-sql-inspect");
+    const body = document.getElementById("wb-sql-inspect-body");
+    const title = document.getElementById("wb-sql-inspect-title");
+    const row = lastRows[ri];
+    if (!box || !body || !row) return;
+    box.hidden = false;
+    if (title) title.textContent = "Fila " + (ri + 1) + " / " + lastRows.length;
+    body.textContent = inspectFmt === "txt" ? rowTxt(row) : JSON.stringify(row, null, 2);
+    document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-inspect-fmt") === inspectFmt));
+  }
   function renderGrid(cols, rows) {
     lastCols = cols || [];
     lastRows = rows || [];
+    selected = new Set();
+    inspectRi = -1;
     const thead = document.querySelector("#wb-sql-grid thead");
     const tbody = document.querySelector("#wb-sql-grid tbody");
-    thead.innerHTML = lastCols.length ? "<tr>" + lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("") + "</tr>" : "";
-    tbody.innerHTML = lastRows.map((row, ri) => "<tr>" + lastCols.map((c) => {
-      const raw = row[c] ?? "";
-      return "<td title=\\"" + cellEsc(raw) + "\\" data-ri=\\"" + ri + "\\" data-c=\\"" + cellEsc(c) + "\\">" + cellEsc(String(raw).slice(0,240)) + "</td>";
-    }).join("") + "</tr>").join("");
+    const inspect = document.getElementById("wb-sql-inspect");
+    if (inspect) inspect.hidden = true;
+    if (!lastCols.length) {
+      thead.innerHTML = "";
+      tbody.innerHTML = "";
+      syncSelUi();
+      return;
+    }
+    thead.innerHTML = "<tr><th class=sql-ck><input type=checkbox id=wb-sql-sel-all title=Todas></th><th class=sql-rn>#</th>" + lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("") + "</tr>";
+    tbody.innerHTML = lastRows.map((row, ri) => {
+      const cells = lastCols.map((c) => {
+        const raw = row[c] ?? "";
+        return "<td class=sql-val title=\\"" + cellEsc(raw) + "\\" data-ri=\\"" + ri + "\\" data-c=\\"" + cellEsc(c) + "\\">" + cellEsc(String(raw).slice(0,240)) + "</td>";
+      }).join("");
+      return "<tr data-ri=\\"" + ri + "\\"><td class=sql-ck><input type=checkbox data-ri=\\"" + ri + "\\"></td><td class=sql-rn data-ri=\\"" + ri + "\\">" + (ri + 1) + "</td>" + cells + "</tr>";
+    }).join("");
     const meta = document.getElementById("wb-sql-meta");
-    if (meta) meta.textContent = lastCols.length ? lastCols.length + " columnas · clic en celda copia" : "";
+    if (meta) meta.textContent = lastCols.length + " columnas · # o casilla selecciona · clic valor copia · doble clic abre JSON";
+    syncSelUi();
+  }
+  function toggleRange(ri, additive, range) {
+    if (range) {
+      const a = Math.min(lastClickRi, ri);
+      const b = Math.max(lastClickRi, ri);
+      if (!additive) selected = new Set();
+      for (let i = a; i <= b; i++) selected.add(i);
+    } else if (additive) {
+      if (selected.has(ri)) selected.delete(ri); else selected.add(ri);
+    } else {
+      selected = new Set([ri]);
+    }
+    lastClickRi = ri;
+    syncSelUi();
   }
   async function runSql() {
     try {
@@ -350,40 +445,152 @@ export function workbenchScript() {
     const on = document.querySelector("nav button.on")?.dataset.go;
     if (on === "sql") { e.preventDefault(); runSql(); }
   });
+  document.getElementById("wb-sql-grid")?.addEventListener("change", (e) => {
+    if (e.target.id === "wb-sql-sel-all") {
+      selected = e.target.checked ? new Set(lastRows.map((_, i) => i)) : new Set();
+      syncSelUi();
+      return;
+    }
+    const ck = e.target.closest("tbody input[type=checkbox]");
+    if (!ck) return;
+    const ri = Number(ck.getAttribute("data-ri"));
+    if (!Number.isFinite(ri)) return;
+    if (ck.checked) selected.add(ri); else selected.delete(ri);
+    lastClickRi = ri;
+    syncSelUi();
+  });
   document.getElementById("wb-sql-grid")?.addEventListener("click", (e) => {
-    const td = e.target.closest("td");
-    if (!td || !lastCols.length) return;
+    if (e.target.closest("input[type=checkbox]") || e.target.closest("th")) return;
+    const tr = e.target.closest("tbody tr");
+    if (!tr || !lastCols.length) return;
+    const ri = Number(tr.getAttribute("data-ri"));
+    if (!Number.isFinite(ri)) return;
+    if (e.target.closest("td.sql-rn") || e.target.closest("td.sql-ck")) {
+      toggleRange(ri, e.ctrlKey || e.metaKey, e.shiftKey);
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) showInspect(ri);
+      return;
+    }
+    const td = e.target.closest("td.sql-val");
+    if (!td) return;
     const c = td.getAttribute("data-c");
-    const ri = Number(td.getAttribute("data-ri"));
     const val = lastRows[ri] ? String(lastRows[ri][c] ?? "") : "";
     navigator.clipboard?.writeText(val).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
   });
+  document.getElementById("wb-sql-grid")?.addEventListener("dblclick", (e) => {
+    const tr = e.target.closest("tbody tr");
+    if (!tr) return;
+    const ri = Number(tr.getAttribute("data-ri"));
+    if (!Number.isFinite(ri)) return;
+    selected = new Set([ri]);
+    lastClickRi = ri;
+    syncSelUi();
+    showInspect(ri, "json");
+  });
+  function inspectPayload() {
+    if (inspectRi >= 0 && lastRows[inspectRi]) return { rows: [lastRows[inspectRi]], one: true, i: inspectRi };
+    const rows = pickRows();
+    return { rows, one: rows.length === 1, i: selected.size === 1 ? [...selected][0] : -1 };
+  }
+  function inspectText(fmt) {
+    const p = inspectPayload();
+    if (!p.rows.length) return "";
+    if (fmt === "txt") return p.one ? rowTxt(p.rows[0]) : rowsTxt(p.rows);
+    return p.one ? JSON.stringify(p.rows[0], null, 2) : rowsJson(p.rows);
+  }
+  function refreshInspect() {
+    const box = document.getElementById("wb-sql-inspect");
+    const body = document.getElementById("wb-sql-inspect-body");
+    const title = document.getElementById("wb-sql-inspect-title");
+    const p = inspectPayload();
+    if (!box || !body || !p.rows.length) return;
+    box.hidden = false;
+    if (title) title.textContent = p.one ? ("Fila " + ((p.i >= 0 ? p.i : 0) + 1) + " / " + lastRows.length) : (p.rows.length + " filas");
+    body.textContent = inspectText(inspectFmt);
+    document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-inspect-fmt") === inspectFmt));
+  }
+  function viewSel(fmt) {
+    if (!lastRows.length) { setMsg("wb-sql-msg", "No hay resultados", false); return; }
+    inspectFmt = fmt;
+    if (selected.size === 1) inspectRi = [...selected][0];
+    else if (selected.size > 1) inspectRi = -2;
+    else inspectRi = lastRows.length === 1 ? 0 : -2;
+    refreshInspect();
+  }
   function needRows() {
-    if (!lastCols.length) { setMsg("wb-sql-msg", "No hay resultados para exportar", false); return false; }
+    if (!pickRows().length) { setMsg("wb-sql-msg", "No hay resultados para exportar", false); return false; }
     return true;
   }
-  function csvText() {
-    return lastCols.map((c) => JSON.stringify(c ?? "")).join(",") + "\\n" + lastRows.map((r) => lastCols.map((c) => JSON.stringify(r[c] ?? "")).join(",")).join("\\n");
+  function fileTag() {
+    const n = selected.size;
+    return n ? ("-" + n + "filas") : "";
+  }
+  function csvText(rows) {
+    const data = rows || pickRows();
+    return lastCols.map((c) => JSON.stringify(c ?? "")).join(",") + "\\n" + data.map((r) => lastCols.map((c) => JSON.stringify(r[c] ?? "")).join(",")).join("\\n");
+  }
+  function xlsHtml(rows) {
+    const data = rows || pickRows();
+    const head = lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("");
+    const body = data.map((r) => "<tr>" + lastCols.map((c) => "<td>" + cellEsc(r[c]) + "</td>").join("") + "</tr>").join("");
+    return "<html xmlns:o=\\"urn:schemas-microsoft-com:office:office\\" xmlns:x=\\"urn:schemas-microsoft-com:office:excel\\"><head><meta charset=\\"utf-8\\"/></head><body><table><thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody></table></body></html>";
+  }
+  function dlJson() {
+    if (!needRows()) return;
+    const rows = pickRows();
+    const body = rows.length === 1 ? JSON.stringify(rows[0], null, 2) : JSON.stringify({ columns: lastCols, rows, count: rows.length, exportedAt: new Date().toISOString() }, null, 2);
+    downloadBlob("consulta" + fileTag() + "-" + stamp() + ".json", "application/json", body);
+  }
+  function dlTxt() {
+    if (!needRows()) return;
+    downloadBlob("consulta" + fileTag() + "-" + stamp() + ".txt", "text/plain;charset=utf-8", rowsTxt(pickRows()));
+  }
+  function dlXls() {
+    if (!needRows()) return;
+    downloadBlob("consulta" + fileTag() + "-" + stamp() + ".xls", "application/vnd.ms-excel", xlsHtml());
   }
   document.getElementById("wb-sql-csv")?.addEventListener("click", () => {
     if (!needRows()) return;
-    downloadBlob("consulta-" + stamp() + ".csv", "text/csv;charset=utf-8", "\\uFEFF" + csvText());
+    downloadBlob("consulta" + fileTag() + "-" + stamp() + ".csv", "text/csv;charset=utf-8", "\\uFEFF" + csvText());
   });
-  document.getElementById("wb-sql-json")?.addEventListener("click", () => {
-    if (!needRows()) return;
-    downloadBlob("consulta-" + stamp() + ".json", "application/json", JSON.stringify({ columns: lastCols, rows: lastRows, exportedAt: new Date().toISOString() }, null, 2));
+  document.getElementById("wb-sql-json")?.addEventListener("click", dlJson);
+  document.getElementById("wb-sql-txt")?.addEventListener("click", dlTxt);
+  document.getElementById("wb-sql-xls")?.addEventListener("click", dlXls);
+  document.getElementById("wb-sql-dl-json")?.addEventListener("click", dlJson);
+  document.getElementById("wb-sql-dl-txt")?.addEventListener("click", dlTxt);
+  document.getElementById("wb-sql-dl-xls")?.addEventListener("click", dlXls);
+  document.getElementById("wb-sql-sel-all-btn")?.addEventListener("click", () => {
+    selected = new Set(lastRows.map((_, i) => i));
+    syncSelUi();
   });
-  document.getElementById("wb-sql-txt")?.addEventListener("click", () => {
-    if (!needRows()) return;
-    const lines = [lastCols.join("\\t")].concat(lastRows.map((r) => lastCols.map((c) => String(r[c] ?? "").replace(/\\t/g," ").replace(/\\n/g," ")).join("\\t")));
-    downloadBlob("consulta-" + stamp() + ".txt", "text/plain;charset=utf-8", lines.join("\\n"));
+  document.getElementById("wb-sql-sel-none")?.addEventListener("click", () => {
+    selected = new Set();
+    syncSelUi();
   });
-  document.getElementById("wb-sql-xls")?.addEventListener("click", () => {
+  document.getElementById("wb-sql-view-json")?.addEventListener("click", () => viewSel("json"));
+  document.getElementById("wb-sql-view-txt")?.addEventListener("click", () => viewSel("txt"));
+  document.getElementById("wb-sql-copy-sel")?.addEventListener("click", () => {
     if (!needRows()) return;
-    const head = lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("");
-    const body = lastRows.map((r) => "<tr>" + lastCols.map((c) => "<td>" + cellEsc(r[c]) + "</td>").join("") + "</tr>").join("");
-    const html = "<html xmlns:o=\\"urn:schemas-microsoft-com:office:office\\" xmlns:x=\\"urn:schemas-microsoft-com:office:excel\\"><head><meta charset=\\"utf-8\\"/></head><body><table><thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody></table></body></html>";
-    downloadBlob("consulta-" + stamp() + ".xls", "application/vnd.ms-excel", html);
+    const t = inspectFmt === "txt" ? rowsTxt(pickRows()) : rowsJson(pickRows());
+    navigator.clipboard?.writeText(t).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
+  });
+  document.querySelectorAll("[data-inspect-fmt]").forEach((b) => b.addEventListener("click", () => {
+    inspectFmt = b.getAttribute("data-inspect-fmt") || "json";
+    refreshInspect();
+  }));
+  document.getElementById("wb-sql-inspect-copy")?.addEventListener("click", () => {
+    const t = document.getElementById("wb-sql-inspect-body")?.textContent || "";
+    navigator.clipboard?.writeText(t).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
+  });
+  document.getElementById("wb-sql-inspect-dl")?.addEventListener("click", () => {
+    const p = inspectPayload();
+    if (!p.rows.length) return;
+    const ext = inspectFmt === "txt" ? "txt" : "json";
+    const tag = p.one ? ("-fila" + ((p.i >= 0 ? p.i : 0) + 1)) : fileTag();
+    downloadBlob("consulta" + tag + "-" + stamp() + "." + ext, ext === "json" ? "application/json" : "text/plain;charset=utf-8", inspectText(inspectFmt));
+  });
+  document.getElementById("wb-sql-inspect-close")?.addEventListener("click", () => {
+    const box = document.getElementById("wb-sql-inspect");
+    if (box) box.hidden = true;
   });
   syncGutter();
   async function loadFavs() {

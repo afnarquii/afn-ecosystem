@@ -681,11 +681,21 @@ ${workbenchScript()}
   #wb-sql-ed.sql-ed { min-height:0; height:100%; border:0; border-radius:0; resize:none; padding:.75rem .9rem; font:13.5px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; background:#0b1016; outline:none; }
   .sql-results { display:flex; flex-direction:column; min-height:0; background:#101820; }
   .sql-statusbar { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:.4rem .75rem; background:#0e141c; border-bottom:1px solid var(--line); font:12px/1.4 Consolas,ui-monospace,monospace; color:var(--muted); }
-  .sql-grid-wrap { overflow:auto; flex:1; margin:0; }
+  .sql-rowbar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.35rem .65rem; background:#121a24; border-bottom:1px solid var(--line); }
+  .sql-rowbar .btn { padding:.28rem .55rem; font-size:.78rem; }
+  .sql-grid-wrap { overflow:auto; flex:1; min-height:0; margin:0; }
   #wb-sql-grid { min-width:100%; font:12.5px/1.4 Consolas,"Cascadia Mono",ui-monospace,monospace; }
   #wb-sql-grid th { position:sticky; top:0; background:#15202c; z-index:1; white-space:nowrap; }
-  #wb-sql-grid td { white-space:nowrap; max-width:28rem; overflow:hidden; text-overflow:ellipsis; cursor:copy; }
+  #wb-sql-grid td { white-space:nowrap; max-width:28rem; overflow:hidden; text-overflow:ellipsis; }
+  #wb-sql-grid td.sql-ck, #wb-sql-grid th.sql-ck { width:2rem; text-align:center; cursor:pointer; }
+  #wb-sql-grid td.sql-rn { color:var(--muted); cursor:pointer; user-select:none; }
+  #wb-sql-grid td.sql-val { cursor:copy; }
   #wb-sql-grid tbody tr:hover td { background:#1a2533; }
+  #wb-sql-grid tbody tr.on td { background:#16332c; }
+  .sql-inspect { border-top:1px solid var(--line); background:#0b1016; max-height:38%; display:flex; flex-direction:column; min-height:8rem; flex-shrink:0; }
+  .sql-inspect[hidden] { display:none; }
+  .sql-inspect-bar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.35rem .65rem; background:#0e141c; border-bottom:1px solid var(--line); font-size:.78rem; }
+  .sql-inspect-body { margin:0; padding:.7rem .85rem; overflow:auto; flex:1; font:12.5px/1.5 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; white-space:pre-wrap; word-break:break-word; }
   #wb-sql-favs { margin:.65rem 0 0; }
 </style>
 </head>
