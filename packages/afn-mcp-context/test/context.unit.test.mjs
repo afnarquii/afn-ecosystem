@@ -22,6 +22,7 @@ import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
 import { saveOriginsPack, normalizeOriginsInput, inspectCredentialsFile } from '../lib/dashboard-query.js';
+import { findInstalledDriver, loadSqlDriver, resetSqlDriverCache } from '../lib/sql-driver.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -988,8 +989,9 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /wb-o-host/);
   assert.match(html, /Guardar origen/);
   assert.match(html, /DB_USER/);
-  assert.match(html, /v1\.4\.12/);
-  assert.match(html, /data-afn-version="1\.4\.12"/);
+  assert.match(html, /no es un HTML estático/i);
+  assert.match(html, /v1\.4\.13/);
+  assert.match(html, /data-afn-version="1\.4\.13"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1039,11 +1041,16 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(gj.credentials.hasUser, true);
     assert.equal(gj.credentials.hasPassword, true);
     assert.equal(JSON.stringify(gj).includes('SuperSecretLeak'), false);
+    const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
+    const hj = await health.json();
+    assert.equal(hj.ok, true);
+    assert.ok(hj.driver);
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.12/);
+    assert.match(liveHtml, /v1\.4\.13/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
+    assert.match(liveHtml, /wb-sql-driver/);
     assert.match(liveHtml, /window\.AFN_API=\{token:/);
   } finally {
     stopDashboardServer(root);
@@ -1057,11 +1064,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.12',
+    version: '1.4.13',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.12');
+  assert.equal(c.version, '1.4.13');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
@@ -1100,6 +1107,24 @@ test('inspectCredentialsFile no filtra el password y detecta el shape', () => {
   const nested = inspectCredentialsFile(root);
   assert.equal(nested.shape, 'byId');
   assert.deepEqual(nested.ids, ['origen_1']);
+});
+
+test('sql-driver encuentra mssql en node_modules del workspace, sin npm i en el producto', async () => {
+  resetSqlDriverCache();
+  const root = tmp();
+  const pkg = path.join(root, 'node_modules', 'mssql');
+  fs.mkdirSync(pkg, { recursive: true });
+  fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: 'mssql', main: 'index.js' }));
+  fs.writeFileSync(path.join(pkg, 'index.js'), 'module.exports = { connect() { return { ok: true }; } };\n');
+  const dir = findInstalledDriver('mssql', { roots: [root], scanNpx: false, scanPack: false });
+  assert.equal(dir, pkg);
+  const loaded = await loadSqlDriver('mssql', { roots: [root], scanNpx: false, scanPack: false, allowNpx: false, fresh: true });
+  assert.equal(loaded.ok, true);
+  assert.equal(typeof loaded.module.connect, 'function');
+  const missing = findInstalledDriver('mssql', { roots: [tmp()], scanNpx: false, scanPack: false });
+  assert.equal(missing, '');
+  const blocked = await loadSqlDriver('evil', { allowNpx: false });
+  assert.equal(blocked.ok, false);
 });
 
 

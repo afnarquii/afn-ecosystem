@@ -1,8 +1,7 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { afnPath } from './paths.js';
 import { assertSafeReadonlySql } from './sql-safety.js';
+import { loadSqlDriver, driverProbe } from './sql-driver.js';
 
 const MAX_ROWS = 500;
 
@@ -107,37 +106,17 @@ function pickOrigin(root, connectionId) {
   return list[0] || null;
 }
 
-async function tryImport(name) {
-  const extras = [process.env.AFN_NODE_PATH, process.cwd()].filter(Boolean);
-  for (const base of extras) {
-    const candidates = [
-      path.join(base, 'node_modules', name, 'index.js'),
-      path.join(base, 'node_modules', name, 'index.mjs'),
-    ];
-    for (const abs of candidates) {
-      if (!fs.existsSync(abs)) continue;
-      try {
-        return await import(pathToFileURL(abs).href);
-      } catch {
-        /* */
-      }
-    }
-  }
-  try {
-    return await import(name);
-  } catch {
-    return null;
-  }
-}
-
 function engineOf(origin) {
   return String(origin?.dbEngine || origin?.engine || '').toLowerCase();
 }
 
 /**
- * Ejecuta SELECT contra el origen (mssql/pg si el driver está instalado en el workspace).
- * Sin secretos en la respuesta.
+ * Ejecuta SELECT. El driver sale del data-agent / npx, no del package.json del producto.
  */
+export function sqlDriverStatus(root) {
+  return driverProbe({ roots: [root, process.env.AFN_PROJECT_ROOT, process.cwd()] });
+}
+
 export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
   const safe = assertSafeReadonlySql(sql);
   if (!safe.ok) return { ok: false, error: safe.error, rows: [], columns: [] };
@@ -153,45 +132,52 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
     user: cred.DB_USER || cred.user || '',
     password: cred.DB_PASSWORD || cred.password || '',
   };
+  const driverOpts = { roots: [root, process.env.AFN_PROJECT_ROOT, process.cwd()] };
 
   if (/sqlserver|mssql/.test(engine)) {
-    const mssql = await tryImport('mssql');
-    if (!mssql?.default && !mssql?.connect) {
-      return {
-        ok: false,
-        error: 'Falta el driver mssql. En el workspace: npm i mssql. Credenciales en .afn/credentials/data-agent.json.',
-        rows: [],
-        columns: [],
-      };
+    const drv = await loadSqlDriver('mssql', driverOpts);
+    if (!drv.ok) {
+      return { ok: false, error: drv.error || 'No se pudo cargar mssql', rows: [], columns: [] };
     }
-    const sqlMod = mssql.default || mssql;
+    const sqlMod = drv.module;
+    if (!sqlMod?.connect) {
+      return { ok: false, error: 'El módulo mssql no expone connect', rows: [], columns: [] };
+    }
     if (!cfg.host || !cfg.database || !cfg.user) {
       return { ok: false, error: 'Origen incompleto: host, database y DB_USER (credentials).', rows: [], columns: [] };
     }
-    const pool = await sqlMod.connect({
-      server: cfg.host,
-      port: cfg.port || 1433,
-      database: cfg.database,
-      user: cfg.user,
-      password: cfg.password,
-      options: { encrypt: true, trustServerCertificate: true },
-      requestTimeout: 30_000,
-    });
     try {
-      const result = await pool.request().query(safe.sql);
-      const rows = Array.isArray(result.recordset) ? result.recordset.slice(0, cap) : [];
-      const columns = rows[0] ? Object.keys(rows[0]) : [];
-      return { ok: true, rows, columns, truncated: (result.recordset || []).length > cap, engine: 'sqlserver' };
-    } finally {
-      await pool.close?.();
+      const pool = await sqlMod.connect({
+        server: cfg.host,
+        port: cfg.port || 1433,
+        database: cfg.database,
+        user: cfg.user,
+        password: cfg.password,
+        options: { encrypt: true, trustServerCertificate: true },
+        requestTimeout: 30_000,
+      });
+      try {
+        const result = await pool.request().query(safe.sql);
+        const rows = Array.isArray(result.recordset) ? result.recordset.slice(0, cap) : [];
+        const columns = rows[0] ? Object.keys(rows[0]) : [];
+        return { ok: true, rows, columns, truncated: (result.recordset || []).length > cap, engine: 'sqlserver', driver: drv.source };
+      } finally {
+        await pool.close?.();
+      }
+    } catch (e) {
+      return { ok: false, error: String(e?.message || e).slice(0, 300), rows: [], columns: [] };
     }
   }
 
   if (/postgres/.test(engine)) {
-    const pg = await tryImport('pg');
+    const drv = await loadSqlDriver('pg', driverOpts);
+    if (!drv.ok) {
+      return { ok: false, error: drv.error || 'No se pudo cargar pg', rows: [], columns: [] };
+    }
+    const pg = drv.module;
     const Client = pg?.Client || pg?.default?.Client;
     if (!Client) {
-      return { ok: false, error: 'Falta el driver pg. En el workspace: npm i pg.', rows: [], columns: [] };
+      return { ok: false, error: 'El módulo pg no expone Client', rows: [], columns: [] };
     }
     const client = new Client({
       host: cfg.host || 'localhost',
@@ -200,20 +186,22 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
       user: cfg.user,
       password: cfg.password,
     });
-    await client.connect();
     try {
+      await client.connect();
       const result = await client.query(safe.sql);
       const rows = Array.isArray(result.rows) ? result.rows.slice(0, cap) : [];
       const columns = rows[0] ? Object.keys(rows[0]) : (result.fields || []).map((f) => f.name);
-      return { ok: true, rows, columns, truncated: (result.rows || []).length > cap, engine: 'postgresql' };
+      return { ok: true, rows, columns, truncated: (result.rows || []).length > cap, engine: 'postgresql', driver: drv.source };
+    } catch (e) {
+      return { ok: false, error: String(e?.message || e).slice(0, 300), rows: [], columns: [] };
     } finally {
-      await client.end();
+      await client.end?.().catch(() => {});
     }
   }
 
   return {
     ok: false,
-    error: `Motor ${engine || '?'} sin runner en el dashboard. SQL Server (mssql) o PostgreSQL (pg).`,
+    error: `Motor ${engine || '?'} sin runner en el dashboard. SQL Server o PostgreSQL.`,
     rows: [],
     columns: [],
   };

@@ -69,7 +69,8 @@ export function workbenchSections() {
     </section>
     <section data-view="sql" hidden>
       <h2>Consulta SQL</h2>
-      <p class="lead">Editor de solo lectura (SELECT / WITH), como Reportes BD de AFN IDE. Ctrl+Enter ejecuta. Resultados en grilla, CSV y favoritos.</p>
+      <p class="lead">No es un HTML estático: Node en <code>127.0.0.1</code> ejecuta el SELECT. El driver (mssql/pg) se toma del data-agent / npx; <strong>no</strong> hace falta <code>npm i mssql</code> en el producto. Primera consulta puede tardar si npx aún no lo tenía.</p>
+      <p id="wb-sql-driver" class="muted">Driver: comprobando…</p>
       <div class="toolbar">
         <label class="muted">Origen <select id="wb-sql-origin"></select></label>
         <label class="muted">Límite <input id="wb-sql-limit" type="number" value="100" min="1" max="500" style="width:4.5rem"/></label>
@@ -268,7 +269,7 @@ export function workbenchScript() {
   }
   async function runSql() {
     try {
-      setMsg("wb-sql-msg", "Ejecutando…");
+      setMsg("wb-sql-msg", "Ejecutando… (si es la primera vez, npx puede tardar un minuto)");
       const j = await apiCall("POST", "/api/sql", {
         sql: document.getElementById("wb-sql-ed").value,
         connectionId: document.getElementById("wb-sql-origin").value,
@@ -328,6 +329,14 @@ export function workbenchScript() {
     loadOrigins().catch((e) => setMsg("wb-origins-msg", e.message, false));
     loadSchema().catch(() => {});
     loadFavs().catch(() => {});
+    apiCall("GET", "/api/health").then((j) => {
+      const el = document.getElementById("wb-sql-driver");
+      if (!el) return;
+      const d = j.driver || {};
+      const mssql = d.mssql === "ready" ? "SQL Server listo" : "SQL Server se descarga en la primera consulta (npx)";
+      const pg = d.pg === "ready" ? " · PostgreSQL listo" : "";
+      el.textContent = "Driver: " + mssql + pg + ". No instales paquetes en el repo del producto.";
+    }).catch(() => {});
   }
 `;
 }

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { collectDashboard, buildHtml } from './dashboard.js';
-import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile } from './dashboard-query.js';
+import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
 import fs from 'node:fs';
@@ -58,7 +58,7 @@ async function handleApi(root, token, req, res, url) {
   }
   const route = url.pathname.replace(/\/+$/, '') || '/';
   if (req.method === 'GET' && route === '/api/health') {
-    send(res, 200, { ok: true });
+    send(res, 200, { ok: true, driver: sqlDriverStatus(root) });
     return;
   }
   if (req.method === 'GET' && route === '/api/origins') {

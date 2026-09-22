@@ -4,7 +4,7 @@ Servidor MCP **stdio** (Node ≥18, cero deps) que lee y escribe `.afn/` del **w
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace** (copia en `.afn/ARQUITECTURA.md`). Dashboard: README primero; en `http://127.0.0.1` (v1.4.12+) la pestaña Orígenes es un formulario (host/puerto/base) más el formato de `data-agent.json`. También Elegir tablas/PAs y SQL (solo SELECT).
+Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace** (copia en `.afn/ARQUITECTURA.md`). Dashboard: README primero; en `http://127.0.0.1` (v1.4.13+) Orígenes (formulario + formato de credenciales) y SQL en el servidor Node. El driver mssql se reusa del data-agent / npx; no hace falta `npm i mssql` en el producto.
 
 Origen de datos: el init escribe `.afn/db-connections.json` (host/puerto/base, sin passwords) y `.afn/db-connection.json` (sesión activa). Credenciales en `.afn/credentials/data-agent.json` (gitignored):
 
