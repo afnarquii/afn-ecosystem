@@ -667,6 +667,26 @@ ${workbenchScript()}
   .sql-ed { width:100%; min-height:12rem; background:#0b1016; color:#e8eef5; border:1px solid var(--line); border-radius:10px; padding:.75rem .85rem; font:13px/1.45 Consolas,ui-monospace,monospace; tab-size:2; }
   .chk { display:block; padding:.28rem 0; }
   .chk input { margin-right:.4rem; }
+  section[data-view="sql"].sql-ide { max-width:none; min-height:calc(100vh - 5.2rem); display:flex; flex-direction:column; }
+  .sql-ide h2 { margin-bottom:.15rem; }
+  .sql-ide-toolbar { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; margin:0 0 .7rem; }
+  .sql-ide-toolbar label { display:flex; align-items:center; gap:.35rem; font-size:.78rem; color:var(--muted); }
+  .sql-ide-toolbar select, .sql-ide-toolbar input[type=number] { background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.4rem .5rem; font:inherit; }
+  .sql-ide-toolbar .btn-run { background:#14532d; border-color:#166534; color:#bbf7d0; font-weight:650; }
+  .sql-ide-toolbar .btn-run:hover { border-color:var(--acc); }
+  .sql-export { display:flex; gap:.3rem; margin-left:.15rem; }
+  .sql-ide-split { display:grid; grid-template-rows:minmax(160px,auto) minmax(240px,1fr); flex:1; min-height:520px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b1016; }
+  .sql-editor-wrap { display:grid; grid-template-columns:48px 1fr; height:240px; min-height:140px; resize:vertical; overflow:hidden; border-bottom:1px solid var(--line); }
+  .sql-gutter { background:#0e1620; color:#5b6b7e; font:12px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; text-align:right; padding:.75rem .45rem; user-select:none; overflow:hidden; white-space:pre; }
+  #wb-sql-ed.sql-ed { min-height:0; height:100%; border:0; border-radius:0; resize:none; padding:.75rem .9rem; font:13.5px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; background:#0b1016; outline:none; }
+  .sql-results { display:flex; flex-direction:column; min-height:0; background:#101820; }
+  .sql-statusbar { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:.4rem .75rem; background:#0e141c; border-bottom:1px solid var(--line); font:12px/1.4 Consolas,ui-monospace,monospace; color:var(--muted); }
+  .sql-grid-wrap { overflow:auto; flex:1; margin:0; }
+  #wb-sql-grid { min-width:100%; font:12.5px/1.4 Consolas,"Cascadia Mono",ui-monospace,monospace; }
+  #wb-sql-grid th { position:sticky; top:0; background:#15202c; z-index:1; white-space:nowrap; }
+  #wb-sql-grid td { white-space:nowrap; max-width:28rem; overflow:hidden; text-overflow:ellipsis; cursor:copy; }
+  #wb-sql-grid tbody tr:hover td { background:#1a2533; }
+  #wb-sql-favs { margin:.65rem 0 0; }
 </style>
 </head>
 <body data-afn-version="${esc(FLOW_GENERATOR_VERSION)}">

@@ -67,25 +67,41 @@ export function workbenchSections() {
       <h3>Procedimientos</h3>
       <div id="wb-schema-procs"></div>
     </section>
-    <section data-view="sql" hidden>
+    <section data-view="sql" hidden class="sql-ide">
       <h2>Consulta SQL</h2>
-      <p class="lead">No es un HTML estático: Node en <code>127.0.0.1</code> ejecuta el SELECT. <code>mssql</code> es dependencia de este pack (<code>require.resolve('mssql')</code>, sin npx). En el clone: <code>cd packages/afn-mcp-context && npm install</code>. <strong>No</strong> instales paquetes en el repo del producto.</p>
+      <p class="lead">Editor de solo lectura: <code>SELECT</code>, <code>WITH</code> y <code>EXEC dbo.NombrePA @p = 1</code>. F5 o Ctrl+Enter ejecuta. Exportá a Excel, JSON o TXT.</p>
       <p id="wb-sql-driver" class="muted">Driver: comprobando…</p>
-      <div class="toolbar">
-        <label class="muted">Origen <select id="wb-sql-origin"></select></label>
-        <label class="muted">Límite <input id="wb-sql-limit" type="number" value="100" min="1" max="500" style="width:4.5rem"/></label>
-        <button type="button" class="btn" id="wb-sql-run">Ejecutar</button>
-        <button type="button" class="btn" id="wb-sql-csv">CSV</button>
-        <button type="button" class="btn" id="wb-sql-fav">A favoritos</button>
-        <span id="wb-sql-msg" class="muted"></span>
+      <div class="sql-ide-toolbar">
+        <label>Origen <select id="wb-sql-origin"></select></label>
+        <label>Límite <input id="wb-sql-limit" type="number" value="200" min="1" max="2000" style="width:4.8rem"/></label>
+        <button type="button" class="btn btn-run" id="wb-sql-run" title="F5">▶ Ejecutar</button>
+        <span class="sql-export">
+          <button type="button" class="btn" id="wb-sql-xls" title="Excel">Excel</button>
+          <button type="button" class="btn" id="wb-sql-json">JSON</button>
+          <button type="button" class="btn" id="wb-sql-txt">TXT</button>
+          <button type="button" class="btn" id="wb-sql-csv">CSV</button>
+        </span>
+        <button type="button" class="btn" id="wb-sql-fav">★ Favorito</button>
       </div>
-      <textarea id="wb-sql-ed" spellcheck="false" class="sql-ed" rows="10">-- Solo SELECT. Ctrl+Enter ejecuta.
+      <div class="sql-ide-split">
+        <div class="sql-editor-wrap">
+          <pre class="sql-gutter" id="wb-sql-gutter">1</pre>
+          <textarea id="wb-sql-ed" spellcheck="false" class="sql-ed" wrap="off">-- SELECT o EXEC de un PA de consulta. F5 / Ctrl+Enter.
+-- EXEC dbo.NombrePA @param = 1;
 SELECT TOP 20 TABLE_SCHEMA, TABLE_NAME
 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_TYPE = 'BASE TABLE'
 ORDER BY 1, 2;</textarea>
+        </div>
+        <div class="sql-results">
+          <div class="sql-statusbar">
+            <span id="wb-sql-msg">Listo. F5 ejecuta.</span>
+            <span id="wb-sql-meta"></span>
+          </div>
+          <div class="table-wrap sql-grid-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
+        </div>
+      </div>
       <div id="wb-sql-favs" class="toolbar"></div>
-      <div class="table-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
     </section>`;
 }
 
@@ -259,13 +275,42 @@ export function workbenchScript() {
   });
   let lastRows = [];
   let lastCols = [];
+  function cellEsc(v) {
+    return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+  }
+  function stamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2,"0");
+    return d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  }
+  function downloadBlob(name, mime, text) {
+    const blob = new Blob([text], { type: mime });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+  function syncGutter() {
+    const ta = document.getElementById("wb-sql-ed");
+    const g = document.getElementById("wb-sql-gutter");
+    if (!ta || !g) return;
+    const n = Math.max(1, String(ta.value || "").split("\\n").length);
+    g.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\\n");
+    g.scrollTop = ta.scrollTop;
+  }
   function renderGrid(cols, rows) {
     lastCols = cols || [];
     lastRows = rows || [];
     const thead = document.querySelector("#wb-sql-grid thead");
     const tbody = document.querySelector("#wb-sql-grid tbody");
-    thead.innerHTML = lastCols.length ? "<tr>" + lastCols.map((c) => "<th>" + String(c).replace(/</g,"") + "</th>").join("") + "</tr>" : "";
-    tbody.innerHTML = lastRows.map((row) => "<tr>" + lastCols.map((c) => "<td>" + String(row[c] ?? "").replace(/</g,"").slice(0,200) + "</td>").join("") + "</tr>").join("");
+    thead.innerHTML = lastCols.length ? "<tr>" + lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("") + "</tr>" : "";
+    tbody.innerHTML = lastRows.map((row, ri) => "<tr>" + lastCols.map((c) => {
+      const raw = row[c] ?? "";
+      return "<td title=\\"" + cellEsc(raw) + "\\" data-ri=\\"" + ri + "\\" data-c=\\"" + cellEsc(c) + "\\">" + cellEsc(String(raw).slice(0,240)) + "</td>";
+    }).join("") + "</tr>").join("");
+    const meta = document.getElementById("wb-sql-meta");
+    if (meta) meta.textContent = lastCols.length ? lastCols.length + " columnas · clic en celda copia" : "";
   }
   async function runSql() {
     try {
@@ -273,35 +318,74 @@ export function workbenchScript() {
       const j = await apiCall("POST", "/api/sql", {
         sql: document.getElementById("wb-sql-ed").value,
         connectionId: document.getElementById("wb-sql-origin").value,
-        limit: Number(document.getElementById("wb-sql-limit").value || 100),
+        limit: Number(document.getElementById("wb-sql-limit").value || 200),
       });
       renderGrid(j.columns, j.rows);
-      setMsg("wb-sql-msg", (j.rows || []).length + " filas" + (j.truncated ? " (recorte)" : ""), true);
+      const n = (j.rows || []).length;
+      setMsg("wb-sql-msg", n + " filas" + (j.truncated ? " (recorte)" : "") + (j.kind === "exec" ? " · EXEC" : ""), true);
     } catch (e) {
       renderGrid([], []);
       setMsg("wb-sql-msg", e.message, false);
     }
   }
   document.getElementById("wb-sql-run")?.addEventListener("click", runSql);
-  document.getElementById("wb-sql-ed")?.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); runSql(); }
+  const sqlEd = document.getElementById("wb-sql-ed");
+  sqlEd?.addEventListener("input", syncGutter);
+  sqlEd?.addEventListener("scroll", () => {
+    const g = document.getElementById("wb-sql-gutter");
+    if (g) g.scrollTop = sqlEd.scrollTop;
+  });
+  sqlEd?.addEventListener("keydown", (e) => {
+    if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) { e.preventDefault(); runSql(); }
     if (e.key === "Tab") {
       e.preventDefault();
-      const el = e.target;
-      const a = el.selectionStart, b = el.selectionEnd;
-      el.value = el.value.slice(0, a) + "  " + el.value.slice(b);
-      el.selectionStart = el.selectionEnd = a + 2;
+      const a = sqlEd.selectionStart, b = sqlEd.selectionEnd;
+      sqlEd.value = sqlEd.value.slice(0, a) + "  " + sqlEd.value.slice(b);
+      sqlEd.selectionStart = sqlEd.selectionEnd = a + 2;
+      syncGutter();
     }
   });
-  document.getElementById("wb-sql-csv")?.addEventListener("click", () => {
-    if (!lastCols.length) return;
-    const lines = [lastCols.join(",")].concat(lastRows.map((r) => lastCols.map((c) => JSON.stringify(r[c] ?? "")).join(",")));
-    const blob = new Blob([lines.join("\\n")], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "consulta.csv";
-    a.click();
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "F5") return;
+    const on = document.querySelector("nav button.on")?.dataset.go;
+    if (on === "sql") { e.preventDefault(); runSql(); }
   });
+  document.getElementById("wb-sql-grid")?.addEventListener("click", (e) => {
+    const td = e.target.closest("td");
+    if (!td || !lastCols.length) return;
+    const c = td.getAttribute("data-c");
+    const ri = Number(td.getAttribute("data-ri"));
+    const val = lastRows[ri] ? String(lastRows[ri][c] ?? "") : "";
+    navigator.clipboard?.writeText(val).then(() => setMsg("wb-sql-msg", "Copiado", true)).catch(() => {});
+  });
+  function needRows() {
+    if (!lastCols.length) { setMsg("wb-sql-msg", "No hay resultados para exportar", false); return false; }
+    return true;
+  }
+  function csvText() {
+    return lastCols.map((c) => JSON.stringify(c ?? "")).join(",") + "\\n" + lastRows.map((r) => lastCols.map((c) => JSON.stringify(r[c] ?? "")).join(",")).join("\\n");
+  }
+  document.getElementById("wb-sql-csv")?.addEventListener("click", () => {
+    if (!needRows()) return;
+    downloadBlob("consulta-" + stamp() + ".csv", "text/csv;charset=utf-8", "\\uFEFF" + csvText());
+  });
+  document.getElementById("wb-sql-json")?.addEventListener("click", () => {
+    if (!needRows()) return;
+    downloadBlob("consulta-" + stamp() + ".json", "application/json", JSON.stringify({ columns: lastCols, rows: lastRows, exportedAt: new Date().toISOString() }, null, 2));
+  });
+  document.getElementById("wb-sql-txt")?.addEventListener("click", () => {
+    if (!needRows()) return;
+    const lines = [lastCols.join("\\t")].concat(lastRows.map((r) => lastCols.map((c) => String(r[c] ?? "").replace(/\\t/g," ").replace(/\\n/g," ")).join("\\t")));
+    downloadBlob("consulta-" + stamp() + ".txt", "text/plain;charset=utf-8", lines.join("\\n"));
+  });
+  document.getElementById("wb-sql-xls")?.addEventListener("click", () => {
+    if (!needRows()) return;
+    const head = lastCols.map((c) => "<th>" + cellEsc(c) + "</th>").join("");
+    const body = lastRows.map((r) => "<tr>" + lastCols.map((c) => "<td>" + cellEsc(r[c]) + "</td>").join("") + "</tr>").join("");
+    const html = "<html xmlns:o=\\"urn:schemas-microsoft-com:office:office\\" xmlns:x=\\"urn:schemas-microsoft-com:office:excel\\"><head><meta charset=\\"utf-8\\"/></head><body><table><thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody></table></body></html>";
+    downloadBlob("consulta-" + stamp() + ".xls", "application/vnd.ms-excel", html);
+  });
+  syncGutter();
   async function loadFavs() {
     if (!api) return;
     const j = await apiCall("GET", "/api/sql/favorites");

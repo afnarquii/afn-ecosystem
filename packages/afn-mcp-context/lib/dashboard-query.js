@@ -3,7 +3,7 @@ import { afnPath } from './paths.js';
 import { assertSafeReadonlySql } from './sql-safety.js';
 import { loadSqlDriver, driverProbe } from './sql-driver.js';
 
-const MAX_ROWS = 500;
+const MAX_ROWS = 2000;
 
 function readJson(file) {
   try {
@@ -111,7 +111,7 @@ function engineOf(origin) {
 }
 
 /**
- * Ejecuta SELECT. mssql sale de require.resolve del pack (dependencia directa), no de npx ni del producto.
+ * Ejecuta SELECT / EXEC de PA de consulta. mssql: require.resolve del pack.
  */
 export function sqlDriverStatus(root) {
   return driverProbe({ roots: [root, process.env.AFN_PROJECT_ROOT, process.cwd()] });
@@ -158,9 +158,21 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
       });
       try {
         const result = await pool.request().query(safe.sql);
-        const rows = Array.isArray(result.recordset) ? result.recordset.slice(0, cap) : [];
+        const sets = Array.isArray(result.recordsets) && result.recordsets.length
+          ? result.recordsets.filter((s) => Array.isArray(s))
+          : [result.recordset].filter((s) => Array.isArray(s));
+        const recordset = sets.find((s) => s.length) || sets[0] || [];
+        const rows = recordset.slice(0, cap);
         const columns = rows[0] ? Object.keys(rows[0]) : [];
-        return { ok: true, rows, columns, truncated: (result.recordset || []).length > cap, engine: 'sqlserver', driver: drv.source };
+        return {
+          ok: true,
+          rows,
+          columns,
+          truncated: recordset.length > cap,
+          engine: 'sqlserver',
+          driver: drv.source,
+          kind: /^\s*EXEC/i.test(safe.sql) ? 'exec' : 'select',
+        };
       } finally {
         await pool.close?.();
       }

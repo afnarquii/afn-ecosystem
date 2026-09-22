@@ -957,7 +957,12 @@ test('varios repos / compose: varias fichas de origen, no una sola', () => {
 test('sql-safety bloquea escrituras; selección recorta tablas del README', () => {
   assert.equal(assertSafeReadonlySql('SELECT 1').ok, true);
   assert.equal(assertSafeReadonlySql('DELETE FROM t').ok, false);
-  assert.equal(assertSafeReadonlySql('EXEC usp_x').ok, false);
+  assert.equal(assertSafeReadonlySql('EXEC dbo.usp_GetOrder @id = 1').ok, true);
+  assert.equal(assertSafeReadonlySql('EXECUTE [dbo].[usp_List] @q = N\'x\'').ok, true);
+  assert.equal(assertSafeReadonlySql('SET NOCOUNT ON; EXEC dbo.usp_Get @id = 1').ok, true);
+  assert.equal(assertSafeReadonlySql('EXEC xp_cmdshell \'dir\'').ok, false);
+  assert.equal(assertSafeReadonlySql('EXEC(\'SELECT 1\')').ok, false);
+  assert.equal(assertSafeReadonlySql('INSERT INTO t VALUES (1)').ok, false);
   const root = tmp();
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
   bootstrapAfn(root);
@@ -989,9 +994,14 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /wb-o-host/);
   assert.match(html, /Guardar origen/);
   assert.match(html, /DB_USER/);
-  assert.match(html, /no es un HTML estático/i);
-  assert.match(html, /v1\.4\.14/);
-  assert.match(html, /data-afn-version="1\.4\.14"/);
+  assert.match(html, /sql-ide/);
+  assert.match(html, /wb-sql-xls/);
+  assert.match(html, /Excel/);
+  assert.match(html, /JSON/);
+  assert.match(html, /wb-sql-gutter/);
+  assert.match(html, /EXEC dbo\.NombrePA/);
+  assert.match(html, /v1\.4\.15/);
+  assert.match(html, /data-afn-version="1\.4\.15"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1032,6 +1042,13 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
       body: JSON.stringify({ sql: 'DELETE FROM t' }),
     });
     assert.equal(bad.ok, false);
+    const execProbe = await fetch(`http://127.0.0.1:${info.port}/api/sql`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ sql: 'EXEC dbo.usp_GetOrder @id = 1' }),
+    });
+    const execBody = await execProbe.json();
+    assert.equal(String(execBody.error || '').includes('bloqueada'), false);
     const credDir = path.join(root, '.afn', 'credentials');
     fs.mkdirSync(credDir, { recursive: true });
     fs.writeFileSync(path.join(credDir, 'data-agent.json'), JSON.stringify({ DB_USER: 'sa', DB_PASSWORD: 'SuperSecretLeak' }));
@@ -1048,7 +1065,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.14/);
+    assert.match(liveHtml, /v1\.4\.15/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
     assert.match(liveHtml, /wb-sql-driver/);
@@ -1065,11 +1082,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.14',
+    version: '1.4.15',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.14');
+  assert.equal(c.version, '1.4.15');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {

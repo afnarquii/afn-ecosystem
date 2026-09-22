@@ -111,7 +111,7 @@ async function handleApi(root, token, req, res, url) {
 }
 
 /**
- * Servidor loopback para editar orígenes / esquema y correr SELECT.
+ * Servidor loopback para editar orígenes / esquema y correr SELECT / EXEC.
  * @param {string} root
  * @param {{ port?: number }} [opts]
  */
