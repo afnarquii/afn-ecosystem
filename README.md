@@ -1,6 +1,14 @@
 # afn-ecosystem
 
-Catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery Packs** para AFN IDE (Marketplace).
+**AFN IDE** es el IDE agéntico de [AFN](https://afnarqui.com/): explorador, editor, terminal, skills, MCPs y cloud-delivery sobre tu carpeta local.
+
+| | |
+|---|---|
+| Descargar Windows | [afnarqui.com](https://afnarqui.com/) · [Instalador .exe](https://afnarqui.com/afn/api/v1/download/windows) · [ZIP portable](https://afnarqui.com/afn/api/v1/download/windows-zip) |
+| Sitio | https://afnarqui.com |
+| Org GitHub | https://github.com/afnarquii |
+
+Este repo es el catálogo público de **skills**, **agentes**, **MCP descriptors** y **Delivery Packs** que consume el IDE (Marketplace). No es el instalador del desktop.
 
 **Repo canónico (GitHub público):**  
 https://github.com/afnarquii/afn-ecosystem  
