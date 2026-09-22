@@ -8,6 +8,7 @@ import { persistWorkspaceFlowDiagram } from './diagram-store.js';
 import { persistAgentAssets } from './agent-assets.js';
 import { architectureExists } from './workspace-flow.js';
 import { ensureDbOriginFile } from './data-sources.js';
+import { pruneWorkspaceKiroDataAgent } from './kiro-mcp-policy.js';
 
 const GITIGNORE_MARKER = '# AFN IDE — exclusiones locales (auto)';
 
@@ -136,6 +137,7 @@ function enrichAfn(base, config, opts = {}) {
   ensureMemoryStub(base);
   ensureGitignore(base);
   ensureCredPrompt(base);
+  pruneWorkspaceKiroDataAgent(base);
   if (!opts.recreateDiagram && architectureExists(base)) {
     return {
       diagram: { ok: true, skipped: true },

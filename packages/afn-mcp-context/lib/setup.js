@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot, isCatalogish } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
+import { pruneAutoNpxDataAgent } from './kiro-mcp-policy.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = path.resolve(here, '..');
@@ -100,8 +101,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Guardá **hechos** con \`afn_mem_save\` solo si el usuario pidió recordar algo. No transcripts.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
-- El origen de datos **no se adivina**. Init → \`.afn/db-connections.json\`. Credenciales: \`.afn/credentials/data-agent.json\`. SQL: pestaña SQL del dashboard (SELECT o EXEC de PA).
-- Si pide **conectar / listar tablas y PAs**: catálogo + \`data_inspect_schema\` + \`afn_schema_commit\`. No inventes host ni tablas.
+- El origen de datos **no se adivina**. Init → \`.afn/db-connections.json\`. Credenciales: \`.afn/credentials/data-agent.json\`. SQL: pestaña SQL del dashboard (SELECT o EXEC de PA). **No** arranques \`afn-mcp-data-agent\` con npx: SQL no usa ese MCP.
 - Las tools de arquitectura devuelven un resumen. Completo en disco.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
@@ -123,89 +123,6 @@ function mergeMcpServers(file, extra) {
   if (!cur.mcpServers || typeof cur.mcpServers !== 'object') cur.mcpServers = {};
   cur.mcpServers['afn-context'] = extra;
   writeJson(file, cur);
-}
-
-/**
- * Registra un MCP data-agent por origen mssql/mongo. No pisa servers ya configurados.
- * Secretos solo desde .afn/credentials/data-agent.json (gitignored).
- * Credenciales: env plano (primer origen) o byId / connections[id].
- */
-function credsFor(cred, id, isFirst) {
-  if (!cred || typeof cred !== 'object') return {};
-  const nested = cred.byId?.[id] || cred.connections?.[id] || (typeof cred[id] === 'object' && cred[id] && !Array.isArray(cred[id]) ? cred[id] : null);
-  const src = nested && typeof nested === 'object' ? nested : isFirst ? cred : {};
-  const env = {};
-  for (const [k, v] of Object.entries(src)) {
-    if (typeof v !== 'string' || !v) continue;
-    if (/password|secret|token|uri|user|database|server|host|port|driver/i.test(k)) env[k] = v;
-  }
-  return env;
-}
-
-function driverForEngine(engine) {
-  const e = String(engine || '').toLowerCase();
-  if (/mongo/.test(e)) return 'mongodb';
-  if (/sqlserver|mssql/.test(e)) return 'mssql';
-  return '';
-}
-
-function mcpIdForOrigin(conn, connectableIndex) {
-  if (connectableIndex === 0) return 'afn-mcp-data-agent';
-  const slug = String(conn.id || conn.name || connectableIndex)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40);
-  return `afn-mcp-data-agent-${slug || connectableIndex}`;
-}
-
-function mergeDataAgentFromOrigin(mcpFile, pinRoot) {
-  if (!pinRoot) return { merged: false, reason: 'sin-workspace' };
-  const cur = readJson(mcpFile) || { mcpServers: {} };
-  if (!cur.mcpServers || typeof cur.mcpServers !== 'object') cur.mcpServers = {};
-  const pack = readJson(path.join(pinRoot, '.afn', 'db-connections.json'));
-  const session = readJson(path.join(pinRoot, '.afn', 'db-connection.json'));
-  let list = Array.isArray(pack?.connections) ? pack.connections : Array.isArray(pack) ? pack : [];
-  if (!list.length && session) list = [session];
-  const cred = readJson(path.join(pinRoot, '.afn', 'credentials', 'data-agent.json')) || {};
-  const autoApprove = ['data_inspect_schema', 'data_list_entities', 'data_describe_entity', 'data_list_actions'];
-  let merged = 0;
-  let connectable = 0;
-  const ids = [];
-  for (const conn of list) {
-    const driver = driverForEngine(conn.dbEngine || conn.engine);
-    if (!driver) continue;
-    const serverId = mcpIdForOrigin(conn, connectable);
-    connectable += 1;
-    ids.push(serverId);
-    if (cur.mcpServers[serverId]) continue;
-    const env = { DATA_AGENT_DRIVER: driver };
-    if (conn.host) env.DB_SERVER = String(conn.host);
-    if (conn.port) env.DB_PORT = String(conn.port);
-    if (conn.database) env.DB_DATABASE = String(conn.database);
-    Object.assign(env, credsFor(cred, conn.id, connectable === 1));
-    cur.mcpServers[serverId] = {
-      command: 'npx',
-      args: ['-y', '@afn-ecosystem/mcp-data-agent@latest'],
-      disabled: false,
-      env,
-      autoApprove,
-    };
-    merged += 1;
-  }
-  if (!connectable && !cur.mcpServers['afn-mcp-data-agent']) {
-    cur.mcpServers['afn-mcp-data-agent'] = {
-      command: 'npx',
-      args: ['-y', '@afn-ecosystem/mcp-data-agent@latest'],
-      disabled: false,
-      env: credsFor(cred, '', true),
-      autoApprove,
-    };
-    merged += 1;
-    ids.push('afn-mcp-data-agent');
-  }
-  writeJson(mcpFile, cur);
-  return { merged: merged > 0, count: ids.length, ids };
 }
 
 function afnContextServer(pinRoot) {
@@ -347,12 +264,13 @@ export function setupAgent(agent, opts = {}) {
     written.push(path.join(hookRoot, '.kiro', 'hooks'));
     const userMcp = path.join(home, '.kiro', 'settings', 'mcp.json');
     const stripped = stripUserAfnContext(userMcp);
+    pruneAutoNpxDataAgent(userMcp);
+    const dataAgent = pinRoot ? pruneAutoNpxDataAgent(mcpFile) : { pruned: [] };
     const userSteering = path.join(home, '.kiro', 'steering', 'afn-context.md');
     fs.mkdirSync(path.dirname(userSteering), { recursive: true });
     fs.writeFileSync(userSteering, USER_STEERING, 'utf8');
     written.push(userSteering);
     const boot = pinRoot ? bootstrapAfn(pinRoot, { ceiling: pinRoot }) : { ok: false, reason: 'raiz-catalogo' };
-    const dataAgent = pinRoot ? mergeDataAgentFromOrigin(mcpFile, pinRoot) : { merged: false };
     return {
       ok: true,
       agent: 'kiro',

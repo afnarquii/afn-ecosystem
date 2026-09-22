@@ -196,7 +196,8 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   const gi = fs.readFileSync(path.join(project, '.gitignore'), 'utf8');
   assert.match(gi, /\.kiro\/settings\/mcp\.json/);
   const mcpAfter = JSON.parse(fs.readFileSync(mcpFile, 'utf8'));
-  assert.ok(mcpAfter.mcpServers['afn-mcp-data-agent']);
+  assert.equal(mcpAfter.mcpServers['afn-mcp-data-agent'], undefined);
+  assert.ok(mcpAfter.mcpServers['afn-context']);
   assert.equal(JSON.stringify(mcpAfter).toLowerCase().includes('password'), false);
 });
 
@@ -887,7 +888,7 @@ test('bootstrap con arquitectura ya hecha igual crea la ficha si falta', () => {
   assert.equal(b.origin.skipped, false);
 });
 
-test('setup kiro registra data-agent con host de la ficha, credenciales aparte', () => {
+test('setup kiro no registra npx data-agent; credenciales quedan fuera del origen', () => {
   const home = tmp();
   const project = tmp();
   writePkg(path.join(project, 'api'), 'api', { dependencies: { mssql: '10' } });
@@ -901,15 +902,34 @@ test('setup kiro registra data-agent con host de la ficha, credenciales aparte',
     JSON.stringify({ DB_USER: 'sa', DB_PASSWORD: 'LocalOnly' }),
   );
   const r = setupAgent('kiro', { home, projectRoot: project });
-  assert.equal(r.dataAgent.merged, true);
+  assert.equal(Array.isArray(r.dataAgent.pruned), true);
   const mcp = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'settings', 'mcp.json'), 'utf8'));
-  const agent = mcp.mcpServers['afn-mcp-data-agent'];
-  assert.equal(agent.env.DATA_AGENT_DRIVER, 'mssql');
-  assert.equal(agent.env.DB_SERVER, 'localhost');
-  assert.equal(agent.env.DB_PASSWORD, 'LocalOnly');
+  assert.equal(mcp.mcpServers['afn-mcp-data-agent'], undefined);
+  assert.ok(mcp.mcpServers['afn-context']);
   const origin = JSON.parse(fs.readFileSync(path.join(project, '.afn', 'db-connection.json'), 'utf8'));
   assert.equal(origin.dbEngine, 'sqlserver');
   assert.equal(JSON.stringify(origin).includes('LocalOnly'), false);
+});
+
+test('setup kiro quita el stub npx data-agent que cierra con MCP 32000', () => {
+  const home = tmp();
+  const project = tmp();
+  writePkg(path.join(project, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.mkdirSync(path.join(project, '.kiro', 'settings'), { recursive: true });
+  fs.writeFileSync(
+    path.join(project, '.kiro', 'settings', 'mcp.json'),
+    JSON.stringify({
+      mcpServers: {
+        keep: { command: 'node', args: ['x.js'] },
+        'afn-mcp-data-agent': { command: 'npx', args: ['-y', '@afn-ecosystem/mcp-data-agent@latest'] },
+      },
+    }),
+  );
+  setupAgent('kiro', { home, projectRoot: project });
+  const mcp = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'settings', 'mcp.json'), 'utf8'));
+  assert.equal(mcp.mcpServers['afn-mcp-data-agent'], undefined);
+  assert.ok(mcp.mcpServers.keep);
+  assert.ok(mcp.mcpServers['afn-context']);
 });
 
 test('varios repos / compose: varias fichas de origen, no una sola', () => {
@@ -953,7 +973,8 @@ test('varios repos / compose: varias fichas de origen, no una sola', () => {
   setupAgent('kiro', { home, projectRoot: root });
   const mcp = JSON.parse(fs.readFileSync(path.join(root, '.kiro', 'settings', 'mcp.json'), 'utf8'));
   const dataServers = Object.keys(mcp.mcpServers).filter((k) => /data-agent/.test(k));
-  assert.ok(dataServers.length >= 2, String(dataServers));
+  assert.equal(dataServers.length, 0, String(dataServers));
+  assert.ok(mcp.mcpServers['afn-context']);
   const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(html, /db-connections\.json/);
   assert.match(html, /sqlserver|mssql/i);
@@ -1010,8 +1031,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /wb-sql-sel-all-btn/);
   assert.match(html, /Descargar esta/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.18/);
-  assert.match(html, /data-afn-version="1\.4\.18"/);
+  assert.match(html, /v1\.4\.19/);
+  assert.match(html, /data-afn-version="1\.4\.19"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1075,7 +1096,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.18/);
+    assert.match(liveHtml, /v1\.4\.19/);
     assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);
     assert.match(liveHtml, /DB_USER/);
@@ -1093,11 +1114,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.18',
+    version: '1.4.19',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.18');
+  assert.equal(c.version, '1.4.19');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
