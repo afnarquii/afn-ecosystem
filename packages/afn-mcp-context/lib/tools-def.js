@@ -154,6 +154,28 @@ export const CONTEXT_TOOLS = [
     },
   },
   {
+    name: 'afn_data_sources',
+    description:
+      'Lista orígenes de datos del workspace (.afn/db-connection.json, perfiles, MCP data-agent/session-db) y PAs/colecciones mencionados en código. No conecta. No secretos. El LLM usa el MCP indicado y luego afn_schema_commit.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'afn_schema_commit',
+    description:
+      'Guarda esquema vivo (tablas, PAs, quién llama qué, ejemplo corto) en .afn/diagrams/datos.md y ARQUITECTURA.md §6b. Solo lo que el MCP de datos devolvió. No inventes columnas. No al abrir el proyecto.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string', description: 'afn-session-db | afn-mcp-data-agent' },
+        engine: { type: 'string' },
+        connectionName: { type: 'string' },
+        tables: { type: 'array', items: { type: 'object' } },
+        procedures: { type: 'array', items: { type: 'object' } },
+        calls: { type: 'array', items: { type: 'object' } },
+      },
+    },
+  },
+  {
     name: 'afn_agent_assets',
     description:
       'Escanea steering/skills de Kiro, instrucciones y skills de Copilot (.github), Cursor y AGENTS.md, y las asocia a un proyecto del mapa si el nombre coincide.',

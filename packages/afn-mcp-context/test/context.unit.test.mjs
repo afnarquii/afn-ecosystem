@@ -17,6 +17,7 @@ import { saveObservation, startSession, endSession, getMemContext, loadCerebro }
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
 import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-notes.js';
+import { collectDataSources, commitLiveSchema } from '../lib/data-sources.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -779,6 +780,56 @@ test('wiki de tareas: varios md, status y dashboard; no pisa ARQUITECTURA.md', (
   const arch = fs.readFileSync(path.join(root, 'ARQUITECTURA.md'), 'utf8');
   assert.equal(arch.includes('Login OAuth'), false);
 });
+
+test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.mkdirSync(path.join(root, 'api'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'api', 'repo.js'),
+    "await pool.request().query('EXEC dbo.usp_GetOrder @id');\n",
+  );
+  fs.mkdirSync(path.join(root, '.afn'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.afn', 'db-connection.json'),
+    JSON.stringify({
+      connectionName: 'QA pedidos',
+      dbEngine: 'sqlserver',
+      database: 'Pedidos',
+      password: 'SUPERSECRET',
+      savedProfileId: 'prof_1',
+    }),
+  );
+  fs.mkdirSync(path.join(root, '.kiro', 'settings'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.kiro', 'settings', 'mcp.json'),
+    JSON.stringify({ mcpServers: { 'afn-mcp-data-agent': { command: 'npx' } } }),
+  );
+  const src = collectDataSources(root);
+  assert.equal(src.ok, true);
+  assert.equal(src.preferred.name, 'QA pedidos');
+  assert.equal(src.preferred.engine, 'sqlserver');
+  assert.equal(JSON.stringify(src).includes('SUPERSECRET'), false);
+  assert.ok(src.codeMentions.procedures.some((p) => /usp_GetOrder/.test(p)));
+  assert.equal(src.useMcp, 'afn-mcp-data-agent');
+  bootstrapAfn(root);
+  const c = commitLiveSchema(root, {
+    source: 'afn-mcp-data-agent',
+    engine: 'sqlserver',
+    connectionName: 'QA pedidos',
+    tables: [{ name: 'Orders', columns: [{ name: 'id', type: 'int' }], sample: { id: 1, token: 'abc' } }],
+    procedures: [{ name: 'usp_GetOrder', params: ['@id'], returns: 'result set', sample: { id: 1 } }],
+    calls: [{ from: 'api', procedure: 'usp_GetOrder', via: 'EXEC' }],
+  });
+  assert.equal(c.ok, true);
+  const datos = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'datos.md'), 'utf8');
+  assert.match(datos, /usp_GetOrder/);
+  assert.match(datos, /Orders/);
+  const md = fs.readFileSync(path.join(root, 'ARQUITECTURA.md'), 'utf8');
+  assert.match(md, /## 6b\. Origen de datos/);
+  assert.match(md, /usp_GetOrder/);
+});
+
 
 
 

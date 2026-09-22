@@ -12,6 +12,7 @@ import { persistAgentAssets } from './agent-assets.js';
 import { architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
+import { collectDataSources, commitLiveSchema } from './data-sources.js';
 import {
   compactBootstrap,
   compactCommit,
@@ -131,6 +132,10 @@ export async function handleContextTool(root, name, args = {}) {
       return compactEvidence(collectArchitectureEvidence(base));
     case 'afn_architecture_commit':
       return compactCommit(commitArchitecture(base, args));
+    case 'afn_data_sources':
+      return collectDataSources(base);
+    case 'afn_schema_commit':
+      return commitLiveSchema(base, args);
     case 'afn_agent_assets':
       return persistAgentAssets(base);
     case 'afn_doctor':

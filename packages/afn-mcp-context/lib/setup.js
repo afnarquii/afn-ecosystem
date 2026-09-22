@@ -35,6 +35,7 @@ function mcpServerBlock() {
       'afn_bootstrap',
       'afn_doctor',
       'afn_dashboard',
+      'afn_data_sources',
     ],
   };
 }
@@ -53,6 +54,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
+- Si pide **conectar el origen de datos / esquema de tablas y PAs**: \`afn_data_sources\` (lee \`.afn/db-connection.json\` y el MCP). **No conectes vos**: usá el MCP que indique (\`afn-session-db\` o \`afn-mcp-data-agent\`: list_tables / describe / actions, un ejemplo TOP 1). Luego \`afn_schema_commit\` (tablas, procedimientos, quién llama qué, ejemplo corto). No al abrir el proyecto ni el dashboard. No inventes columnas ni PAs.
 - Las tools de arquitectura devuelven un resumen. El JSON completo está en disco (\`workspace-flow.json\`, \`projects.json\`, \`ARQUITECTURA.md\`).
 - Si el snapshot dice mapa verificado o inventario en disco y nadie pidió regenerar: no toques el mapa.
 - Regenerar no borra observaciones ni \`MEMORY.md\`.

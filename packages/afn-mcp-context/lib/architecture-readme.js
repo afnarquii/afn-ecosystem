@@ -159,14 +159,36 @@ export function architectureReadmeBrief(flow, max = 1800) {
 const BANNER = '<!-- generado-por-afn: regenerá la arquitectura para actualizar este archivo -->\n';
 
 /**
+ * Reinyecta el esquema vivo (MCP) para que regenerar el mapa no lo borre.
+ * @param {string} root
+ * @param {string} markdown
+ */
+export function mergeLiveDataIntoReadme(root, markdown) {
+  let live = '';
+  try {
+    live = fs.readFileSync(path.join(root, '.afn', 'diagrams', 'datos.md'), 'utf8').trim();
+  } catch {
+    live = '';
+  }
+  if (!live) return String(markdown || '');
+  const body = String(markdown || '');
+  const without = body.replace(/\n## 6b\. Origen de datos \(MCP\)[\s\S]*?(?=\n## 7\. |\n## 7 |\n*$)/, '\n');
+  if (/\n## 7[.\s]/.test(without)) {
+    return without.replace(/\n## 7[.\s]/, `\n${live}\n## 7. `);
+  }
+  return `${without.trimEnd()}\n\n${live}\n`;
+}
+
+/**
  * Escribe el README donde se ve: raíz del workspace + .afn (el IDE oculta .afn/diagrams).
  * @param {string} root
  * @param {string} markdown
  */
 export function writeArchitectureReadmeFiles(root, markdown) {
-  const body = String(markdown || '').startsWith('<!-- generado-por-afn')
-    ? String(markdown)
-    : `${BANNER}\n${String(markdown || '').trimStart()}`;
+  const merged = mergeLiveDataIntoReadme(root, markdown);
+  const body = String(merged || '').startsWith('<!-- generado-por-afn')
+    ? String(merged)
+    : `${BANNER}\n${String(merged || '').trimStart()}`;
   const rootFile = path.join(root, 'ARQUITECTURA.md');
   const afnFile = path.join(root, '.afn', 'ARQUITECTURA.md');
   const diagramsFile = path.join(root, '.afn', 'diagrams', 'arquitectura.md');

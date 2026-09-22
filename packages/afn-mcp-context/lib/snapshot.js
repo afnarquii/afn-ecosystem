@@ -100,6 +100,15 @@ export function buildSnapshot(root) {
     lines.push('');
   }
 
+  try {
+    if (fs.existsSync(afnPath(root, 'diagrams', 'datos.md')) || fs.existsSync(afnPath(root, 'db-connection.json'))) {
+      lines.push('Origen de datos en `.afn`. No conectes en cada turno. Si el usuario pide el esquema: `afn_data_sources` → MCP de BD → `afn_schema_commit`.');
+      lines.push('');
+    }
+  } catch {
+    /* */
+  }
+
   const ctx = readJson(afnPath(root, 'context.json'));
   if (ctx && typeof ctx === 'object') {
     const safe = redactSecrets(ctx);
