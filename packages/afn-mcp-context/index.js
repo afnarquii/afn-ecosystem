@@ -24,7 +24,7 @@ import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent } from './lib/setup.js';
 import { FLOW_GENERATOR_VERSION } from './lib/version.js';
 import { architectureStatus } from './lib/architecture-llm.js';
-import { compactBootstrap, compactDiagramResult } from './lib/compact-result.js';
+import { compactBootstrap, compactDiagramResult, compactDashboard } from './lib/compact-result.js';
 import fs from 'node:fs';
 
 const VERSION = FLOW_GENERATOR_VERSION;
@@ -78,7 +78,7 @@ async function main() {
 
   if (cmd === 'dashboard') {
     const open = !argv.includes('--no-open');
-    const r = open ? await openDashboard(root, { open: true }) : writeDashboard(root, { open: false });
+    const r = open ? compactDashboard(await openDashboard(root, { open: true })) : writeDashboard(root, { open: false });
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;

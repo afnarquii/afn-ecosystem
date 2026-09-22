@@ -115,7 +115,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_dashboard',
     description:
-      'Abre el dashboard en 127.0.0.1: README, orígenes editables, elegir tablas/PAs y editor SQL (solo SELECT). Nunca regenera arquitectura.',
+      'Abre http://127.0.0.1 (campo url). NUNCA abras .afn/_tmp/dashboard.html. Versión en el HTML. Orígenes, elegir tablas/PAs, SQL SELECT. No regenera arquitectura.',
     inputSchema: {
       type: 'object',
       properties: {

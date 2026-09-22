@@ -20,6 +20,7 @@ import {
   compactEvidence,
   compactProject,
   compactRel,
+  compactDashboard,
 } from './compact-result.js';
 import {
   activeProjects,
@@ -107,7 +108,7 @@ export async function handleContextTool(root, name, args = {}) {
     case 'afn_note_set_status':
       return setTaskNoteStatus(base, args.task, args.status);
     case 'afn_dashboard':
-      return openDashboard(base, { open: args.open !== false, slug: args.slug });
+      return compactDashboard(await openDashboard(base, { open: args.open !== false, slug: args.slug }));
     case 'afn_diagram_generate': {
       const recreate = args.recreate === true;
       if (!recreate && architectureExists(base)) {

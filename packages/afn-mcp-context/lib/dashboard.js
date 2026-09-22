@@ -13,6 +13,7 @@ import { irToMermaid } from './diagram-ir.js';
 import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid, workspaceFlowMarkdown } from './workspace-flow.js';
 import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
+import { FLOW_GENERATOR_VERSION } from './version.js';
 
 function readJson(file) {
   try {
@@ -668,13 +669,14 @@ ${workbenchScript()}
   .chk input { margin-right:.4rem; }
 </style>
 </head>
-<body>
+<body data-afn-version="${esc(FLOW_GENERATOR_VERSION)}">
 <div class="app">
   <aside>
     <div class="brand">
-      <div class="mark">AFN context</div>
+      <div class="mark">AFN context · v${esc(FLOW_GENERATOR_VERSION)}</div>
       <h1>Arquitectura y cerebro</h1>
       <p class="ws">${esc(wsName)}</p>
+      <p id="wb-ver" class="muted" style="margin:.35rem 0 0;font-size:.72rem">Cargando…</p>
     </div>
     <div class="search-box">
       <label for="q" class="muted" style="display:block;font-size:.68rem;margin:0 0 .3rem;letter-spacing:.08em;text-transform:uppercase">Buscar</label>
@@ -700,7 +702,7 @@ ${workbenchNavButtons()}
   <div>
     <div class="top">
       <span class="badge ${verified ? 'ok' : 'warn'}">${verified ? 'Arquitectura verificada' : 'Pendiente de evidencia LLM'}</span>
-      <span class="muted">${projects.length} proyectos · ${rels.length} conexiones · ${hasReadme ? 'README listo' : 'sin README'}</span>
+      <span class="muted">v${esc(FLOW_GENERATOR_VERSION)} · ${projects.length} proyectos · ${rels.length} conexiones · ${hasReadme ? 'README listo' : 'sin README'}</span>
     </div>
     <main>
     <section data-view="readme">
@@ -874,13 +876,26 @@ function openInBrowser(fileAbs, hash = '') {
 }
 
 function openUrl(url) {
+  const target = String(url || '').trim();
+  if (!target) return false;
   try {
     if (process.platform === 'win32') {
-      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+      spawn(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-WindowStyle',
+          'Hidden',
+          '-Command',
+          `Start-Process -FilePath ${JSON.stringify(target)}`,
+        ],
+        { detached: true, stdio: 'ignore', windowsHide: true },
+      ).unref();
     } else if (process.platform === 'darwin') {
-      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+      spawn('open', [target], { detached: true, stdio: 'ignore' }).unref();
     } else {
-      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+      spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref();
     }
     return true;
   } catch {
@@ -935,9 +950,8 @@ export async function openDashboard(root, opts = {}) {
     opened,
     server: true,
     port: info.port,
-    hint: opened
-      ? 'Dashboard en 127.0.0.1: Orígenes, elegir tablas/PAs y editor SQL (solo SELECT).'
-      : `Abrí: ${url}`,
+    version: FLOW_GENERATOR_VERSION,
+    hint: `Dashboard v${FLOW_GENERATOR_VERSION} en ${url} — izquierda: Orígenes, Elegir tablas/PAs, SQL. Si dice «archivo local» no es esta URL.`,
   };
 }
 

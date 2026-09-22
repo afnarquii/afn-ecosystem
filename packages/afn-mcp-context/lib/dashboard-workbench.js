@@ -59,6 +59,11 @@ export function workbenchNavButtons() {
 export function workbenchScript() {
   return `
   const api = window.AFN_API;
+  const verEl = document.getElementById("wb-ver");
+  const ver = document.body.getAttribute("data-afn-version") || "";
+  if (verEl) verEl.textContent = api
+    ? ("v" + ver + " · 127.0.0.1 — Orígenes / Elegir tablas / SQL")
+    : ("v" + ver + " · archivo local (sin SQL). Pedí «abre dashboard AFN» otra vez.");
   const warn = document.getElementById("wb-api-warn");
   if (warn && !api) warn.hidden = false;
   async function apiCall(method, path, body) {

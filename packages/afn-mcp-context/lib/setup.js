@@ -50,7 +50,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Buscá con \`afn_mem_search\` antes de re-explorar.
 - Guardá **hechos** con \`afn_mem_save\` (title, type, What/Why/Where/Learned). No transcripts.
 - Al abrir un trabajo: \`afn_session_start\` (goal). Al cerrar: \`afn_session_summary\`.
-- Si el usuario pide **abre dashboard AFN**: \`afn_dashboard\` (abre http://127.0.0.1: orígenes editables, elegir tablas/PAs, editor SQL SELECT). **No** llames \`afn_diagram_generate\` ni \`afn_architecture_commit\`.
+- Si el usuario pide **abre dashboard AFN**: \`afn_dashboard\`. Abrí **solo** el campo \`url\` (\`http://127.0.0.1:…\`). **Nunca** abras \`.afn/_tmp/dashboard.html\` ni una ruta \`C:\\\`. Ahí ves versión, Orígenes, Elegir tablas/PAs y SQL. **No** llames \`afn_diagram_generate\` ni \`afn_architecture_commit\`.
 - Si pide **guardar el README de esta tarea**: \`afn_note_save\`. Si pide **marcar listo/aprobado**: \`afn_note_set_status\`.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”, o el snapshot avisa un **cambio estructural** y el usuario lo confirma. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.

@@ -3,6 +3,8 @@
  * (`.afn/diagrams/workspace-flow.json`, `projects.json`, `ARQUITECTURA.md`).
  */
 
+import { FLOW_GENERATOR_VERSION } from './version.js';
+
 export function compactProject(p) {
   if (!p || typeof p !== 'object') return p;
   return {
@@ -115,5 +117,23 @@ export function compactCommit(r = {}) {
     })),
     relationships: (r.relationships || []).map(compactRel),
     hint: r.hint || '',
+  };
+}
+
+/** No devolver el HTML de _tmp: Kiro lo abre como file:// y no hay SQL. */
+export function compactDashboard(r = {}) {
+  const http = String(r.url || '').startsWith('http') ? r.url : '';
+  return {
+    ok: r.ok !== false,
+    version: r.version || FLOW_GENERATOR_VERSION,
+    url: http,
+    port: r.port || null,
+    server: r.server === true,
+    opened: r.opened === true,
+    hint:
+      r.hint
+      || (http
+        ? `Abrí exactamente esta URL en el navegador: ${http}`
+        : 'Pedí afn_dashboard otra vez; tiene que devolver http://127.0.0.1'),
   };
 }

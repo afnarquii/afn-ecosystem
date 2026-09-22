@@ -20,6 +20,7 @@ import { saveTaskNote, setTaskNoteStatus, listTaskNotes } from '../lib/task-note
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
+import { compactDashboard } from '../lib/compact-result.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-ctx-'));
@@ -983,6 +984,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /data-view="origenes"/);
   assert.match(html, /data-view="esquema"/);
   assert.match(html, /Ejecutar/);
+  assert.match(html, /v1\.4\.10/);
+  assert.match(html, /data-afn-version="1\.4\.10"/);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1010,9 +1013,27 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
       body: JSON.stringify({ sql: 'DELETE FROM t' }),
     });
     assert.equal(bad.ok, false);
+    const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
+    const liveHtml = await page.text();
+    assert.match(liveHtml, /v1\.4\.10/);
+    assert.match(liveHtml, /window\.AFN_API=\{token:/);
   } finally {
     stopDashboardServer(root);
   }
+});
+
+test('compactDashboard no entrega el html de _tmp', () => {
+  const c = compactDashboard({
+    ok: true,
+    url: 'http://127.0.0.1:9/?token=x#readme',
+    file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
+    server: true,
+    port: 9,
+    version: '1.4.10',
+  });
+  assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
+  assert.equal(c.url.includes('dashboard.html'), false);
+  assert.equal(c.version, '1.4.10');
 });
 
 
