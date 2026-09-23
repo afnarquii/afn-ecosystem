@@ -12,6 +12,7 @@ import { bootstrapAfn } from './bootstrap.js';
 import { isAfnEcosystemCatalog } from './resolve-root.js';
 import { aggregateCatalogMemory, registerKnownProject } from './catalog-registry.js';
 import { portProjectAssets } from './project-port.js';
+import { pickFolder } from './pick-folder.js';
 
 /** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
 export const AFN_DASHBOARD_PORT = 5847;
@@ -85,6 +86,11 @@ async function handleApi(root, token, req, res, url) {
   if (req.method === 'POST' && route === '/api/bootstrap') {
     const r = bootstrapAfn(root, { ceiling: root });
     send(res, r.ok ? 200 : 400, { ok: r.ok, root: r.root, reason: r.reason, error: r.ok ? '' : (r.reason || 'bootstrap_failed') });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/pick-folder') {
+    const r = await pickFolder();
+    send(res, r.ok ? 200 : 400, r);
     return;
   }
   if (req.method === 'POST' && route === '/api/import-assets') {

@@ -15,7 +15,7 @@ import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
 import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
-import { projectBarHtml, projectBarScript } from './dashboard-project-ui.js';
+import { projectBarHtml, projectBarScript, projectBarCss } from './dashboard-project-ui.js';
 import { FLOW_GENERATOR_VERSION } from './version.js';
 
 function readJson(file) {
@@ -706,6 +706,7 @@ ${projectBarScript()}
   #wb-sql-grid tbody tr.on td { background:#1e3a5f; }
 ${skillsCss()}
 ${extractCss()}
+${projectBarCss()}
   .sql-lupa-btn { display:inline-flex; align-items:center; justify-content:center; width:1.7rem; height:1.7rem; border:1px solid #2a4a6a; background:#16324a; color:#7dd3fc; border-radius:6px; cursor:pointer; }
   .sql-lupa-btn:hover, .sql-lupa-btn.on { background:#2563eb; border-color:#3b82f6; color:#fff; }
   .sql-inspect { border-top:1px solid var(--line); background:#0b1016; height:250px; min-height:200px; max-height:40vh; display:flex; flex-direction:column; flex-shrink:0; }

@@ -10,15 +10,34 @@ export function projectBarHtml() {
         <button type="button" class="btn" id="afn-init" hidden>Inicializar este proyecto</button>
       </div>
       <p id="afn-port-lead" class="muted" style="margin:.8rem 0 .35rem">Traer skills y steering de otro proyecto. No copia memoria ni textos extraídos.</p>
-      <div class="toolbar">
-        <input id="afn-port-from" type="text" placeholder="C:\\otro\\proyecto" style="flex:1;min-width:12rem"/>
-        <button type="button" class="btn" id="afn-port">Traer</button>
+      <div id="afn-pick" class="afn-pick">
+        <div class="afn-pick-ico" aria-hidden="true">📁</div>
+        <div class="afn-pick-copy">
+          <strong id="afn-pick-name">Ninguna carpeta elegida</strong>
+          <p id="afn-pick-path" class="muted">Elegí la carpeta en el explorador. No hace falta pegar la ruta.</p>
+        </div>
+        <button type="button" class="btn" id="afn-browse">Elegir carpeta</button>
+        <button type="button" class="btn afn-pick-go" id="afn-port" disabled>Traer</button>
       </div>
+      <input id="afn-port-from" type="hidden" value=""/>
       <div id="afn-catalog" hidden>
         <h3 style="margin:1rem 0 .4rem">Memoria de todos los proyectos</h3>
         <div id="afn-catalog-list" class="grid"></div>
       </div>
     </div>`;
+}
+
+export function projectBarCss() {
+  return `
+  .afn-pick { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; border:1px dashed #3d5168; border-radius:14px; padding:.85rem 1rem; background:#101820; }
+  .afn-pick.on { border-style:solid; border-color:#3b82f6; }
+  .afn-pick-ico { width:2.4rem; height:2.4rem; border-radius:10px; display:grid; place-items:center; background:#1a2533; font-size:1.15rem; }
+  .afn-pick-copy { flex:1; min-width:12rem; }
+  .afn-pick-copy strong { display:block; }
+  .afn-pick-copy p { margin:.15rem 0 0; }
+  .afn-pick-go { background:#2563eb; border-color:#2563eb; color:#fff; }
+  .afn-pick-go:disabled { opacity:.45; cursor:not-allowed; background:#1a2533; border-color:var(--line); color:var(--muted); }
+  `;
 }
 
 export function projectBarScript() {
@@ -98,6 +117,33 @@ export function projectBarScript() {
       } catch (e) {
         say(String(e.message || e), false);
         initBtn.disabled = false;
+      }
+    });
+    function setPicked(folder, name) {
+      const input = document.getElementById("afn-port-from");
+      const card = document.getElementById("afn-pick");
+      const title = document.getElementById("afn-pick-name");
+      const pathEl = document.getElementById("afn-pick-path");
+      const go = document.getElementById("afn-port");
+      if (input) input.value = folder || "";
+      if (title) title.textContent = name || folder || "Ninguna carpeta elegida";
+      if (pathEl) pathEl.textContent = folder || "Elegí la carpeta en el explorador. No hace falta pegar la ruta.";
+      if (card) card.classList.toggle("on", !!folder);
+      if (go) go.disabled = !folder;
+    }
+    document.getElementById("afn-browse")?.addEventListener("click", async () => {
+      const browse = document.getElementById("afn-browse");
+      if (browse) browse.disabled = true;
+      say("Se abrió el explorador. Elegí la carpeta.");
+      try {
+        const j = await call("POST", "/api/pick-folder", {});
+        setPicked(j.path, j.name);
+        say("Carpeta lista: " + (j.name || j.path), true);
+      } catch (e) {
+        const map = { cancelled: "No elegiste carpeta.", unsupported: "En esta PC no pude abrir el selector de carpetas." };
+        say(map[String(e.message || "")] || String(e.message || e), false);
+      } finally {
+        if (browse) browse.disabled = false;
       }
     });
     document.getElementById("afn-port")?.addEventListener("click", async () => {

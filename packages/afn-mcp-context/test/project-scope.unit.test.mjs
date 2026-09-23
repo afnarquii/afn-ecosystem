@@ -7,6 +7,8 @@ import { resolveWorkspaceRoot } from '../lib/resolve-root.js';
 import { aggregateCatalogMemory, searchCatalogMemory } from '../lib/catalog-registry.js';
 import { saveObservation, searchCerebro } from '../lib/cerebro.js';
 import { portProjectAssets } from '../lib/project-port.js';
+import { pickFolder } from '../lib/pick-folder.js';
+import { projectBarHtml } from '../lib/dashboard-project-ui.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-scope-'));
@@ -68,6 +70,16 @@ test('el catálogo lee la memoria de cada proyecto y un proyecto no ve la del ot
   assert.ok(titles.includes('Hecho dos'));
   assert.equal(searchCerebro(uno, 'dos').length, 0);
   assert.equal(searchCatalogMemory(cat, 'uno').some((o) => o.project === 'uno'), true);
+});
+
+test('el selector de carpeta devuelve la ruta y el readme ofrece Elegir carpeta', async () => {
+  const picked = await pickFolder({ dialog: async () => ({ ok: true, path: 'C:\\demo\\producto', name: 'producto' }) });
+  assert.equal(picked.ok, true);
+  assert.equal(picked.path, 'C:\\demo\\producto');
+  const html = projectBarHtml();
+  assert.match(html, /Elegir carpeta/);
+  assert.match(html, /id="afn-browse"/);
+  assert.equal(html.includes('type="text"'), false);
 });
 
 test('portar skills no copia la memoria', () => {
