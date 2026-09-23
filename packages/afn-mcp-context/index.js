@@ -3,7 +3,8 @@
  * @afn-ecosystem/mcp-context
  *   node index.js              → MCP stdio
  *   node index.js prompt-gate   → hook Kiro: comando local o pista (exit 2 = no LLM)
- *   node index.js dashboard [sql|cerebro|notas] → http://127.0.0.1:5847 (sin Kiro, sin tokens)
+ *   node index.js dashboard [sql|cerebro|notas|skills|extract] → http://127.0.0.1:5847 (sin Kiro, sin tokens)
+ *   node index.js extract archivo.pdf|xlsx|png  → .md en .afn/extract (sin tokens)
  *   node index.js note-save archivo.md
  *   node index.js mem-search texto
  *   node index.js mem-context
@@ -26,6 +27,7 @@ import { FLOW_GENERATOR_VERSION } from './lib/version.js';
 import { architectureStatus } from './lib/architecture-llm.js';
 import { compactBootstrap, compactDiagramResult, compactDashboard } from './lib/compact-result.js';
 import { saveTaskNoteFromFile } from './lib/task-notes.js';
+import { extractFileToMarkdown } from './lib/extract-text.js';
 import { runPromptGate, readHookPrompt } from './lib/prompt-gate.js';
 import fs from 'node:fs';
 
@@ -96,7 +98,7 @@ async function main() {
       process.exit(r.ok ? 0 : 1);
       return;
     }
-    const VIEWS = new Set(['inicio', 'readme', 'datos', 'origenes', 'esquema', 'sql', 'mapa', 'diagramas', 'capas', 'howto', 'cerebro', 'reglas', 'notas']);
+    const VIEWS = new Set(['inicio', 'readme', 'datos', 'origenes', 'esquema', 'sql', 'mapa', 'diagramas', 'capas', 'howto', 'cerebro', 'reglas', 'notas', 'skills', 'extract']);
     const extra = argv.slice(1).find((a) => !String(a).startsWith('-')) || '';
     const hash = VIEWS.has(extra) ? extra : extra ? `d-${extra}` : 'readme';
     const keep = !argv.includes('--once');
@@ -104,6 +106,14 @@ async function main() {
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     process.stderr.write(`Dashboard local (sin tokens de Kiro): ${r.url}\nDejá esta ventana abierta. Ctrl+C para parar.\n`);
     if (!keep) process.exit(r.ok ? 0 : 1);
+    return;
+  }
+
+  if (cmd === 'extract') {
+    const file = argv.slice(1).filter((a) => !String(a).startsWith('-')).join(' ');
+    const r = await extractFileToMarkdown(root, file);
+    process.stdout.write(`${JSON.stringify({ ok: r.ok, rel: r.rel, kind: r.kind, chars: r.chars, error: r.error, detail: r.detail }, null, 2)}\n`);
+    process.exit(r.ok ? 0 : 1);
     return;
   }
 
@@ -167,7 +177,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|prompt-gate|snapshot [--hint]|dashboard [sql|cerebro|notas]|note-save archivo.md|mem-search texto|mem-context|bootstrap|architecture [--recreate]|architecture-status|doctor|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|prompt-gate|snapshot [--hint]|dashboard [sql|cerebro|notas|skills|extract]|extract archivo.pdf|note-save archivo.md|mem-search texto|mem-context|bootstrap|architecture [--recreate]|architecture-status|doctor|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

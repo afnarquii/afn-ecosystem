@@ -7,6 +7,7 @@ import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, i
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
 import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWorkspaceSkill } from './skill-library.js';
+import { listExtractMarkdown, readExtractMarkdown, saveExtractMarkdown } from './extract-text.js';
 
 /** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
 export const AFN_DASHBOARD_PORT = 5847;
@@ -32,13 +33,13 @@ function send(res, code, body, extra = {}) {
   res.end(data);
 }
 
-function readBody(req) {
+function readBody(req, max = 2_000_000) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let n = 0;
     req.on('data', (c) => {
       n += c.length;
-      if (n > 2_000_000) {
+      if (n > max) {
         reject(new Error('body_too_large'));
         req.destroy();
         return;
@@ -131,6 +132,23 @@ async function handleApi(root, token, req, res, url) {
     const raw = JSON.parse((await readBody(req)) || '{}');
     const r = createWorkspaceSkill(root, raw);
     send(res, r.ok ? 200 : r.error === 'exists' ? 409 : 400, r);
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/extract') {
+    send(res, 200, listExtractMarkdown(root));
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/extract/file') {
+    const r = readExtractMarkdown(root, url.searchParams.get('name') || '');
+    send(res, r.ok ? 200 : r.error === 'not_found' ? 404 : 400, r);
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/extract') {
+    const raw = JSON.parse((await readBody(req, 22_000_000)) || '{}');
+    const buf = Buffer.from(String(raw.base64 || ''), 'base64');
+    const r = await saveExtractMarkdown(root, String(raw.filename || 'archivo'), buf);
+    const body = r.ok ? r : { ok: false, error: r.error, detail: r.detail };
+    send(res, r.ok ? 200 : 400, body);
     return;
   }
   send(res, 404, { ok: false, error: 'not_found' });

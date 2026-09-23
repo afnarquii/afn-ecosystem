@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildPromptHint } from './snapshot.js';
 import { saveTaskNoteFromFile } from './task-notes.js';
+import { extractFileToMarkdown } from './extract-text.js';
 import { searchCerebro } from './cerebro.js';
 import { readDashboardPointer } from './dashboard-server.js';
 
@@ -26,12 +27,30 @@ function key(s) {
 }
 
 /**
+ * «extrae C:\docs\a.pdf» → Markdown local, sin LLM.
+ * @param {string} raw
+ */
+export function parseExtractIntent(raw) {
+  const text = String(raw || '').trim();
+  if (!text || text.length > 500) return null;
+  if (!/\b(extrae|extraer|extra[eé]|convierte|convertir|convert[ií]|pasa a (?:texto|markdown|md))\b/i.test(text)) {
+    return null;
+  }
+  const m = text.match(/((?:[A-Za-z]:\\|\\\\)[^\r\n"']+|(?:\.\/|\.\.\\|\.\.\/)?[^\s"']+)\.(pdf|xlsx|xlsm|xls|csv|png|jpe?g|webp|bmp|gif|tiff?)\b/i);
+  if (!m) return null;
+  return { kind: 'extract', file: `${m[1]}.${m[2]}` };
+}
+
+/**
  * @param {string} text
  * @returns {{ kind: 'dashboard', view: string } | { kind: 'note-save', file: string } | { kind: 'mem-search', query: string } | null}
  */
 export function parseLocalIntent(text) {
   const raw = String(text || '').trim();
-  if (!raw || raw.length > 280) return null;
+  if (!raw) return null;
+  const extracted = parseExtractIntent(raw);
+  if (extracted) return extracted;
+  if (raw.length > 280) return null;
   const n = fold(raw);
 
   const note = n.match(/\b(?:guarda(?:r)?|save)\b(?:\s+el)?\s+(?:readme|nota|md)\s+([a-z0-9._\-]+)/i);
@@ -46,6 +65,9 @@ export function parseLocalIntent(text) {
   if (/^(abre|abrir|editar|mostrar)\s+(las\s+)?skills?\b/.test(n) && n.length < 48) {
     return { kind: 'dashboard', view: 'skills' };
   }
+  if (/^(abre|abrir|mostrar)\s+(los\s+)?textos\b/.test(n) && n.length < 40) {
+    return { kind: 'dashboard', view: 'extract' };
+  }
 
   const dash =
     /\bdashboard\b/.test(n)
@@ -53,6 +75,7 @@ export function parseLocalIntent(text) {
   if (dash || /^(abre|abrir)\s+(el\s+)?dashboard\b/.test(n)) {
     let view = 'readme';
     if (/\bskills?\b/.test(n)) view = 'skills';
+    else if (/\b(textos|pdf|excel)\b/.test(n)) view = 'extract';
     else if (/\bsql\b|consulta/.test(n)) view = 'sql';
     else if (/cerebro|memoria/.test(n)) view = 'cerebro';
     else if (/\bnotas?\b/.test(n)) view = 'notas';
@@ -135,6 +158,14 @@ export async function runPromptGate(root, text) {
     const msg = url
       ? `AFN (sin LLM): dashboard abierto.\n${url}${intent.view && intent.view !== 'readme' ? `#${intent.view}` : ''}\nNo se envió el mensaje al modelo.`
       : 'AFN (sin LLM): levantando dashboard en http://127.0.0.1:5847 — si no abre, corré .afn/_tmp/afn-dashboard.cmd';
+    return { handled: true, exitCode: 2, message: msg, intent };
+  }
+
+  if (intent.kind === 'extract') {
+    const r = await extractFileToMarkdown(root, intent.file);
+    const msg = r.ok
+      ? `AFN (sin LLM): Markdown en ${r.rel} (${r.chars} caracteres, ${r.kind}).\nAbrilo, corregilo si hace falta, y pasale ese .md al chat.\nNo se envió el archivo al modelo.`
+      : `AFN (sin LLM): no pude convertir ${intent.file}. ${r.error || 'error'}.`;
     return { handled: true, exitCode: 2, message: msg, intent };
   }
 

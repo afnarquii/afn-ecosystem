@@ -103,6 +103,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
 - El origen de datos **no se adivina**. Init → \`.afn/db-connections.json\`. Credenciales: \`.afn/credentials/data-agent.json\`. SQL: pestaña SQL del dashboard (SELECT o EXEC de PA). **No** arranques \`afn-mcp-data-agent\` con npx: SQL no usa ese MCP.
 - Skills que el equipo reutiliza (caja, turnos, un flujo): pestaña **Skills** del dashboard (\`http://127.0.0.1:5847/#skills\`). Ahí se abren, leen y editan. No reescribas el \`SKILL.md\` en el chat si el usuario puede hacerlo en esa pestaña.
+- PDF, Excel e imágenes: pestaña **Textos** (\`#extract\`) o *extrae C:\\ruta\\archivo.pdf*. Siempre queda un \`.md\` en \`.afn/extract/\`. **No** mandes el binario al modelo: el usuario pasa ese Markdown.
 - Las tools de arquitectura devuelven un resumen. Completo en disco.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 

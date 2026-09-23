@@ -4,7 +4,7 @@ Servidor MCP **stdio** (Node ≥18) que lee y escribe `.afn/` del **workspace de
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace**. Dashboard v1.4.22: pestaña **Skills** (abrir, leer y editar `.kiro/skills`, `.afn/skills`, `.github/skills` sin el chat). SQL con lupa/preview; al salir de SQL el sidebar muestra solo esa pestaña. **No** registra `npx @afn-ecosystem/mcp-data-agent` (eso cierra el MCP con error 32000). En Kiro, *abre dashboard AFN* / *guarda el readme …* los intercepta el hook **antes del LLM**. También: `node index.js dashboard` (puerto 5847).
+Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace**. Dashboard v1.4.23: pestaña **Textos** convierte PDF, Excel e imágenes a `.md` en `.afn/extract/` (sin el chat). Pestaña **Skills** para abrir y editar skills. SQL con lupa/preview. **No** registra `npx @afn-ecosystem/mcp-data-agent` (eso cierra el MCP con error 32000). En Kiro, *abre dashboard AFN* / *guarda el readme …* los intercepta el hook **antes del LLM**. También: `node index.js dashboard` (puerto 5847).
 
 Origen de datos: el init escribe `.afn/db-connections.json` (host/puerto/base, sin passwords) y `.afn/db-connection.json` (sesión activa). Credenciales en `.afn/credentials/data-agent.json` (gitignored):
 

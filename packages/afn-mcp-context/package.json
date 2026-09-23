@@ -1,6 +1,6 @@
 {
   "name": "@afn-ecosystem/mcp-context",
-  "version": "1.4.22",
+  "version": "1.4.23",
   "description": "MCP headless: mapa .afn (proyectos, flujo, cerebro, diagramas, reglas Kiro/Copilot). Kiro, Cursor, Claude Code u otro agente MCP. Sin Engram. Sin Electron.",
   "type": "module",
   "bin": {
@@ -20,7 +20,9 @@
     "node": ">=18"
   },
   "dependencies": {
-    "mssql": "^11.0.1"
+    "mssql": "^11.0.1",
+    "pdfjs-dist": "^3.11.174",
+    "xlsx": "^0.18.5"
   },
   "keywords": [
     "afn",

@@ -14,6 +14,7 @@ import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eM
 import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
+import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
 import { FLOW_GENERATOR_VERSION } from './version.js';
 
 function readJson(file) {
@@ -415,6 +416,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (id === "capas") render(document.getElementById("layers-mermaid"), document.getElementById("layers-src").textContent);
     if (id === "howto") render(document.getElementById("e2e-mermaid"), document.getElementById("e2e-src").textContent);
     if (id === "skills" && window.afnSkillsOnShow) window.afnSkillsOnShow();
+    if (id === "extract" && window.afnExtractOnShow) window.afnExtractOnShow();
     if (id === "notas" && !location.hash.startsWith("#n-")) {
       const list = document.getElementById("notes-list");
       const reader = document.getElementById("notes-reader");
@@ -597,9 +599,10 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const i = rest.indexOf("/");
     showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
   }
-  else showView(["inicio","readme","datos","origenes","esquema","sql","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills"].includes(boot) ? boot : "readme");
+  else showView(["inicio","readme","datos","origenes","esquema","sql","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "readme");
 ${workbenchScript()}
 ${skillsScript()}
+${extractScript()}
 </script>
 <style>
   :root {
@@ -700,6 +703,7 @@ ${skillsScript()}
   #wb-sql-grid tbody tr:hover td { background:#1a2533; }
   #wb-sql-grid tbody tr.on td { background:#1e3a5f; }
 ${skillsCss()}
+${extractCss()}
   .sql-lupa-btn { display:inline-flex; align-items:center; justify-content:center; width:1.7rem; height:1.7rem; border:1px solid #2a4a6a; background:#16324a; color:#7dd3fc; border-radius:6px; cursor:pointer; }
   .sql-lupa-btn:hover, .sql-lupa-btn.on { background:#2563eb; border-color:#3b82f6; color:#fff; }
   .sql-inspect { border-top:1px solid var(--line); background:#0b1016; height:250px; min-height:200px; max-height:40vh; display:flex; flex-direction:column; flex-shrink:0; }
@@ -740,6 +744,7 @@ ${workbenchNavButtons()}
       <button type="button" data-go="cerebro">Memoria</button>
       <button type="button" data-go="reglas">Reglas (${assets.length})</button>
 ${skillsNavButton()}
+${extractNavButton()}
     </nav>
     <p class="stat">${esc(root)}${ignorePaths.length ? `<br>ignorados: ${esc(ignorePaths.join(', '))}` : ''}</p>
   </aside>
@@ -797,6 +802,7 @@ ${workbenchSections()}
         <button type="button" data-go="cerebro" data-q="memoria cerebro sesiones hechos"><span class="k">Memoria</span><strong>${lastSess ? esc(lastSess.goal || 'Sesión') : 'Sin sesiones'}</strong><span class="muted">${obs.length} hechos recientes</span></button>
         <button type="button" data-go="reglas" data-q="kiro copilot steering skills reglas"><span class="k">Kiro · Copilot</span><strong>${assets.length} reglas / skills</strong><span class="muted">Asociadas al workspace</span></button>
         <button type="button" data-go="skills" data-q="skills kiro editar flujo caja"><span class="k">Skills</span><strong>Abrir y editar</strong><span class="muted">Reutilizar sin tokens</span></button>
+        <button type="button" data-go="extract" data-q="pdf excel imagen markdown textos"><span class="k">Textos</span><strong>PDF, Excel, imagen</strong><span class="muted">Siempre a .md</span></button>
       </div>
       <h3>Puertos con evidencia</h3>
       <table>
@@ -865,6 +871,7 @@ ${workbenchSections()}
       ${contextSafe ? `<h3>context.json (redactado)</h3><pre class="muted" style="white-space:pre-wrap">${esc(JSON.stringify(contextSafe, null, 2).slice(0, 1800))}</pre>` : ''}
     </section>
 ${skillsSection()}
+${extractSection()}
     <section data-view="reglas" hidden>
       <h2>Steering, skills e instrucciones</h2>
       <p class="lead">Kiro, Copilot (.github), Cursor y AFN.</p>
