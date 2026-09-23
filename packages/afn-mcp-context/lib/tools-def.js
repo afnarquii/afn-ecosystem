@@ -182,6 +182,18 @@ export const CONTEXT_TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'afn_extract_file',
+    description:
+      'Convierte un PDF, Excel o imagen del disco a Markdown en .afn/extract/ sin visión del modelo. Usar cuando pidan ver, leer o extraer una imagen/PDF/Excel por ruta. No pedir que adjunten el archivo. No decir que no se pueden leer imágenes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Ruta absoluta del PDF, xlsx o imagen' },
+      },
+      required: ['path'],
+    },
+  },
+  {
     name: 'afn_doctor',
     description: 'Comprueba .afn/ (projects.json, MEMORY.md, cerebro).',
     inputSchema: { type: 'object', properties: {} },

@@ -13,6 +13,7 @@ import { architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 import { collectDataSources, commitLiveSchema } from './data-sources.js';
+import { extractFileToMarkdown } from './extract-text.js';
 import {
   compactBootstrap,
   compactCommit,
@@ -139,6 +140,19 @@ export async function handleContextTool(root, name, args = {}) {
       return commitLiveSchema(base, args);
     case 'afn_agent_assets':
       return persistAgentAssets(base);
+    case 'afn_extract_file': {
+      const file = String(args.path || args.file || '').trim();
+      const r = await extractFileToMarkdown(base, file);
+      if (!r.ok) return { ok: false, error: r.error, detail: r.detail };
+      return {
+        ok: true,
+        rel: r.rel,
+        kind: r.kind,
+        chars: r.chars,
+        preview: String(r.preview || '').slice(0, 800),
+        hint: 'El texto ya está en ese .md. No pidas adjuntar la imagen ni digas que no podés leerla.',
+      };
+    }
     case 'afn_doctor':
       return doctorAfn(base);
     case 'afn_project_ignore': {

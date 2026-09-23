@@ -26,19 +26,42 @@ function key(s) {
   return fold(s).replace(/\.md$/i, '').replace(/[_\-\s]/g, '');
 }
 
+const EXTRACT_EXT = 'pdf|xlsx|xlsm|xls|csv|png|jpe?g|webp|bmp|gif|tiff?';
+
 /**
- * «extrae C:\docs\a.pdf» → Markdown local, sin LLM.
+ * Ruta de PDF, Excel o imagen dentro del mensaje.
+ * Acepta C:\..., C:/... y file:///.
+ * @param {string} text
+ */
+export function findExtractFile(text) {
+  const raw = String(text || '');
+  const fileUrl = raw.match(new RegExp(String.raw`file:\/\/\/([A-Za-z]:\/[^\s"'<>]+)\.(${EXTRACT_EXT})\b`, 'i'));
+  if (fileUrl) {
+    return decodeURIComponent(`${fileUrl[1]}.${fileUrl[2]}`).replace(/\//g, '\\');
+  }
+  const m = raw.match(new RegExp(String.raw`((?:[A-Za-z]:[\\/]|\\\\)[^"'\r\n<>|]+?)\.(${EXTRACT_EXT})\b`, 'i'));
+  if (!m) return '';
+  let file = `${m[1]}.${m[2]}`.replace(/[),.;]+$/, '');
+  if (/^[A-Za-z]:\//.test(file)) file = file.replace(/\//g, '\\');
+  return file;
+}
+
+/**
+ * Imagen, PDF o Excel por ruta de disco → Markdown local, sin LLM.
+ * No exige la palabra «extrae»: «mira esta imagen C:/…/foto.png» también.
  * @param {string} raw
  */
 export function parseExtractIntent(raw) {
   const text = String(raw || '').trim();
-  if (!text || text.length > 500) return null;
-  if (!/\b(extrae|extraer|extra[eé]|convierte|convertir|convert[ií]|pasa a (?:texto|markdown|md))\b/i.test(text)) {
-    return null;
-  }
-  const m = text.match(/((?:[A-Za-z]:\\|\\\\)[^\r\n"']+|(?:\.\/|\.\.\\|\.\.\/)?[^\s"']+)\.(pdf|xlsx|xlsm|xls|csv|png|jpe?g|webp|bmp|gif|tiff?)\b/i);
-  if (!m) return null;
-  return { kind: 'extract', file: `${m[1]}.${m[2]}` };
+  if (!text || text.length > 2000) return null;
+  const file = findExtractFile(text);
+  if (!file) return null;
+  const asks =
+    /\b(extrae|extraer|extra[eé]|convierte|convertir|convert[ií]|pasa a|markdown|imagen|im[aá]genes?|foto|captura|ocr|pdf|excel|xlsx|que dice|qu[eé] dice|lee|leer|le[eé]|mira|mir[aá]|mostra(?:r|me)?|contenido|texto)\b/i.test(text);
+  const codeTask = /\b(implementa|arregla|refactor|componente|funcion|bug|commit|import)\b/i.test(text);
+  if (codeTask && !asks) return null;
+  if (asks || text.length < 220) return { kind: 'extract', file };
+  return null;
 }
 
 /**
@@ -211,15 +234,31 @@ function readStdinSync(limitMs) {
   });
 }
 
+function promptFromPayload(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(promptFromPayload).filter(Boolean).join('\n');
+  if (typeof value !== 'object') return '';
+  const keys = ['prompt', 'user_prompt', 'userPrompt', 'userInput', 'user_input', 'userMessage', 'user_message', 'text', 'content', 'message', 'query', 'input'];
+  for (const key of keys) {
+    if (value[key] != null) {
+      const s = promptFromPayload(value[key]);
+      if (s.trim()) return s;
+    }
+  }
+  return '';
+}
+
 export async function readHookPrompt() {
   const env = process.env.USER_PROMPT || process.env.KIRO_USER_PROMPT || process.env.PROMPT || '';
   if (String(env).trim()) return String(env);
-  const raw = String(await readStdinSync(250)).trim();
+  const raw = String(await readStdinSync(400)).trim();
   if (!raw) return '';
   try {
-    const j = JSON.parse(raw);
-    return String(j.prompt || j.user_prompt || j.userPrompt || j.text || j.content || j.message || '');
+    const direct = promptFromPayload(JSON.parse(raw));
+    if (direct.trim()) return direct;
   } catch {
-    return raw;
+    /* texto plano */
   }
+  return raw;
 }

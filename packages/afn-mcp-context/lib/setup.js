@@ -103,7 +103,7 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - Regenerar **solo** si el usuario dice “regenerá la arquitectura”. Entonces: \`afn_diagram_generate\` recreate → leer \`filesToRead\` → \`afn_architecture_commit\`.
 - El origen de datos **no se adivina**. Init → \`.afn/db-connections.json\`. Credenciales: \`.afn/credentials/data-agent.json\`. SQL: pestaña SQL del dashboard (SELECT o EXEC de PA). **No** arranques \`afn-mcp-data-agent\` con npx: SQL no usa ese MCP.
 - Skills que el equipo reutiliza (caja, turnos, un flujo): pestaña **Skills** del dashboard (\`http://127.0.0.1:5847/#skills\`). Ahí se abren, leen y editan. No reescribas el \`SKILL.md\` en el chat si el usuario puede hacerlo en esa pestaña.
-- PDF, Excel e imágenes: pestaña **Textos** (\`#extract\`) o *extrae C:\\ruta\\archivo.pdf*. Siempre queda un \`.md\` en \`.afn/extract/\`. **No** mandes el binario al modelo: el usuario pasa ese Markdown.
+- PDF, Excel e imágenes por **ruta de disco**: el hook las pasa a \`.afn/extract/*.md\` **antes** del modelo (también «mira esta imagen C:/…/foto.png»). **Prohibido** decir que no podés leer imágenes o que hay que adjuntarlas. Si el mensaje igual llegó, **una** tool \`afn_extract_file\` con \`path\` y devolvé la ruta del \`.md\`.
 - Las tools de arquitectura devuelven un resumen. Completo en disco.
 - No vuelques specs enteras ni \`.afn/context.json\` crudo (hay secretos).
 
@@ -200,17 +200,17 @@ function writeHooks(projectRoot, nodeCmd) {
     hooks: [
       {
         name: 'AFN local',
-        description: 'Dashboard / guardar readme / cerebro en local. Exit 2 = no mandar al LLM.',
+        description: 'Dashboard, cerebro, y PDF/Excel/imagen por ruta → .md. Exit 2 = no mandar al LLM.',
         trigger: 'PromptSubmit',
         action: { type: 'command', command: `${nodeCmd} prompt-gate` },
-        timeout: 25,
+        timeout: 60,
       },
       {
         name: 'AFN local v1',
         description: 'Igual para Kiro 1.x (UserPromptSubmit).',
         trigger: 'UserPromptSubmit',
         action: { type: 'command', command: `${nodeCmd} prompt-gate` },
-        timeout: 25,
+        timeout: 60,
       },
     ],
   });
