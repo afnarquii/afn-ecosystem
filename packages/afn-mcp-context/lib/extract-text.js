@@ -215,18 +215,121 @@ export function readExtractMarkdown(root, name) {
   return { ok: true, name: base, rel: `.afn/${EXTRACT_SUBDIR}/${base}`, markdown };
 }
 
+const SKIP_WALK = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next', 'bin', 'obj']);
+
 /**
- * Lee un archivo del disco (ruta absoluta o relativa al workspace) y lo guarda como .md.
+ * @param {string} root
+ * @param {(name: string) => boolean} pred
+ * @param {number} [limit]
+ */
+export function findProjectFiles(root, pred, limit = 12) {
+  const absRoot = path.resolve(root);
+  /** @type {string[]} */
+  const out = [];
+  const walk = (dir, depth) => {
+    if (out.length >= limit || depth > 6) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (out.length >= limit) return;
+      if (SKIP_WALK.has(ent.name)) continue;
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name.startsWith('.') && ent.name !== '.afn') continue;
+        if (path.basename(dir) === '.afn' && ent.name === 'extract') continue;
+        walk(abs, depth + 1);
+      } else if (ent.isFile() && pred(ent.name)) out.push(abs);
+    }
+  };
+  walk(absRoot, 0);
+  return out;
+}
+
+function pickKind(pick) {
+  const p = String(pick || '').toLowerCase();
+  if (/pdf/.test(p)) return 'pdf';
+  if (/excel|xlsx|xls|csv/.test(p)) return 'excel';
+  if (/imagen|foto|png|jpg|jpeg/.test(p)) return 'image';
+  return '';
+}
+
+const IMAGE_FOLDERS = ['imagenes', 'imágenes', 'images', 'img'];
+
+/**
+ * Archivos dentro de carpetas imagenes/images del proyecto (raíz o un nivel abajo).
+ * @param {string} root
+ * @param {(name: string) => boolean} pred
+ */
+export function filesInProjectMediaFolders(root, pred) {
+  const absRoot = path.resolve(root);
+  /** @type {string[]} */
+  const out = [];
+  const take = (dir) => {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const abs = path.join(dir, name);
+      let st;
+      try {
+        st = fs.statSync(abs);
+      } catch {
+        continue;
+      }
+      if (st.isFile() && pred(name)) out.push(abs);
+    }
+  };
+  for (const folder of IMAGE_FOLDERS) take(path.join(absRoot, folder));
+  let top = [];
+  try {
+    top = fs.readdirSync(absRoot, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const ent of top) {
+    if (!ent.isDirectory() || SKIP_WALK.has(ent.name) || ent.name.startsWith('.')) continue;
+    for (const folder of IMAGE_FOLDERS) take(path.join(absRoot, ent.name, folder));
+  }
+  return out;
+}
+
+/**
  * @param {string} root
  * @param {string} filePath
- * @param {{ ocr?: (buf: Buffer, filename: string) => Promise<string> }} [opts]
+ * @param {{ ocr?: (buf: Buffer, filename: string) => Promise<string>, pick?: string }} [opts]
  */
 export async function extractFileToMarkdown(root, filePath, opts = {}) {
   const raw = String(filePath || '').trim().replace(/^["']|["']$/g, '');
-  if (!raw) return { ok: false, error: 'empty' };
-  const abs = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(root, raw);
+  let abs = '';
+  if (!raw && opts.pick) {
+    const kind = pickKind(opts.pick);
+    if (!kind) return { ok: false, error: 'unsupported' };
+    const inFolder = kind === 'image' ? filesInProjectMediaFolders(root, (name) => extractKind(name) === 'image') : [];
+    const hits = inFolder.length ? inFolder : findProjectFiles(root, (name) => extractKind(name) === kind);
+    if (hits.length === 1) abs = hits[0];
+    else if (hits.length > 1) {
+      return { ok: false, error: 'several', matches: hits.map((h) => path.relative(root, h)) };
+    } else return { ok: false, error: 'not_found' };
+  } else if (!raw) return { ok: false, error: 'empty' };
+  else {
+    const direct = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(root, raw);
+    if (fs.existsSync(direct) && fs.statSync(direct).isFile()) abs = direct;
+    else if (!raw.includes('/') && !raw.includes('\\')) {
+      const hits = findProjectFiles(root, (name) => name.toLowerCase() === path.basename(raw).toLowerCase());
+      if (hits.length === 1) abs = hits[0];
+      else if (hits.length > 1) {
+        return { ok: false, error: 'several', matches: hits.map((h) => path.relative(root, h)) };
+      } else return { ok: false, error: 'not_found' };
+    } else return { ok: false, error: 'not_found' };
+  }
   if (!extractKind(abs)) return { ok: false, error: 'unsupported' };
-  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return { ok: false, error: 'not_found' };
   const buf = fs.readFileSync(abs);
   return saveExtractMarkdown(root, path.basename(abs), buf, opts);
 }

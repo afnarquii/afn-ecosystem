@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import XLSX from 'xlsx';
-import { saveExtractMarkdown, listExtractMarkdown, readExtractMarkdown, estimateExtractTokens } from '../lib/extract-text.js';
+import { saveExtractMarkdown, listExtractMarkdown, readExtractMarkdown, estimateExtractTokens, extractFileToMarkdown } from '../lib/extract-text.js';
 import { rowsToMarkdownTable } from '../lib/extract-sheet.js';
 import { pdfItemsToLines } from '../lib/extract-pdf.js';
 import { writeDashboard } from '../lib/dashboard.js';
@@ -98,6 +98,24 @@ test('excel, csv, pdf e imagen quedan en .md dentro de .afn/extract', async () =
   const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(html, /data-view="extract"/);
   assert.match(html, /Siempre a \.md|siempre es un/);
+});
+
+test('encuentra la imagen en la carpeta imagenes del proyecto', async () => {
+  const root = tmp();
+  const dir = path.join(root, 'imagenes');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'caja.png'), Buffer.from([1, 2, 3]));
+  const byName = await extractFileToMarkdown(root, 'caja.png', { ocr: async () => 'Turno 1' });
+  assert.equal(byName.ok, true);
+  assert.match(byName.markdown, /Turno 1/);
+  const byFolder = await extractFileToMarkdown(root, 'imagenes/caja.png', { ocr: async () => 'Turno 2' });
+  assert.equal(byFolder.ok, true);
+  assert.match(byFolder.markdown, /Turno 2/);
+  fs.writeFileSync(path.join(dir, 'otra.png'), Buffer.from([4]));
+  const many = await extractFileToMarkdown(root, '', { pick: 'imagen', ocr: async () => 'x' });
+  assert.equal(many.ok, false);
+  assert.equal(many.error, 'several');
+  assert.ok(many.matches.some((m) => String(m).replace(/\\/g, '/').endsWith('imagenes/caja.png')));
 });
 
 test('API guarda el markdown y no acepta otra extensión', async () => {

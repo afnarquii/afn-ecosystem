@@ -40,10 +40,14 @@ export function findExtractFile(text) {
     return decodeURIComponent(`${fileUrl[1]}.${fileUrl[2]}`).replace(/\//g, '\\');
   }
   const m = raw.match(new RegExp(String.raw`((?:[A-Za-z]:[\\/]|\\\\)[^"'\r\n<>|]+?)\.(${EXTRACT_EXT})\b`, 'i'));
-  if (!m) return '';
-  let file = `${m[1]}.${m[2]}`.replace(/[),.;]+$/, '');
-  if (/^[A-Za-z]:\//.test(file)) file = file.replace(/\//g, '\\');
-  return file;
+  if (m) {
+    let file = `${m[1]}.${m[2]}`.replace(/[),.;]+$/, '');
+    if (/^[A-Za-z]:\//.test(file)) file = file.replace(/\//g, '\\');
+    return file;
+  }
+  const rel = raw.match(new RegExp(String.raw`(?:^|[\s"'])((?:[\w.\-]+[\\/])*[\w.\-]+)\.(${EXTRACT_EXT})\b`, 'i'));
+  if (!rel) return '';
+  return `${rel[1]}.${rel[2]}`.replace(/[),.;]+$/, '');
 }
 
 /**
@@ -55,7 +59,11 @@ export function parseExtractIntent(raw) {
   const text = String(raw || '').trim();
   if (!text || text.length > 2000) return null;
   const file = findExtractFile(text);
-  if (!file) return null;
+  if (!file) {
+    const only = text.match(/^(?:extrae|extraer|extra[eé]|convierte|convertir|convert[ií])\s+(?:el|la|los|las)?\s*(imagen|im[aá]genes?|foto|pdf|excel|xlsx)\s*$/i);
+    if (only) return { kind: 'extract', file: '', pick: only[1].toLowerCase() };
+    return null;
+  }
   const asks =
     /\b(extrae|extraer|extra[eé]|convierte|convertir|convert[ií]|pasa a|markdown|imagen|im[aá]genes?|foto|captura|ocr|pdf|excel|xlsx|que dice|qu[eé] dice|lee|leer|le[eé]|mira|mir[aá]|mostra(?:r|me)?|contenido|texto)\b/i.test(text);
   const codeTask = /\b(implementa|arregla|refactor|componente|funcion|bug|commit|import)\b/i.test(text);
@@ -185,10 +193,15 @@ export async function runPromptGate(root, text) {
   }
 
   if (intent.kind === 'extract') {
-    const r = await extractFileToMarkdown(root, intent.file);
-    const msg = r.ok
-      ? `AFN (sin LLM): Markdown en ${r.rel} (${r.chars} caracteres, ${r.kind}).\nAbrilo, corregilo si hace falta, y pasale ese .md al chat.\nNo se envió el archivo al modelo.`
-      : `AFN (sin LLM): no pude convertir ${intent.file}. ${r.error || 'error'}.`;
+    const r = await extractFileToMarkdown(root, intent.file, { pick: intent.pick });
+    let msg;
+    if (r.ok) {
+      msg = `AFN (sin LLM): Markdown en ${r.rel} (${r.chars} caracteres, ${r.kind}).\nAbrilo, corregilo si hace falta, y pasale ese .md al chat.\nNo se envió el archivo al modelo.`;
+    } else if (r.error === 'several') {
+      msg = `AFN (sin LLM): hay varios. Decí el nombre:\n${(r.matches || []).map((m) => `- ${m}`).join('\n')}`;
+    } else {
+      msg = `AFN (sin LLM): no pude convertir ${intent.file || intent.pick || 'el archivo'}. ${r.error || 'error'}.`;
+    }
     return { handled: true, exitCode: 2, message: msg, intent };
   }
 
