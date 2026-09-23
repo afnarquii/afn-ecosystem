@@ -6,6 +6,7 @@ import { collectDashboard, buildHtml } from './dashboard.js';
 import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
+import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWorkspaceSkill } from './skill-library.js';
 
 /** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
 export const AFN_DASHBOARD_PORT = 5847;
@@ -109,6 +110,27 @@ async function handleApi(root, token, req, res, url) {
     const raw = JSON.parse((await readBody(req)) || '{}');
     const favorites = saveSqlFavorites(root, raw.favorites);
     send(res, 200, { ok: true, favorites });
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/skills') {
+    send(res, 200, listWorkspaceSkills(root));
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/skills/file') {
+    const r = readWorkspaceSkill(root, url.searchParams.get('rel') || '');
+    send(res, r.ok ? 200 : r.error === 'not_found' ? 404 : 400, r);
+    return;
+  }
+  if (req.method === 'PUT' && route === '/api/skills/file') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = saveWorkspaceSkill(root, raw.rel, raw.markdown);
+    send(res, r.ok ? 200 : r.error === 'not_found' ? 404 : 400, r);
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/skills') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = createWorkspaceSkill(root, raw);
+    send(res, r.ok ? 200 : r.error === 'exists' ? 409 : 400, r);
     return;
   }
   send(res, 404, { ok: false, error: 'not_found' });

@@ -139,7 +139,7 @@ export function workbenchScript() {
   const verEl = document.getElementById("wb-ver");
   const ver = document.body.getAttribute("data-afn-version") || "";
   if (verEl) verEl.textContent = api
-    ? ("v" + ver + " · 127.0.0.1 — Orígenes / Elegir tablas / SQL")
+    ? ("v" + ver + " · 127.0.0.1 — Orígenes, SQL y Skills")
     : ("v" + ver + " · archivo local (sin SQL). Pedí «abre dashboard AFN» otra vez.");
   const warn = document.getElementById("wb-api-warn");
   if (warn && !api) warn.hidden = false;

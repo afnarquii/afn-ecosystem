@@ -43,12 +43,17 @@ export function parseLocalIntent(text) {
     || n.match(/\bconsult(?:a|ar|a)\s+(?:el\s+)?cerebro(?:\s+(?:sobre|de))?\s+(.+)/i);
   if (mem) return { kind: 'mem-search', query: String(mem[1] || '').trim() };
 
+  if (/^(abre|abrir|editar|mostrar)\s+(las\s+)?skills?\b/.test(n) && n.length < 48) {
+    return { kind: 'dashboard', view: 'skills' };
+  }
+
   const dash =
     /\bdashboard\b/.test(n)
     && (/\b(abre|abri|abrir|open|mostra(?:r)?|levant(?:a|ar)|pon[eé])\b/.test(n) || /^(afn\s+)?dashboard\b/.test(n) || /\bafn dashboard\b/.test(n));
   if (dash || /^(abre|abrir)\s+(el\s+)?dashboard\b/.test(n)) {
     let view = 'readme';
-    if (/\bsql\b|consulta/.test(n)) view = 'sql';
+    if (/\bskills?\b/.test(n)) view = 'skills';
+    else if (/\bsql\b|consulta/.test(n)) view = 'sql';
     else if (/cerebro|memoria/.test(n)) view = 'cerebro';
     else if (/\bnotas?\b/.test(n)) view = 'notas';
     else if (/origen/.test(n)) view = 'origenes';
