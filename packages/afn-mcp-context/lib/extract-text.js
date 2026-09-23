@@ -4,6 +4,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadCerebro, saveObservation, writeCerebro } from './cerebro.js';
+import { loadFacts, writeFacts } from './memory.js';
 import { afnPath } from './paths.js';
 import { readPdfText } from './extract-pdf.js';
 import { spreadsheetBufferToMarkdown } from './extract-sheet.js';
@@ -213,6 +215,73 @@ export function readExtractMarkdown(root, name) {
   if (!fs.existsSync(abs)) return { ok: false, error: 'not_found' };
   const markdown = fs.readFileSync(abs, 'utf8');
   return { ok: true, name: base, rel: `.afn/${EXTRACT_SUBDIR}/${base}`, markdown };
+}
+
+function sameExtractRel(where, rel) {
+  const a = String(where || '').replace(/\\/g, '/');
+  const b = String(rel || '').replace(/\\/g, '/');
+  return a === b;
+}
+
+/**
+ * Quita del cerebro el hecho que apunta a este .md (si se guardó desde Textos).
+ * @param {string} root
+ * @param {string} rel
+ */
+function forgetExtractMemory(root, rel) {
+  const store = loadCerebro(root);
+  const removed = new Set();
+  const next = (store.observations || []).filter((o) => {
+    if (!sameExtractRel(o.where, rel)) return true;
+    if (o.id) removed.add(o.id);
+    return false;
+  });
+  if (next.length !== (store.observations || []).length) {
+    store.observations = next;
+    writeCerebro(root, store);
+  }
+  if (removed.size) {
+    const pack = loadFacts(root);
+    const facts = (pack.facts || []).filter((f) => !removed.has(f.id));
+    if (facts.length !== (pack.facts || []).length) writeFacts(root, facts);
+  }
+  return removed.size;
+}
+
+/**
+ * Borra el .md de `.afn/extract` y el hecho del cerebro si existía.
+ * @param {string} root
+ * @param {string} name
+ */
+export function deleteExtractMarkdown(root, name) {
+  const got = readExtractMarkdown(root, name);
+  if (!got.ok) return got;
+  fs.unlinkSync(path.join(afnPath(root, EXTRACT_SUBDIR), got.name));
+  const memoryRemoved = forgetExtractMemory(root, got.rel);
+  return { ok: true, name: got.name, rel: got.rel, memoryRemoved };
+}
+
+/**
+ * Copia un recorte del .md al cerebro. No entra al modelo hasta el próximo chat que lea la memoria.
+ * @param {string} root
+ * @param {string} name
+ */
+export function keepExtractInContext(root, name) {
+  const got = readExtractMarkdown(root, name);
+  if (!got.ok) return got;
+  const body = String(got.markdown || '').replace(/^---[\s\S]*?---\s*/, '').trim();
+  if (!body) return { ok: false, error: 'empty' };
+  forgetExtractMemory(root, got.rel);
+  const source = (String(got.markdown).match(/^source:\s*(.+)$/m) || [])[1] || got.name;
+  const saved = saveObservation(root, {
+    type: 'extract',
+    title: `Texto ${String(source).trim()}`.slice(0, 120),
+    what: body.slice(0, 1400),
+    where: got.rel,
+    why: 'Guardado desde el dashboard Textos',
+  });
+  if (!saved.ok) return saved;
+  return { ok: true, name: got.name, rel: got.rel, observationId: saved.observation?.id || '' };
 }
 
 const SKIP_WALK = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next', 'bin', 'obj']);

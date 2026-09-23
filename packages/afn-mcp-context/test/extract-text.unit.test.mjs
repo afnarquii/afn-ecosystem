@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import XLSX from 'xlsx';
-import { saveExtractMarkdown, listExtractMarkdown, readExtractMarkdown, estimateExtractTokens, extractFileToMarkdown } from '../lib/extract-text.js';
+import { saveExtractMarkdown, listExtractMarkdown, readExtractMarkdown, estimateExtractTokens, extractFileToMarkdown, deleteExtractMarkdown, keepExtractInContext } from '../lib/extract-text.js';
 import { rowsToMarkdownTable } from '../lib/extract-sheet.js';
 import { pdfItemsToLines } from '../lib/extract-pdf.js';
 import { writeDashboard } from '../lib/dashboard.js';
@@ -97,7 +97,29 @@ test('excel, csv, pdf e imagen quedan en .md dentro de .afn/extract', async () =
 
   const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(html, /data-view="extract"/);
+  assert.match(html, /Eliminar/);
+  assert.match(html, /Guardar en memoria/);
   assert.match(html, /Siempre a \.md|siempre es un/);
+});
+
+test('eliminar un ensayo lo saca del disco y de la memoria', () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'extract');
+  fs.mkdirSync(dir, { recursive: true });
+  const name = 'ensayo-1.md';
+  fs.writeFileSync(path.join(dir, name), '---\nsource: 1.png\nkind: image\n---\n\nHola ensayo\n', 'utf8');
+  const kept = keepExtractInContext(root, name);
+  assert.equal(kept.ok, true);
+  const cerebro = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'memory', 'cerebro.json'), 'utf8'));
+  assert.equal(cerebro.observations.length, 1);
+  assert.match(cerebro.observations[0].where, /ensayo-1\.md$/);
+  const gone = deleteExtractMarkdown(root, name);
+  assert.equal(gone.ok, true);
+  assert.equal(gone.memoryRemoved, 1);
+  assert.equal(fs.existsSync(path.join(dir, name)), false);
+  const after = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'memory', 'cerebro.json'), 'utf8'));
+  assert.equal(after.observations.length, 0);
+  assert.equal(deleteExtractMarkdown(root, '../MEMORY.md').ok, false);
 });
 
 test('encuentra la imagen en la carpeta imagenes del proyecto', async () => {
@@ -136,6 +158,20 @@ test('API guarda el markdown y no acepta otra extensión', async () => {
     assert.match(body.markdown, /\| 1 \| 2 \|/);
     const disk = fs.readdirSync(path.join(root, '.afn', 'extract'));
     assert.equal(disk.every((n) => n.endsWith('.md')), true);
+    const kept = await fetch(`http://127.0.0.1:${info.port}/api/extract/keep`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: body.file }),
+    });
+    assert.equal(kept.ok, true);
+    const del = await fetch(`http://127.0.0.1:${info.port}/api/extract/file?name=${encodeURIComponent(body.file)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    const deleted = await del.json();
+    assert.equal(del.status, 200);
+    assert.equal(deleted.memoryRemoved, 1);
+    assert.equal(fs.existsSync(path.join(root, '.afn', 'extract', body.file)), false);
     const bad = await fetch(`http://127.0.0.1:${info.port}/api/extract`, {
       method: 'POST',
       headers,

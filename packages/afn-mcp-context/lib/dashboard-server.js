@@ -7,7 +7,7 @@ import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, i
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
 import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWorkspaceSkill } from './skill-library.js';
-import { listExtractMarkdown, readExtractMarkdown, saveExtractMarkdown } from './extract-text.js';
+import { deleteExtractMarkdown, keepExtractInContext, listExtractMarkdown, readExtractMarkdown, saveExtractMarkdown } from './extract-text.js';
 
 /** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
 export const AFN_DASHBOARD_PORT = 5847;
@@ -140,6 +140,17 @@ async function handleApi(root, token, req, res, url) {
   }
   if (req.method === 'GET' && route === '/api/extract/file') {
     const r = readExtractMarkdown(root, url.searchParams.get('name') || '');
+    send(res, r.ok ? 200 : r.error === 'not_found' ? 404 : 400, r);
+    return;
+  }
+  if (req.method === 'DELETE' && route === '/api/extract/file') {
+    const r = deleteExtractMarkdown(root, url.searchParams.get('name') || '');
+    send(res, r.ok ? 200 : r.error === 'not_found' ? 404 : 400, r);
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/extract/keep') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = keepExtractInContext(root, String(raw.name || ''));
     send(res, r.ok ? 200 : r.error === 'not_found' ? 404 : 400, r);
     return;
   }

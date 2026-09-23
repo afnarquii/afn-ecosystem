@@ -8,7 +8,7 @@ export function extractSection() {
   return `
     <section data-view="extract" hidden>
       <h2>PDF, Excel e imágenes a Markdown</h2>
-      <p class="lead">Se leen en esta PC. El resultado siempre es un <code>.md</code> en <code>.afn/extract/</code>. Ese archivo lo abrís, lo corregís si hace falta, y se lo pasás al chat. El modelo no ve el PDF ni la imagen.</p>
+      <p class="lead">Se leen en esta PC. El resultado es un <code>.md</code> en <code>.afn/extract/</code> y <strong>no entra al contexto</strong> hasta que pulses <strong>Guardar en memoria</strong>. <strong>Eliminar</strong> borra el ensayo del disco y, si lo habías guardado, también de la memoria.</p>
       <p id="ex-api-warn" class="muted" hidden style="color:#fbbf24">Para convertir hace falta el dashboard en 127.0.0.1. En Kiro: «abre los textos».</p>
       <div class="article" id="ex-drop" style="max-width:760px;border-style:dashed;text-align:center;padding:1.4rem">
         <strong>Soltá el archivo acá</strong>
@@ -20,6 +20,8 @@ export function extractSection() {
       <div id="ex-result" class="article" hidden style="max-width:980px;margin-top:.6rem">
         <p class="muted" style="margin-top:0">Guardado en <code id="ex-rel"></code></p>
         <div class="toolbar">
+          <button type="button" class="btn" id="ex-keep">Guardar en memoria</button>
+          <button type="button" class="btn" id="ex-del">Eliminar</button>
           <button type="button" class="btn" id="ex-copy">Copiar ruta</button>
           <button type="button" class="btn" id="ex-copy-md">Copiar Markdown</button>
         </div>
@@ -33,6 +35,9 @@ export function extractSection() {
 export function extractCss() {
   return `
   #ex-drop.over { border-color: var(--acc); }
+  #ex-list .tile { cursor: default; }
+  #ex-list .tile button[data-ex-open] { background: transparent; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: .32rem; }
+  #ex-list .tile .btn { align-self: flex-start; margin-top: .4rem; }
   `;
 }
 
@@ -92,7 +97,7 @@ export function extractScript() {
       const j = await exCall("GET", "/api/extract");
       const files = j.files || [];
       host.innerHTML = files.length
-        ? files.map((f) => '<button type="button" class="tile" data-ex-open="' + exEsc(f.name) + '"><span class="k">' + exEsc(f.kind || "md") + '</span><strong>' + exEsc(f.source || f.name) + '</strong><code>' + exEsc(f.rel) + '</code></button>').join("")
+        ? files.map((f) => '<div class="tile"><button type="button" data-ex-open="' + exEsc(f.name) + '"><span class="k">' + exEsc(f.kind || "md") + '</span><strong>' + exEsc(f.source || f.name) + '</strong><code>' + exEsc(f.rel) + '</code></button><button type="button" class="btn" data-ex-del="' + exEsc(f.name) + '">Eliminar</button></div>').join("")
         : '<div class="empty">Todavía no hay .md. Soltá un PDF, un Excel o una imagen.</div>';
     } catch (e) {
       host.innerHTML = '<div class="empty">' + exEsc(e.message || e) + '</div>';
@@ -145,10 +150,43 @@ export function extractScript() {
       if (f) exConvert(f);
     });
   }
+  async function exDelete(name) {
+    if (!name) return;
+    if (!confirm("¿Eliminar este ensayo? Sale de .afn y, si lo habías guardado, también de la memoria.")) return;
+    try {
+      await exCall("DELETE", "/api/extract/file?name=" + encodeURIComponent(name));
+      if (exLast && (exLast.name === name || exLast.file === name)) {
+        exLast = null;
+        const box = document.getElementById("ex-result");
+        if (box) box.hidden = true;
+      }
+      exSet("Eliminado. Ya no está en AFN.", true);
+      exList();
+    } catch (e) {
+      exSet(String(e.message || e), false);
+    }
+  }
+  async function exKeep() {
+    const name = exLast && (exLast.name || exLast.file);
+    if (!name) { exSet("Abrí un texto de la lista.", false); return; }
+    try {
+      await exCall("POST", "/api/extract/keep", { name });
+      exSet("Guardado en la memoria de AFN. El próximo chat puede ver un recorte.", true);
+    } catch (e) {
+      exSet(String(e.message || e), false);
+    }
+  }
   document.getElementById("ex-list")?.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-ex-del]");
+    if (del) { exDelete(del.getAttribute("data-ex-del")); return; }
     const b = e.target.closest("[data-ex-open]");
     if (b) exOpen(b.getAttribute("data-ex-open"));
   });
+  document.getElementById("ex-del")?.addEventListener("click", () => {
+    const name = exLast && (exLast.name || exLast.file);
+    if (name) exDelete(name);
+  });
+  document.getElementById("ex-keep")?.addEventListener("click", () => { exKeep(); });
   document.getElementById("ex-copy")?.addEventListener("click", async () => {
     const t = exLast?.rel || "";
     if (!t) return;
