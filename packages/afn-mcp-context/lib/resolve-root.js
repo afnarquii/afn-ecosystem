@@ -88,6 +88,49 @@ export function hasAfnProjectsMap(dir) {
   }
 }
 
+function hasOwnGit(dir) {
+  try {
+    return fs.existsSync(path.join(dir, '.git'));
+  } catch {
+    return false;
+  }
+}
+
+function normProjectRel(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+}
+
+/**
+ * Ancestro cuyo `.afn/projects.json` lista esta carpeta. No hereda un mapa ajeno.
+ * @param {string} cur
+ * @param {(dir: string) => boolean} allowed
+ */
+function findListingWorkspace(cur, allowed) {
+  let walk = path.dirname(path.resolve(cur));
+  for (let i = 0; i < 6; i += 1) {
+    if (!allowed(walk) || isCatalogish(walk)) break;
+    let projects = null;
+    try {
+      projects = JSON.parse(fs.readFileSync(path.join(walk, '.afn', 'projects.json'), 'utf8')).projects;
+    } catch {
+      projects = null;
+    }
+    if (Array.isArray(projects)) {
+      const rel = normProjectRel(path.relative(walk, cur));
+      const hit = projects.some((p) => {
+        const rp = normProjectRel(p?.path);
+        if (!rp || rp === '.') return false;
+        return rel === rp || rel.startsWith(`${rp}/`);
+      });
+      if (hit) return walk;
+    }
+    const parent = path.dirname(walk);
+    if (!parent || parent === walk) break;
+    walk = parent;
+  }
+  return '';
+}
+
 function isUsableRoot(raw) {
   const s = String(raw || '').trim();
   if (!s || /\$\{/.test(s)) return false;
@@ -152,7 +195,8 @@ export function resolveProjectRoot(override, opts = {}) {
 export function resolveWorkspaceRoot(start, opts = {}) {
   const count = opts.countFn || countChildProjectSignals;
   const ceiling = opts.ceiling ? path.resolve(opts.ceiling) : '';
-  let cur = escapeCatalog(path.resolve(start));
+  const opened = path.resolve(start);
+  let cur = escapeCatalog(opened);
 
   const allowed = (dir) => {
     const d = path.resolve(dir);
@@ -161,35 +205,17 @@ export function resolveWorkspaceRoot(start, opts = {}) {
     return true;
   };
 
-  if (isAfnEcosystemCatalog(cur)) {
+  if (isAfnEcosystemCatalog(cur) && path.resolve(cur) !== opened) {
     const parent = path.dirname(cur);
     if (allowed(parent) && !isCatalogish(parent) && count(parent) >= 2) cur = parent;
   }
 
-  const escaped = cur;
   const selfCount = count(cur);
   if (selfCount >= 2 && !isCatalogish(cur) && allowed(cur)) return cur;
-
-  const maps = [];
-  let walk = cur;
-  for (let i = 0; i < 6; i += 1) {
-    if (!allowed(walk) || isCatalogish(walk)) break;
-    if (hasAfnProjectsMap(walk)) maps.push(walk);
-    if (maps.length && count(walk) >= 2) break;
-    const parent = path.dirname(walk);
-    if (!parent || parent === walk) break;
-    walk = parent;
-  }
-  if (maps.length) return maps[maps.length - 1];
-
-  walk = cur;
-  for (let i = 0; i < 5; i += 1) {
-    const parent = path.dirname(walk);
-    if (!allowed(parent)) break;
-    if (!isCatalogish(parent) && count(parent) >= 2) return parent;
-    walk = parent;
-  }
-  return escaped;
+  if (hasOwnGit(cur) && !isCatalogish(cur)) return cur;
+  const listed = findListingWorkspace(cur, allowed);
+  if (listed) return listed;
+  return cur;
 }
 
 const SKIP = new Set([

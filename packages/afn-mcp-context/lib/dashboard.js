@@ -15,6 +15,7 @@ import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
 import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
+import { projectBarHtml, projectBarScript } from './dashboard-project-ui.js';
 import { FLOW_GENERATOR_VERSION } from './version.js';
 
 function readJson(file) {
@@ -603,6 +604,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
 ${workbenchScript()}
 ${skillsScript()}
 ${extractScript()}
+${projectBarScript()}
 </script>
 <style>
   :root {
@@ -754,6 +756,7 @@ ${extractNavButton()}
       <span class="muted">v${esc(FLOW_GENERATOR_VERSION)} · ${projects.length} proyectos · ${rels.length} conexiones · ${hasReadme ? 'README listo' : 'sin README'}</span>
     </div>
     <main>
+${projectBarHtml()}
     <section data-view="readme">
       <h2>Arquitectura (README)</h2>
       <p class="lead">Esto es lo que el LLM lee: contexto, contenedores, comunicación, flujo E2E, rutas y esquemas. Archivo: <code>ARQUITECTURA.md</code>.</p>

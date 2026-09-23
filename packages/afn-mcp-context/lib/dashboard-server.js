@@ -8,6 +8,10 @@ import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelection
 import { afnPath } from './paths.js';
 import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWorkspaceSkill } from './skill-library.js';
 import { deleteExtractMarkdown, keepExtractInContext, listExtractMarkdown, readExtractMarkdown, saveExtractMarkdown } from './extract-text.js';
+import { bootstrapAfn } from './bootstrap.js';
+import { isAfnEcosystemCatalog } from './resolve-root.js';
+import { aggregateCatalogMemory, registerKnownProject } from './catalog-registry.js';
+import { portProjectAssets } from './project-port.js';
 
 /** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
 export const AFN_DASHBOARD_PORT = 5847;
@@ -58,13 +62,53 @@ function authOk(req, token, url) {
 }
 
 async function handleApi(root, token, req, res, url) {
+  const route = url.pathname.replace(/\/+$/, '') || '/';
+  if (req.method === 'GET' && route === '/api/who') {
+    const abs = path.resolve(root);
+    send(res, 200, {
+      ok: true,
+      root: abs,
+      name: path.basename(abs),
+      mode: isAfnEcosystemCatalog(abs) ? 'catalog' : 'project',
+      initialized: fs.existsSync(afnPath(abs, 'projects.json')),
+    });
+    return;
+  }
   if (!authOk(req, token, url)) {
     send(res, 401, { ok: false, error: 'token' });
     return;
   }
-  const route = url.pathname.replace(/\/+$/, '') || '/';
   if (req.method === 'GET' && route === '/api/health') {
     send(res, 200, { ok: true, driver: sqlDriverStatus(root) });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/bootstrap') {
+    const r = bootstrapAfn(root, { ceiling: root });
+    send(res, r.ok ? 200 : 400, { ok: r.ok, root: r.root, reason: r.reason, error: r.ok ? '' : (r.reason || 'bootstrap_failed') });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/import-assets') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = portProjectAssets(root, raw.from || '');
+    send(res, r.ok ? 200 : 400, r);
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/catalog') {
+    if (!isAfnEcosystemCatalog(root)) {
+      send(res, 400, { ok: false, error: 'not_catalog' });
+      return;
+    }
+    send(res, 200, aggregateCatalogMemory(root));
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/catalog/register') {
+    if (!isAfnEcosystemCatalog(root)) {
+      send(res, 400, { ok: false, error: 'not_catalog' });
+      return;
+    }
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = registerKnownProject(raw.root || raw.from || '');
+    send(res, r.ok ? 200 : 400, r);
     return;
   }
   if (req.method === 'GET' && route === '/api/origins') {
@@ -216,8 +260,10 @@ export function startDashboardServer(root, opts = {}) {
           const ac = new AbortController();
           const t = setTimeout(() => ac.abort(), 600);
           try {
-            const r = await fetch(`http://127.0.0.1:${saved.port}/`, { signal: ac.signal });
-            if (r.ok) return reused;
+            const r = await fetch(`http://127.0.0.1:${saved.port}/api/who`, { signal: ac.signal });
+            const who = await r.json().catch(() => ({}));
+            const same = String(who.root || '').toLowerCase() === abs.toLowerCase();
+            if (r.ok && who.mode && same) return reused;
           } catch {
             /* arrancar de nuevo */
           } finally {

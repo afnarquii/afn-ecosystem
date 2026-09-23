@@ -1,0 +1,126 @@
+/** Barra del proyecto activo: init a pedido y traer skills/steering sin la memoria. */
+
+export function projectBarHtml() {
+  return `
+    <div id="afn-project" class="article" style="margin:0 0 .8rem">
+      <p class="muted" style="margin:0">Proyecto</p>
+      <p id="afn-project-root" style="margin:.2rem 0 .6rem;word-break:break-all"></p>
+      <p id="afn-project-msg" class="muted" style="margin:0 0 .5rem"></p>
+      <div class="toolbar">
+        <button type="button" class="btn" id="afn-init" hidden>Inicializar este proyecto</button>
+      </div>
+      <p id="afn-port-lead" class="muted" style="margin:.8rem 0 .35rem">Traer skills y steering de otro proyecto. No copia memoria ni textos extraídos.</p>
+      <div class="toolbar">
+        <input id="afn-port-from" type="text" placeholder="C:\\otro\\proyecto" style="flex:1;min-width:12rem"/>
+        <button type="button" class="btn" id="afn-port">Traer</button>
+      </div>
+      <div id="afn-catalog" hidden>
+        <h3 style="margin:1rem 0 .4rem">Memoria de todos los proyectos</h3>
+        <div id="afn-catalog-list" class="grid"></div>
+      </div>
+    </div>`;
+}
+
+export function projectBarScript() {
+  return `
+  (function () {
+    const box = document.getElementById("afn-project-root");
+    const msg = document.getElementById("afn-project-msg");
+    const initBtn = document.getElementById("afn-init");
+    const api = window.AFN_API;
+    function say(t, ok) {
+      if (!msg) return;
+      msg.textContent = t || "";
+      msg.style.color = ok === false ? "#fca5a5" : ok === true ? "#34d399" : "";
+    }
+    async function call(method, path, body) {
+      if (!api) throw new Error("Abrí el dashboard en 127.0.0.1, no el HTML suelto.");
+      const r = await fetch(api.base + path, {
+        method,
+        headers: { "Content-Type": "application/json", "x-afn-token": api.token },
+        body: body == null ? undefined : JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || r.statusText);
+      return j;
+    }
+    function esc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    async function paintCatalog() {
+      const host = document.getElementById("afn-catalog-list");
+      const box = document.getElementById("afn-catalog");
+      if (box) box.hidden = false;
+      const lead = document.getElementById("afn-port-lead");
+      const btn = document.getElementById("afn-port");
+      if (lead) lead.textContent = "Registrar la carpeta de un producto. Se lee su memoria en vivo; no se copia al catálogo.";
+      if (btn) btn.textContent = "Registrar";
+      if (initBtn) initBtn.hidden = true;
+      const j = await call("GET", "/api/catalog");
+      const projects = j.projects || [];
+      if (!host) return;
+      host.innerHTML = projects.length
+        ? projects.map((p) => {
+            const facts = (p.observations || []).map((o) => "<li>" + esc(o.title || o.text || "") + "</li>").join("");
+            const skills = (p.skills || []).map((s) => esc(s.name)).join(", ");
+            return '<article class="article"><strong>' + esc(p.name) + '</strong><code>' + esc(p.root) + '</code>'
+              + (skills ? '<p class="muted">Skills: ' + skills + '</p>' : '')
+              + (facts ? '<ul>' + facts + '</ul>' : '<p class="muted">Sin hechos en este proyecto.</p>')
+              + '</article>';
+          }).join("")
+        : '<div class="empty">Todavía no hay productos registrados. En cada uno corré setup kiro, o pegá la carpeta acá.</div>';
+    }
+    async function paint() {
+      try {
+        const j = await call("GET", "/api/who");
+        if (box) box.textContent = j.root || "";
+        const ws = document.querySelector(".ws");
+        if (ws && j.root) ws.textContent = j.root;
+        if (j.mode === "catalog") {
+          say("Este es afn-ecosystem: ves la memoria de todos los proyectos registrados. Un producto no ve la de otro.");
+          await paintCatalog();
+          return;
+        }
+        if (initBtn) initBtn.hidden = !!j.initialized;
+        if (!j.initialized) say("Este proyecto todavía no tiene mapa AFN. Inicializar crea solo su .afn.");
+        else say("Memoria, skills y textos solo de esta carpeta.");
+      } catch (e) {
+        say(String(e.message || e), false);
+      }
+    }
+    initBtn?.addEventListener("click", async () => {
+      initBtn.disabled = true;
+      say("Inicializando…");
+      try {
+        await call("POST", "/api/bootstrap", {});
+        say("Listo. Este proyecto ya tiene su propio .afn.", true);
+        if (initBtn) initBtn.hidden = true;
+      } catch (e) {
+        say(String(e.message || e), false);
+        initBtn.disabled = false;
+      }
+    });
+    document.getElementById("afn-port")?.addEventListener("click", async () => {
+      const from = document.getElementById("afn-port-from")?.value || "";
+      const catalog = document.getElementById("afn-catalog") && !document.getElementById("afn-catalog").hidden;
+      say(catalog ? "Registrando proyecto…" : "Copiando skills y steering…");
+      try {
+        if (catalog) {
+          await call("POST", "/api/catalog/register", { root: from });
+          say("Registrado. Su memoria se lee desde esa carpeta.", true);
+          await paintCatalog();
+          return;
+        }
+        const j = await call("POST", "/api/import-assets", { from });
+        const n = (j.copied || []).length;
+        const s = (j.skipped || []).length;
+        say(n ? "Traídos " + n + " archivos." + (s ? " Omitidos " + s + " (ya existían)." : "") : "Nada nuevo para copiar.", true);
+      } catch (e) {
+        const map = { not_found: "No existe esa carpeta.", same_project: "Esa carpeta es este mismo proyecto.", not_catalog: "Registrar solo desde afn-ecosystem." };
+        say(map[String(e.message || "")] || String(e.message || e), false);
+      }
+    });
+    paint();
+  })();
+`;
+}

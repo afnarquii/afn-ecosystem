@@ -20,6 +20,8 @@ import { buildSnapshot, buildPromptHint } from './lib/snapshot.js';
 import { bootstrapAfn } from './lib/bootstrap.js';
 import { doctorAfn } from './lib/snapshot.js';
 import { startSession, getMemContext, searchCerebro } from './lib/cerebro.js';
+import { isAfnEcosystemCatalog } from './lib/resolve-root.js';
+import { searchCatalogMemory } from './lib/catalog-registry.js';
 import { writeDashboard, openDashboard } from './lib/dashboard.js';
 import { persistWorkspaceFlowDiagram } from './lib/diagram-store.js';
 import { setupAgent, ensurePackSqlDeps } from './lib/setup.js';
@@ -127,10 +129,13 @@ async function main() {
 
   if (cmd === 'mem-search' || cmd === 'cerebro') {
     const q = argv.slice(1).filter((a) => !String(a).startsWith('-')).join(' ');
-    const facts = searchCerebro(root, q, { limit: 12 });
+    const facts = isAfnEcosystemCatalog(root)
+      ? searchCatalogMemory(root, q, { limit: 80 })
+      : searchCerebro(root, q, { limit: 12 });
     const lines = [`=== cerebro${q ? ` · ${q}` : ''} (${facts.length}) ===`];
     for (const o of facts) {
-      lines.push(`- ${String(o.title || '').slice(0, 120)}${o.type ? ` [${o.type}]` : ''}`);
+      const where = o.project ? ` (${o.project})` : '';
+      lines.push(`- ${String(o.title || '').slice(0, 120)}${o.type ? ` [${o.type}]` : ''}${where}`);
       const what = String(o.what || o.text || '').trim();
       if (what) lines.push(`  ${what.slice(0, 240)}`);
     }
@@ -141,7 +146,9 @@ async function main() {
   }
 
   if (cmd === 'mem-context') {
-    const c = getMemContext(root, { limit: 8 });
+    const c = isAfnEcosystemCatalog(root)
+      ? { counts: { observations: searchCatalogMemory(root, '', { limit: 80 }).length }, active: null, observations: searchCatalogMemory(root, '', { limit: 80 }) }
+      : getMemContext(root, { limit: 8 });
     process.stdout.write(`${JSON.stringify({ ok: true, counts: c.counts, active: c.active?.goal || '', titles: (c.observations || []).map((o) => o.title) }, null, 2)}\n`);
     process.exit(0);
     return;

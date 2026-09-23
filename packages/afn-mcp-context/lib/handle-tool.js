@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
-import { resolveProjectRoot } from './resolve-root.js';
+import { resolveProjectRoot, isAfnEcosystemCatalog } from './resolve-root.js';
 import { bootstrapAfn } from './bootstrap.js';
 import { searchFacts } from './memory.js';
 import { saveObservation, searchCerebro, startSession, endSession, getMemContext } from './cerebro.js';
+import { searchCatalogMemory } from './catalog-registry.js';
 import { openDashboard } from './dashboard.js';
 import { listTaskNotes, saveTaskNote, setTaskNoteStatus } from './task-notes.js';
 import { persistWorkspaceFlowDiagram } from './diagram-store.js';
@@ -86,8 +87,15 @@ export async function handleContextTool(root, name, args = {}) {
       };
     }
     case 'afn_mem_context':
+      if (isAfnEcosystemCatalog(base)) {
+        const observations = searchCatalogMemory(base, '', { limit: Number(args.limit) || 80 });
+        return { ok: true, mode: 'catalog', observations, counts: { observations: observations.length } };
+      }
       return getMemContext(base, { limit: Number(args.limit) || 8 });
     case 'afn_mem_search': {
+      if (isAfnEcosystemCatalog(base)) {
+        return { ok: true, mode: 'catalog', facts: searchCatalogMemory(base, args.query, { limit: Number(args.limit) || 80 }) };
+      }
       const fromCerebro = searchCerebro(base, args.query, { limit: Number(args.limit) || 8, type: args.type });
       const facts = fromCerebro.length ? fromCerebro : searchFacts(base, args.query, Number(args.limit) || 8);
       return { ok: true, facts };

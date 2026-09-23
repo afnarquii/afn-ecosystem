@@ -11,6 +11,8 @@ import { loadWorkspaceFlow } from './workspace-flow.js';
 import { architectureReadmeBrief, workspaceFlowMarkdown } from './architecture-readme.js';
 import { listTaskNotes } from './task-notes.js';
 import { structuralDrift } from './architecture-llm.js';
+import { isAfnEcosystemCatalog } from './resolve-root.js';
+import { aggregateCatalogMemory } from './catalog-registry.js';
 
 function readJson(file) {
   try {
@@ -56,6 +58,23 @@ export function buildPromptHint(root) {
   return { ok: true, markdown: `${md}\n`, root: root || '', hint: true };
 }
 export function buildSnapshot(root) {
+  if (isAfnEcosystemCatalog(root)) {
+    const pack = aggregateCatalogMemory(root);
+    const lines = [
+      '=== AFN CATÁLOGO (memoria global; cada producto conserva la suya) ===',
+      `Catálogo: \`${root}\``,
+      'Acá se lee la memoria de los proyectos registrados. Un producto no ve la de otro.',
+      '',
+    ];
+    if (!pack.projects.length) lines.push('_Ningún producto registrado todavía. En cada uno: setup kiro._', '');
+    for (const p of pack.projects) {
+      lines.push(`## ${p.name}`, `\`${p.root}\``);
+      if (!p.observations.length) lines.push('_Sin hechos._');
+      for (const o of p.observations) lines.push(`- ${String(o.title || o.text || '').slice(0, 180)}`);
+      lines.push('');
+    }
+    return { ok: true, markdown: lines.join('\n'), missing: false, weak: false, mode: 'catalog', activeCount: pack.projects.length, relCount: 0 };
+  }
   const lines = [
     '=== AFN CONTEXT (README de arquitectura — no reexplores el repo si esto alcanza) ===',
     'Usá nombres, rutas y quién llama a quién. Completo: `ARQUITECTURA.md` en la raíz del workspace.',

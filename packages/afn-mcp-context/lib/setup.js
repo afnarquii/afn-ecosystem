@@ -4,8 +4,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { resolveWorkspaceRoot, isCatalogish } from './resolve-root.js';
-import { bootstrapAfn } from './bootstrap.js';
+import { resolveWorkspaceRoot, isCatalogish, isAfnEcosystemCatalog } from './resolve-root.js';
+import { registerKnownProject } from './catalog-registry.js';
 import { pruneAutoNpxDataAgent } from './kiro-mcp-policy.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -153,24 +153,19 @@ const USER_STEERING = `# AFN context (usuario)
 
 Cada producto tiene su propio MCP en \`.kiro/settings/mcp.json\` de **ese** workspace (\`AFN_PROJECT_ROOT\`). No hay un \`.afn\` único para todos los repos.
 
-Si abrís un proyecto y no hay mapa: en la raíz de **ese** producto corré \`node …/packages/afn-mcp-context/index.js setup kiro\`.
+Cada producto tiene su .afn propio. Si abrís el clon afn-ecosystem como proyecto, ahí se lee la memoria de todos los que se registraron con setup kiro.
 `;
 
 function writeHooks(projectRoot, nodeCmd) {
   const dir = path.join(projectRoot, '.kiro', 'hooks');
   fs.mkdirSync(dir, { recursive: true });
-  writeJson(path.join(dir, 'afn-session-start.json'), {
-    version: 'v1',
-    hooks: [
-      {
-        name: 'AFN bootstrap',
-        description: 'Crea .afn/ si falta (inventario de disco, sin inventar flechas).',
-        trigger: 'SessionStart',
-        action: { type: 'command', command: `${nodeCmd} bootstrap` },
-        timeout: 30,
-      },
-    ],
-  });
+  for (const stale of ['afn-session-start.json', 'afn-session-work.json']) {
+    try {
+      fs.unlinkSync(path.join(dir, stale));
+    } catch {
+      /* el init y la sesión ya no se crean solos al abrir el proyecto */
+    }
+  }
   writeJson(path.join(dir, 'afn-session-architecture.json'), {
     version: 'v1',
     hooks: [
@@ -180,18 +175,6 @@ function writeHooks(projectRoot, nodeCmd) {
         trigger: 'SessionStart',
         action: { type: 'command', command: `${nodeCmd} architecture-status` },
         timeout: 15,
-      },
-    ],
-  });
-  writeJson(path.join(dir, 'afn-session-work.json'), {
-    version: 'v1',
-    hooks: [
-      {
-        name: 'AFN session work',
-        description: 'Abre una sesión en el cerebro .afn (qué se está trabajando).',
-        trigger: 'SessionStart',
-        action: { type: 'command', command: `${nodeCmd} session-start` },
-        timeout: 20,
       },
     ],
   });
@@ -249,7 +232,7 @@ export function setupAgent(agent, opts = {}) {
   const home = opts.home || os.homedir();
   const setupCwd = path.resolve(opts.projectRoot || process.cwd());
   const workspace = resolveWorkspaceRoot(setupCwd);
-  const pinRoot = isCatalogish(workspace) ? '' : workspace;
+  const pinRoot = isAfnEcosystemCatalog(workspace) ? workspace : (isCatalogish(workspace) ? '' : workspace);
   const nodeEntry = `"${process.execPath}" "${ENTRY}"`;
   const written = [];
 
@@ -272,7 +255,8 @@ export function setupAgent(agent, opts = {}) {
     fs.mkdirSync(path.dirname(userSteering), { recursive: true });
     fs.writeFileSync(userSteering, USER_STEERING, 'utf8');
     written.push(userSteering);
-    const boot = pinRoot ? bootstrapAfn(pinRoot, { ceiling: pinRoot }) : { ok: false, reason: 'raiz-catalogo' };
+    const boot = { ok: true, skipped: true, reason: 'a-pedido' };
+    const registered = pinRoot && !isAfnEcosystemCatalog(pinRoot) ? registerKnownProject(pinRoot) : { ok: true, skipped: true };
     return {
       ok: true,
       agent: 'kiro',
@@ -281,10 +265,13 @@ export function setupAgent(agent, opts = {}) {
       mcpFile,
       userMcpStripped: stripped.stripped,
       bootstrap: boot,
+      registered,
       dataAgent,
-      note: pinRoot
-        ? `MCP: ${mcpFile}. Dashboard SIN tokens: .afn/_tmp/afn-dashboard.cmd (http://127.0.0.1:5847). note-save / mem-search en .afn/_tmp. No pidas esas cosas en el chat.`
-        : 'Corré setup otra vez desde el workspace del producto, no desde afn-ecosystem.',
+      note: isAfnEcosystemCatalog(pinRoot)
+        ? `Catálogo global: ${pinRoot}. El dashboard de este proyecto lee la memoria de cada producto registrado. No mezcla eso dentro de un producto.`
+        : pinRoot
+          ? `MCP de este proyecto: ${mcpFile}. Su memoria queda en ${pinRoot}\\.afn. Init solo si lo pedís en el dashboard.`
+          : 'Corré setup desde la carpeta del producto, o desde la raíz de afn-ecosystem si querés la memoria global.',
     };
   }
 
@@ -295,7 +282,7 @@ export function setupAgent(agent, opts = {}) {
     fs.mkdirSync(path.dirname(rules), { recursive: true });
     fs.writeFileSync(rules, `---\ndescription: Mapa y memoria AFN (.afn)\nglobs:\nalwaysApply: true\n---\n\n${STEERING}`, 'utf8');
     written.push(mcpFile, rules);
-    const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+    const boot = { ok: true, skipped: true, reason: 'a-pedido' };
     return { ok: true, agent: 'cursor', written, workspace: pinRoot || workspace, bootstrap: boot };
   }
 
@@ -312,7 +299,7 @@ export function setupAgent(agent, opts = {}) {
     }
     if (!cur.includes('## AFN context')) fs.writeFileSync(md, `${cur}${block}`, 'utf8');
     written.push(mcpFile, md);
-    const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+    const boot = { ok: true, skipped: true, reason: 'a-pedido' };
     return { ok: true, agent: 'claude', written, workspace: pinRoot || workspace, bootstrap: boot };
   }
 
@@ -327,7 +314,7 @@ export function setupAgent(agent, opts = {}) {
   }
   if (!ag.includes('## AFN context')) fs.writeFileSync(agents, `${ag}\n\n## AFN context\n\n${STEERING}\n`, 'utf8');
   written.push(generic, agents);
-  const boot = pinRoot ? bootstrapAfn(pinRoot) : { ok: false, reason: 'raiz-catalogo' };
+  const boot = { ok: true, skipped: true, reason: 'a-pedido' };
   return { ok: true, agent: 'generic', written, workspace: pinRoot || workspace, bootstrap: boot };
 }
 

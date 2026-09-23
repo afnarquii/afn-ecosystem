@@ -178,9 +178,8 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.ok(mcp.mcpServers['afn-context'].args?.length);
   assert.equal(mcp.mcpServers['afn-context'].env?.AFN_PROJECT_ROOT, project);
   assert.ok(fs.existsSync(path.join(project, '.kiro', 'steering', 'afn-context.md')));
-  const hook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json'), 'utf8'));
-  assert.match(JSON.stringify(hook), /bootstrap/);
-  assert.ok(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')));
+  assert.equal(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-start.json')), false);
+  assert.equal(fs.existsSync(path.join(project, '.kiro', 'hooks', 'afn-session-work.json')), false);
   const promptHook = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'hooks', 'afn-prompt-submit.json'), 'utf8'));
   assert.match(JSON.stringify(promptHook), /prompt-gate/);
   assert.equal(JSON.stringify(promptHook).includes('snapshot --hint'), false);
@@ -191,10 +190,7 @@ test('setup kiro escribe mcp + steering + hooks sin tocar Engram', () => {
   assert.equal(archHook.hooks[0].action.type, 'command');
   assert.match(archHook.hooks[0].action.command, /architecture-status/);
   assert.equal(archHook.hooks[0].action.type === 'agent', false);
-  assert.ok(fs.existsSync(path.join(project, '.afn', 'projects.json')));
-  assert.ok(fs.existsSync(path.join(project, '.afn', 'db-connection.json')));
-  const gi = fs.readFileSync(path.join(project, '.gitignore'), 'utf8');
-  assert.match(gi, /\.kiro\/settings\/mcp\.json/);
+  assert.equal(fs.existsSync(path.join(project, '.afn', 'projects.json')), false);
   const mcpAfter = JSON.parse(fs.readFileSync(mcpFile, 'utf8'));
   assert.equal(mcpAfter.mcpServers['afn-mcp-data-agent'], undefined);
   assert.ok(mcpAfter.mcpServers['afn-context']);
@@ -906,6 +902,8 @@ test('setup kiro no registra npx data-agent; credenciales quedan fuera del orige
   const mcp = JSON.parse(fs.readFileSync(path.join(project, '.kiro', 'settings', 'mcp.json'), 'utf8'));
   assert.equal(mcp.mcpServers['afn-mcp-data-agent'], undefined);
   assert.ok(mcp.mcpServers['afn-context']);
+  assert.equal(fs.existsSync(path.join(project, '.afn', 'db-connection.json')), false);
+  bootstrapAfn(project, { ceiling: project });
   const origin = JSON.parse(fs.readFileSync(path.join(project, '.afn', 'db-connection.json'), 'utf8'));
   assert.equal(origin.dbEngine, 'sqlserver');
   assert.equal(JSON.stringify(origin).includes('LocalOnly'), false);
@@ -1032,8 +1030,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.27/);
-  assert.match(html, /data-afn-version="1\.4\.27"/);
+  assert.match(html, /v1\.4\.28/);
+  assert.match(html, /data-afn-version="1\.4\.28"/);
   assert.match(html, /data-view="skills"/);
   assert.match(html, /Nueva skill/);
   assert.match(html, /data-go="skills"/);
@@ -1101,7 +1099,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.27/);
+    assert.match(liveHtml, /v1\.4\.28/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);
@@ -1120,11 +1118,11 @@ test('compactDashboard no entrega el html de _tmp', () => {
     file: 'C:/varios/repos/.afn/_tmp/dashboard.html',
     server: true,
     port: 9,
-    version: '1.4.27',
+    version: '1.4.28',
   });
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
-  assert.equal(c.version, '1.4.27');
+  assert.equal(c.version, '1.4.28');
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
