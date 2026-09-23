@@ -112,7 +112,7 @@ async function main() {
   if (cmd === 'extract') {
     const file = argv.slice(1).filter((a) => !String(a).startsWith('-')).join(' ');
     const r = await extractFileToMarkdown(root, file);
-    process.stdout.write(`${JSON.stringify({ ok: r.ok, rel: r.rel, kind: r.kind, chars: r.chars, error: r.error, detail: r.detail }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: r.ok, rel: r.rel, kind: r.kind, method: r.method, pages: r.pages, chars: r.chars, extractTokens: r.extractTokens, markdownTokensIfPasted: r.markdownTokensIfPasted, attachFileTokensEstimate: r.attachFileTokensEstimate, error: r.error, detail: r.detail }, null, 2)}\n`);
     process.exit(r.ok ? 0 : 1);
     return;
   }

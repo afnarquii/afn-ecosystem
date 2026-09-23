@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import XLSX from 'xlsx';
-import { saveExtractMarkdown, listExtractMarkdown, readExtractMarkdown } from '../lib/extract-text.js';
+import { saveExtractMarkdown, listExtractMarkdown, readExtractMarkdown, estimateExtractTokens } from '../lib/extract-text.js';
 import { rowsToMarkdownTable } from '../lib/extract-sheet.js';
+import { pdfItemsToLines } from '../lib/extract-pdf.js';
 import { writeDashboard } from '../lib/dashboard.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 
@@ -39,6 +40,15 @@ function miniPdf(text) {
 
 test('excel, csv, pdf e imagen quedan en .md dentro de .afn/extract', async () => {
   const root = tmp();
+  const cols = pdfItemsToLines([
+    { str: '1200', transform: [1, 0, 0, 1, 72, 700], width: 28 },
+    { str: '40', transform: [1, 0, 0, 1, 320, 700], width: 16 },
+  ]);
+  assert.equal(cols[0], '1200 | 40');
+  const cost = estimateExtractTokens({ chars: 4000, pages: 80, kind: 'pdf' });
+  assert.equal(cost.extractTokens, 0);
+  assert.equal(cost.markdownTokensIfPasted, 1000);
+  assert.equal(cost.attachFileTokensEstimate, 80 * 1700);
   const table = rowsToMarkdownTable([
     ['Turno', 'Total'],
     ['Mañana', '1200'],
@@ -64,6 +74,9 @@ test('excel, csv, pdf e imagen quedan en .md dentro de .afn/extract', async () =
   const pdf = await saveExtractMarkdown(root, 'nota.pdf', miniPdf('HolaCaja'));
   assert.equal(pdf.ok, true, pdf.detail || pdf.error);
   assert.match(pdf.markdown, /HolaCaja/);
+  assert.match(pdf.markdown, /method: pdf-text/);
+  assert.match(pdf.markdown, /no OCR/);
+  assert.equal(pdf.extractTokens, 0);
   assert.equal(pdf.kind, 'pdf');
 
   const img = await saveExtractMarkdown(root, 'foto.png', Buffer.from([1, 2, 3]), {

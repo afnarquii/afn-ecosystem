@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
-import { pdfBufferToMarkdown } from './extract-pdf.js';
+import { readPdfText } from './extract-pdf.js';
 import { spreadsheetBufferToMarkdown } from './extract-sheet.js';
 import { imageBufferToMarkdown } from './extract-image.js';
 
@@ -55,18 +55,29 @@ export function extractMarkdownName(sourceName, now = new Date()) {
 }
 
 /**
- * @param {{ source: string, kind: string, body: string }} p
+ * @param {{ source: string, kind: string, body: string, method?: string }} p
  */
 export function formatExtractMarkdown(p) {
   const source = safeSourceName(p.source);
   const kind = String(p.kind || 'text');
+  const method = String(p.method || (kind === 'image' ? 'ocr' : kind === 'excel' ? 'table' : 'text'));
+  const note =
+    method === 'ocr'
+      ? 'OCR de Windows. Un dígito puede salir mal. Contrastá importes con el original.'
+      : method === 'pdf-scan'
+        ? 'Este PDF no tiene capa de texto. No se inventaron valores y no es una lectura OCR.'
+        : method === 'pdf-text'
+          ? 'Capa de texto del PDF, no OCR. Los números salen del archivo.'
+          : 'Tabla leída del archivo, no OCR.';
   const body = String(p.body || '').trim() || '_Sin texto reconocible._';
   return [
     '---',
     `source: ${source}`,
     `kind: ${kind}`,
+    `method: ${method}`,
     'format: markdown',
     `extractedAt: ${new Date().toISOString()}`,
+    `note: ${note}`,
     '---',
     '',
     `# ${source}`,
@@ -74,6 +85,21 @@ export function formatExtractMarkdown(p) {
     body,
     '',
   ].join('\n');
+}
+
+/**
+ * La extracción local es 0 tokens.
+ * Adjuntar PDF o imagen al modelo se estima en 1700 tokens por página.
+ * Pegar el .md después se estima en 1 token cada 4 caracteres.
+ * @param {{ chars?: number, pages?: number, kind?: string }} p
+ */
+export function estimateExtractTokens(p) {
+  const chars = Number(p.chars) || 0;
+  const pages = Math.max(0, Number(p.pages) || 0);
+  const markdownTokensIfPasted = Math.ceil(chars / 4);
+  const visual = p.kind === 'pdf' || p.kind === 'image';
+  const attachFileTokensEstimate = visual ? Math.max(pages, 1) * 1700 : markdownTokensIfPasted;
+  return { extractTokens: 0, markdownTokensIfPasted, attachFileTokensEstimate };
 }
 
 /**
@@ -88,10 +114,16 @@ export async function bufferToMarkdownBody(buf, filename, opts = {}) {
   if (buf.length > MAX_EXTRACT_BYTES) return { ok: false, error: 'too_large' };
   try {
     let body = '';
-    if (kind === 'pdf') body = await pdfBufferToMarkdown(buf);
-    else if (kind === 'excel') body = spreadsheetBufferToMarkdown(buf, filename);
+    let method = kind === 'image' ? 'ocr' : kind === 'excel' ? 'table' : '';
+    let pages = kind === 'image' ? 1 : 0;
+    if (kind === 'pdf') {
+      const read = await readPdfText(buf);
+      body = read.text;
+      method = read.method;
+      pages = read.pages;
+    } else if (kind === 'excel') body = spreadsheetBufferToMarkdown(buf, filename);
     else body = await imageBufferToMarkdown(buf, filename, opts);
-    return { ok: true, kind, body: String(body || '').trim() };
+    return { ok: true, kind, method, pages, body: String(body || '').trim() };
   } catch (e) {
     const code = e?.code || '';
     if (code === 'ocr_unavailable') return { ok: false, error: 'ocr_unavailable' };
@@ -111,16 +143,20 @@ export async function saveExtractMarkdown(root, filename, buf, opts = {}) {
   const dir = afnPath(root, EXTRACT_SUBDIR);
   fs.mkdirSync(dir, { recursive: true });
   const file = extractMarkdownName(filename);
-  const markdown = formatExtractMarkdown({ source: filename, kind: got.kind, body: got.body });
+  const markdown = formatExtractMarkdown({ source: filename, kind: got.kind, method: got.method, body: got.body });
   fs.writeFileSync(path.join(dir, file), markdown, 'utf8');
+  const tokens = estimateExtractTokens({ chars: got.body.length, pages: got.pages, kind: got.kind });
   return {
     ok: true,
     kind: got.kind,
+    method: got.method,
+    pages: got.pages || 0,
     file,
     rel: `.afn/${EXTRACT_SUBDIR}/${file}`,
     chars: got.body.length,
     preview: got.body.slice(0, 1500),
     markdown,
+    ...tokens,
   };
 }
 
