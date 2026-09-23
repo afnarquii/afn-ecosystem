@@ -9,7 +9,7 @@ export function projectBarHtml() {
       <div class="toolbar">
         <button type="button" class="btn" id="afn-init" hidden>Inicializar este proyecto</button>
       </div>
-      <p id="afn-port-lead" class="muted" style="margin:.8rem 0 .35rem">Traer skills y steering de otro proyecto. No copia memoria ni textos extraídos.</p>
+      <p id="afn-port-lead" class="muted" style="margin:.8rem 0 .35rem">Elegí la carpeta y abrila. README, memoria, skills y el resto del menú pasan a ese repo.</p>
       <div id="afn-pick" class="afn-pick">
         <div class="afn-pick-ico" aria-hidden="true">📁</div>
         <div class="afn-pick-copy">
@@ -17,7 +17,8 @@ export function projectBarHtml() {
           <p id="afn-pick-path" class="muted">Elegí la carpeta en el explorador. No hace falta pegar la ruta.</p>
         </div>
         <button type="button" class="btn" id="afn-browse">Elegir carpeta</button>
-        <button type="button" class="btn afn-pick-go" id="afn-port" disabled>Traer</button>
+        <button type="button" class="btn afn-pick-go" id="afn-port" disabled>Abrir espacio</button>
+        <button type="button" class="btn" id="afn-port-skills" disabled>Traer skills</button>
       </div>
       <input id="afn-port-from" type="hidden" value=""/>
       <div id="afn-catalog" hidden>
@@ -71,9 +72,7 @@ export function projectBarScript() {
       const box = document.getElementById("afn-catalog");
       if (box) box.hidden = false;
       const lead = document.getElementById("afn-port-lead");
-      const btn = document.getElementById("afn-port");
-      if (lead) lead.textContent = "Registrar la carpeta de un producto. Se lee su memoria en vivo; no se copia al catálogo.";
-      if (btn) btn.textContent = "Registrar";
+      if (lead) lead.textContent = "Elegí un producto y abrilo: el menú completo pasa a esa carpeta. Desde acá también se puede solo registrar.";
       if (initBtn) initBtn.hidden = true;
       const j = await call("GET", "/api/catalog");
       const projects = j.projects || [];
@@ -125,11 +124,13 @@ export function projectBarScript() {
       const title = document.getElementById("afn-pick-name");
       const pathEl = document.getElementById("afn-pick-path");
       const go = document.getElementById("afn-port");
+      const skillsBtn = document.getElementById("afn-port-skills");
       if (input) input.value = folder || "";
       if (title) title.textContent = name || folder || "Ninguna carpeta elegida";
       if (pathEl) pathEl.textContent = folder || "Elegí la carpeta en el explorador. No hace falta pegar la ruta.";
       if (card) card.classList.toggle("on", !!folder);
       if (go) go.disabled = !folder;
+      if (skillsBtn) skillsBtn.disabled = !folder;
     }
     document.getElementById("afn-browse")?.addEventListener("click", async () => {
       const browse = document.getElementById("afn-browse");
@@ -148,21 +149,31 @@ export function projectBarScript() {
     });
     document.getElementById("afn-port")?.addEventListener("click", async () => {
       const from = document.getElementById("afn-port-from")?.value || "";
-      const catalog = document.getElementById("afn-catalog") && !document.getElementById("afn-catalog").hidden;
-      say(catalog ? "Registrando proyecto…" : "Copiando skills y steering…");
+      if (!from) return;
+      const go = document.getElementById("afn-port");
+      if (go) go.disabled = true;
+      say("Abriendo ese espacio…");
       try {
-        if (catalog) {
-          await call("POST", "/api/catalog/register", { root: from });
-          say("Registrado. Su memoria se lee desde esa carpeta.", true);
-          await paintCatalog();
-          return;
-        }
+        await call("POST", "/api/workspace", { root: from });
+        location.reload();
+      } catch (e) {
+        const map = { not_found: "No existe esa carpeta." };
+        say(map[String(e.message || "")] || String(e.message || e), false);
+        if (go) go.disabled = false;
+      }
+    });
+    document.getElementById("afn-port-skills")?.addEventListener("click", async () => {
+      const from = document.getElementById("afn-port-from")?.value || "";
+      if (!from) return;
+      say("Copiando skills y steering…");
+      try {
         const j = await call("POST", "/api/import-assets", { from });
         const n = (j.copied || []).length;
         const s = (j.skipped || []).length;
-        say(n ? "Traídos " + n + " archivos." + (s ? " Omitidos " + s + " (ya existían)." : "") : "Nada nuevo para copiar.", true);
+        say(n ? "Traídos " + n + " archivos a este espacio." + (s ? " Omitidos " + s + "." : "") : "Nada nuevo para copiar.", true);
+        location.reload();
       } catch (e) {
-        const map = { not_found: "No existe esa carpeta.", same_project: "Esa carpeta es este mismo proyecto.", not_catalog: "Registrar solo desde afn-ecosystem." };
+        const map = { not_found: "No existe esa carpeta.", same_project: "Esa carpeta es este mismo proyecto." };
         say(map[String(e.message || "")] || String(e.message || e), false);
       }
     });

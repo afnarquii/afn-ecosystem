@@ -14,6 +14,28 @@ import { aggregateCatalogMemory, registerKnownProject } from './catalog-registry
 import { portProjectAssets } from './project-port.js';
 import { pickFolder } from './pick-folder.js';
 
+/**
+ * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
+ * @param {{ root: string }} state
+ * @param {string} next
+ */
+export function applyWorkspaceRoot(state, next) {
+  const abs = path.resolve(String(next || ''));
+  if (!abs || !fs.existsSync(abs)) return { ok: false, error: 'not_found' };
+  let st;
+  try {
+    st = fs.statSync(abs);
+  } catch {
+    return { ok: false, error: 'not_found' };
+  }
+  if (!st.isDirectory()) return { ok: false, error: 'not_found' };
+  state.root = abs;
+  if (!isAfnEcosystemCatalog(abs)) {
+    try { registerKnownProject(abs); } catch { /* el catálogo puede no estar en esta PC */ }
+  }
+  return { ok: true, root: abs, name: path.basename(abs), mode: isAfnEcosystemCatalog(abs) ? 'catalog' : 'project' };
+}
+
 /** Puerto fijo para abrir el dashboard sin Kiro (`node index.js dashboard`). */
 export const AFN_DASHBOARD_PORT = 5847;
 
@@ -62,7 +84,8 @@ function authOk(req, token, url) {
   return Boolean(token) && (h === token || q === token);
 }
 
-async function handleApi(root, token, req, res, url) {
+async function handleApi(state, token, req, res, url) {
+  const root = state.root;
   const route = url.pathname.replace(/\/+$/, '') || '/';
   if (req.method === 'GET' && route === '/api/who') {
     const abs = path.resolve(root);
@@ -86,6 +109,12 @@ async function handleApi(root, token, req, res, url) {
   if (req.method === 'POST' && route === '/api/bootstrap') {
     const r = bootstrapAfn(root, { ceiling: root });
     send(res, r.ok ? 200 : 400, { ok: r.ok, root: r.root, reason: r.reason, error: r.ok ? '' : (r.reason || 'bootstrap_failed') });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/workspace') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = applyWorkspaceRoot(state, raw.root || '');
+    send(res, r.ok ? 200 : 400, r);
     return;
   }
   if (req.method === 'POST' && route === '/api/pick-folder') {
@@ -287,14 +316,15 @@ function startFreshDashboardServer(abs, opts, want) {
   const prev = live.get(abs);
   if (prev?.ready) return prev.ready;
   const token = crypto.randomBytes(16).toString('hex');
+  const state = { root: path.resolve(abs) };
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || '/', 'http://127.0.0.1');
       if (url.pathname.startsWith('/api/')) {
-        await handleApi(abs, token, req, res, url);
+        await handleApi(state, token, req, res, url);
         return;
       }
-      const data = collectDashboard(abs);
+      const data = collectDashboard(state.root);
       const html = buildHtml(data, { api: { token } });
       send(res, 200, html, { type: 'text/html; charset=utf-8' });
     } catch (e) {

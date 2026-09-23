@@ -9,6 +9,7 @@ import { saveObservation, searchCerebro } from '../lib/cerebro.js';
 import { portProjectAssets } from '../lib/project-port.js';
 import { pickFolder } from '../lib/pick-folder.js';
 import { projectBarHtml } from '../lib/dashboard-project-ui.js';
+import { applyWorkspaceRoot } from '../lib/dashboard-server.js';
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'afn-scope-'));
@@ -79,7 +80,18 @@ test('el selector de carpeta devuelve la ruta y el readme ofrece Elegir carpeta'
   const html = projectBarHtml();
   assert.match(html, /Elegir carpeta/);
   assert.match(html, /id="afn-browse"/);
+  assert.match(html, /Abrir espacio/);
   assert.equal(html.includes('type="text"'), false);
+});
+
+test('abrir espacio cambia la raíz que usa todo el dashboard', () => {
+  const a = tmp();
+  const b = tmp();
+  const state = { root: a };
+  const r = applyWorkspaceRoot(state, b);
+  assert.equal(r.ok, true);
+  assert.equal(path.resolve(state.root), path.resolve(b));
+  assert.equal(applyWorkspaceRoot(state, path.join(b, 'no-existe')).ok, false);
 });
 
 test('portar skills no copia la memoria', () => {

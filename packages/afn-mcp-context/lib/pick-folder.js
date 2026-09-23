@@ -7,14 +7,41 @@ import { spawn } from 'node:child_process';
 const PICK_PS = `
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class AfnFore {
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr pid);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr extra);
+  public static void Lift(IntPtr hwnd) {
+    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+    IntPtr fore = GetForegroundWindow();
+    uint foreThread = GetWindowThreadProcessId(fore, IntPtr.Zero);
+    uint appThread = GetCurrentThreadId();
+    if (foreThread != appThread) AttachThreadInput(foreThread, appThread, true);
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    if (foreThread != appThread) AttachThreadInput(foreThread, appThread, false);
+  }
+}
+"@
 $owner = New-Object System.Windows.Forms.Form
 $owner.TopMost = $true
 $owner.ShowInTaskbar = $false
+$owner.StartPosition = 'CenterScreen'
+$owner.Size = New-Object System.Drawing.Size(1, 1)
 $owner.Opacity = 0
 $owner.Show() | Out-Null
-$owner.Activate() | Out-Null
+[AfnFore]::Lift($owner.Handle)
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
 $dlg.Description = 'Elegi la carpeta del proyecto'
+$dlg.AutoUpgradeEnabled = $true
 $ok = $dlg.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK
 $owner.Dispose()
 if ($ok) { Write-Output $dlg.SelectedPath }

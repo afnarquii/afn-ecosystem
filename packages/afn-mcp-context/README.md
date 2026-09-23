@@ -4,7 +4,7 @@ Servidor MCP **stdio** (Node ≥18) que lee y escribe `.afn/` del **workspace de
 
 Detecta repos hermanos / `packages/` / `apps/` (como `/afn-init`). No trata el paquete `afn-mcp-context` como el producto.
 
-Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace**. Dashboard v1.4.29: en el README, **Elegir carpeta** abre el explorador de Windows. Traer y Registrar usan esa carpeta. **No** registra `npx @afn-ecosystem/mcp-data-agent` (eso cierra el MCP con error 32000). En Kiro, *abre dashboard AFN* / *guarda el readme …* los intercepta el hook **antes del LLM**. También: `node index.js dashboard` (puerto 5847).
+Cerebro: `.afn/memory/cerebro.json`. Arquitectura: **`ARQUITECTURA.md` en la raíz del workspace**. Dashboard v1.4.30: **Abrir espacio** recarga todo el menú con la carpeta elegida. El explorador intenta quedar delante del navegador. **No** registra `npx @afn-ecosystem/mcp-data-agent` (eso cierra el MCP con error 32000). En Kiro, *abre dashboard AFN* / *guarda el readme …* los intercepta el hook **antes del LLM**. También: `node index.js dashboard` (puerto 5847).
 
 Origen de datos: el init escribe `.afn/db-connections.json` (host/puerto/base, sin passwords) y `.afn/db-connection.json` (sesión activa). Credenciales en `.afn/credentials/data-agent.json` (gitignored):
 
