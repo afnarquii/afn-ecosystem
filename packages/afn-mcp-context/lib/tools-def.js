@@ -176,7 +176,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_script',
     description:
-      'Catálogo de scripts Python/Node que la persona registró en .afn/script-runners.json. action=list no ejecuta nada. action=run solo si el usuario pidió explícitamente ejecutar ese script o consultar la data que genera, con id o title. No lo uses por tu cuenta. No inventes rutas ni pases código.',
+      'Catálogo de scripts Python/Node. Devuelve id, título y lenguaje, nunca la ruta ni el código (ahí pueden vivir tokens). action=list no ejecuta nada. action=run solo si el usuario pidió ese script por nombre. No abras el archivo. No pidas credenciales.',
     inputSchema: {
       type: 'object',
       properties: {

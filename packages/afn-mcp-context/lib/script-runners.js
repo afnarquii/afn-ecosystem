@@ -32,19 +32,38 @@ function slug(raw) {
   return s || `script-${Date.now()}`;
 }
 
-export function resolveScriptFile(root, rel) {
-  const clean = String(rel || '').replace(/\\/g, '/').replace(/^\.\//, '').trim();
-  if (!clean || clean.includes('\0')) return { ok: false, error: 'Ruta vacía' };
+function blockedDir(abs) {
+  const parts = abs.split(path.sep);
+  return parts.includes('node_modules') || parts.includes('.git');
+}
+
+export function resolveScriptFile(root, raw) {
+  const text = String(raw || '').trim();
+  if (!text || text.includes('\0')) return { ok: false, error: 'Ruta vacía' };
+  const absGiven = path.isAbsolute(text) || /^[a-zA-Z]:[\\/]/.test(text);
+  if (absGiven) {
+    const abs = path.resolve(text);
+    if (blockedDir(abs)) return { ok: false, error: 'Esa carpeta no se ejecuta' };
+    return { ok: true, abs, rel: abs, external: true };
+  }
+  const clean = text.replace(/\\/g, '/').replace(/^\.\//, '');
   const abs = path.resolve(root, clean);
   const relTo = path.relative(path.resolve(root), abs);
   if (!relTo || relTo.startsWith('..') || path.isAbsolute(relTo)) {
-    return { ok: false, error: 'La ruta tiene que estar dentro del proyecto' };
+    return { ok: false, error: 'Una ruta relativa tiene que quedar dentro del proyecto. Para claves, usá la ruta absoluta fuera del repo.' };
   }
-  const parts = relTo.split(path.sep);
-  if (parts.includes('node_modules') || parts.includes('.git')) {
-    return { ok: false, error: 'Esa carpeta no se ejecuta' };
-  }
-  return { ok: true, abs, rel: relTo.replace(/\\/g, '/') };
+  if (blockedDir(abs)) return { ok: false, error: 'Esa carpeta no se ejecuta' };
+  return { ok: true, abs, rel: relTo.replace(/\\/g, '/'), external: false };
+}
+
+/** Lo que puede ver el modelo: sin ruta y sin contenido del archivo. */
+export function agentScriptView(runner) {
+  if (!runner) return null;
+  return {
+    id: String(runner.id || ''),
+    title: String(runner.title || runner.id || ''),
+    lang: runner.lang === 'python' ? 'python' : 'node',
+  };
 }
 
 function langOf(file, asked) {
@@ -86,7 +105,7 @@ export function saveScriptRunner(root, input = {}) {
   const located = resolveScriptFile(root, input.path);
   if (!located.ok) return located;
   if (!fs.existsSync(located.abs) || !fs.statSync(located.abs).isFile()) {
-    return { ok: false, error: 'El archivo no existe en el proyecto' };
+    return { ok: false, error: 'El archivo no existe en esa ruta' };
   }
   const lang = langOf(located.rel, input.lang);
   if (!lang.ok) return lang;
@@ -204,14 +223,15 @@ export async function runScriptRunner(root, id, { limit } = {}) {
   const located = resolveScriptFile(root, runner.path);
   if (!located.ok) return { ...located, rows: [], columns: [] };
   if (!fs.existsSync(located.abs)) {
-    return { ok: false, error: `No existe ${runner.path}`, rows: [], columns: [] };
+    return { ok: false, error: 'El archivo registrado ya no está en disco', rows: [], columns: [] };
   }
-  const ran = await runFile(runner.lang, located.abs, root);
+  const cwd = located.external ? path.dirname(located.abs) : root;
+  const ran = await runFile(runner.lang, located.abs, cwd);
   if (!ran.ok) {
     return {
       ok: false,
-      error: String(ran.error || ran.stderr || 'El script falló').slice(0, 400),
-      runner,
+      error: 'El script falló. El detalle queda en tu máquina; no se envía el código ni la ruta.',
+      runner: agentScriptView(runner),
       rows: [],
       columns: [],
     };
@@ -223,8 +243,7 @@ export async function runScriptRunner(root, id, { limit } = {}) {
     return {
       ok: false,
       error: 'El script tiene que imprimir JSON por stdout',
-      detail: String(ran.stdout || '').slice(0, 240),
-      runner,
+      runner: agentScriptView(runner),
       rows: [],
       columns: [],
     };
@@ -234,7 +253,7 @@ export async function runScriptRunner(root, id, { limit } = {}) {
   const rows = table.rows.slice(0, cap);
   return {
     ok: true,
-    runner,
+    runner: agentScriptView(runner),
     columns: table.columns,
     rows,
     rowCount: rows.length,

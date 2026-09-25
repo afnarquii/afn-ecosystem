@@ -15,7 +15,7 @@ import { buildSnapshot, doctorAfn } from './snapshot.js';
 import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 import { collectDataSources, commitLiveSchema } from './data-sources.js';
 import { runDashboardSql } from './dashboard-query.js';
-import { listScriptRunners, runScriptRunner } from './script-runners.js';
+import { agentScriptView, listScriptRunners, runScriptRunner } from './script-runners.js';
 import { extractFileToMarkdown } from './extract-text.js';
 import {
   compactBootstrap,
@@ -98,13 +98,13 @@ async function runAfnSqlTool(base, args = {}) {
 
 async function runAfnScriptTool(base, args = {}) {
   const action = String(args.action || 'list').toLowerCase();
-  const runners = listScriptRunners(base).map((r) => ({ id: r.id, title: r.title, lang: r.lang, path: r.path }));
+  const runners = listScriptRunners(base).map(agentScriptView);
   if (action !== 'run') {
     return {
       ok: true,
       ran: false,
       runners,
-      hint: 'Solo el catálogo. No ejecutes un script salvo que el usuario lo pida por nombre. Entonces action=run e id.',
+      hint: 'Solo id, título y lenguaje. No hay ruta ni código. No ejecutes un script salvo que el usuario lo pida por nombre. No abras el archivo.',
     };
   }
   const cap = Math.min(200, Math.max(1, Number(args.limit) || 80));
@@ -115,7 +115,7 @@ async function runAfnScriptTool(base, args = {}) {
       ran: false,
       error: r.error,
       runners,
-      hint: 'No inventes otra ruta. Si no está en la lista, decilo.',
+      hint: 'No pidas la ruta ni leas el archivo. Si no está en la lista, decilo.',
     };
   }
   const rows = compactSqlRows(r.rows, cap);
@@ -127,7 +127,7 @@ async function runAfnScriptTool(base, args = {}) {
     rowCount: rows.length,
     truncated: r.truncated === true,
     rows,
-    hint: 'El usuario pidió este script. Mostrá las filas. No lo vuelvas a ejecutar si no lo pide.',
+    hint: 'El usuario pidió este script. Mostrá las filas. No leas el archivo ni pidas tokens. No lo vuelvas a ejecutar si no lo pide.',
   };
 }
 

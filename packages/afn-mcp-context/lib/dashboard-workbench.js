@@ -159,11 +159,11 @@ ORDER BY 1, 2;</textarea>
     </section>
     <section data-view="scripts" hidden>
       <h2>Scripts</h2>
-      <p class="lead">Python o Node que imprimen JSON por la salida. Se registran en <code>.afn/script-runners.json</code>. Kiro los ejecuta solo si se lo pedís por nombre.</p>
+      <p class="lead">Python o Node que imprimen JSON. Si el archivo tiene claves, poné la <strong>ruta absoluta fuera del repo</strong>. AFN guarda solo esa ruta en <code>.afn/script-runners.json</code> y no lee el código. Kiro no recibe la ruta ni el archivo: solo el JSON cuando se lo pedís.</p>
       <div class="toolbar">
         <input id="wb-script-title" placeholder="Nombre" style="min-width:10rem"/>
         <select id="wb-script-lang"><option value="node">Node.js</option><option value="python">Python</option></select>
-        <input id="wb-script-path" placeholder="ruta relativa, ej. tools/informe.py" style="min-width:16rem"/>
+        <input id="wb-script-path" placeholder="C:\\privado\\informe.py o ruta relativa sin claves" style="min-width:18rem"/>
         <button type="button" class="btn" id="wb-script-add">Agregar archivo</button>
         <button type="button" class="btn" id="wb-script-new">Crear nuevo</button>
       </div>

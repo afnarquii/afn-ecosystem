@@ -54,9 +54,28 @@ test('crear un script nuevo lo deja en .afn/runners y devuelve JSON', async () =
   assert.equal(ran.rows[0].fuente, 'node');
 });
 
+test('una ruta absoluta fuera del repo se ejecuta y Kiro no ve ni la ruta ni las claves', async () => {
+  const root = tmp();
+  const secretDir = tmp();
+  const secret = 'TOKEN_SUPER_SECRETO_99';
+  const file = path.join(secretDir, 'job.js');
+  fs.writeFileSync(file, `const clave = "${secret}";\nprocess.stdout.write(JSON.stringify([{ok:true}]));\n`);
+  const saved = saveScriptRunner(root, { title: 'Externo', lang: 'node', path: file });
+  assert.equal(saved.ok, true);
+  const catalog = fs.readFileSync(path.join(root, '.afn', 'script-runners.json'), 'utf8');
+  assert.equal(catalog.includes(secret), false);
+  assert.ok(catalog.includes(file.replace(/\\/g, '\\\\')) || catalog.includes(file.replace(/\\/g, '/')));
+  const listed = await handleContextTool(root, 'afn_script', {});
+  const ran = await handleContextTool(root, 'afn_script', { action: 'run', id: 'externo' });
+  const blob = JSON.stringify({ listed, ran });
+  assert.equal(blob.includes(secret), false);
+  assert.equal(blob.includes(secretDir), false);
+  assert.equal(ran.rows[0].ok, true);
+});
+
 test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(STEERING, /afn_script/);
-  assert.match(STEERING, /no los ejecutes/i);
+  assert.match(STEERING, /No abras ese archivo/);
   const html = fs.readFileSync(writeDashboard(tmp(), { open: false }).file, 'utf8');
   assert.match(html, /data-go="scripts"/);
   assert.match(html, /wb-script-new/);
