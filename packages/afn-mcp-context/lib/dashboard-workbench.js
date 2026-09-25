@@ -115,6 +115,7 @@ ORDER BY 1, 2;</textarea>
             <button type="button" class="btn" id="wb-sql-dl-json" title="Descargar JSON">↓ JSON</button>
             <button type="button" class="btn" id="wb-sql-dl-txt">↓ Texto</button>
             <button type="button" class="btn" id="wb-sql-dl-xls">↓ Excel</button>
+            <button type="button" class="btn" id="wb-sql-dl-csv" title="Descargar CSV">↓ CSV</button>
             <span class="sql-inspect-spacer"></span>
             <button type="button" class="btn sql-ico" id="wb-sql-res-max" title="Maximizar resultados">⛶</button>
             <button type="button" class="btn sql-ico" id="wb-sql-res-min" title="Minimizar resultados">−</button>
@@ -711,10 +712,12 @@ export function workbenchScript() {
     if (!needRows()) return;
     downloadBlob("consulta" + fileTag() + "-" + stamp() + ".xls", "application/vnd.ms-excel", xlsHtml());
   }
-  document.getElementById("wb-sql-csv")?.addEventListener("click", () => {
+  function dlCsv() {
     if (!needRows()) return;
     downloadBlob("consulta" + fileTag() + "-" + stamp() + ".csv", "text/csv;charset=utf-8", "\\uFEFF" + csvText());
-  });
+  }
+  document.getElementById("wb-sql-csv")?.addEventListener("click", dlCsv);
+  document.getElementById("wb-sql-dl-csv")?.addEventListener("click", dlCsv);
   document.getElementById("wb-sql-json")?.addEventListener("click", () => showResultView("json"));
   document.getElementById("wb-sql-view-grid")?.addEventListener("click", () => showResultView("grid"));
   document.getElementById("wb-sql-view-txt")?.addEventListener("click", () => showResultView("txt"));

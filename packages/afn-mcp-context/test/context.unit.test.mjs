@@ -1089,6 +1089,7 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /sql-focus/);
   assert.match(html, /wb-sql-xls/);
   assert.match(html, /Excel/);
+  assert.match(html, /wb-sql-dl-csv/);
   assert.match(html, /JSON/);
   assert.match(html, /wb-sql-gutter/);
   assert.match(html, /wb-sql-inspect/);
@@ -1101,8 +1102,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.42/);
-  assert.match(html, /data-afn-version="1\.4\.42"/);
+  assert.match(html, /v1\.4\.43/);
+  assert.match(html, /data-afn-version="1\.4\.43"/);
   assert.match(html, /wb-sql-fav-modal/);
   assert.match(html, /wb-sql-fav-preview/);
   assert.match(html, /wb-sql-ed-max/);
@@ -1175,7 +1176,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.42/);
+    assert.match(liveHtml, /v1\.4\.43/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);
