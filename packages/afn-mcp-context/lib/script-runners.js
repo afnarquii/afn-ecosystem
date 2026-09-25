@@ -56,6 +56,18 @@ export function resolveScriptFile(root, raw) {
   return { ok: true, abs, rel: relTo.replace(/\\/g, '/'), external: false };
 }
 
+function normalizeParamNames(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const out = [];
+  for (const item of list) {
+    const name = String(item || '').trim().replace(/^-+/, '').slice(0, 80);
+    if (!name || name.includes('\0') || out.includes(name)) continue;
+    if (out.length >= 40) break;
+    out.push(name);
+  }
+  return out;
+}
+
 /** Lo que puede ver el modelo: sin ruta y sin contenido del archivo. */
 export function agentScriptView(runner) {
   if (!runner) return null;
@@ -63,6 +75,7 @@ export function agentScriptView(runner) {
     id: String(runner.id || ''),
     title: String(runner.title || runner.id || ''),
     lang: runner.lang === 'python' ? 'python' : 'node',
+    params: normalizeParamNames(runner.params),
   };
 }
 
@@ -82,6 +95,7 @@ function publicRunner(r) {
     title: String(r.title || r.id || ''),
     lang: r.lang === 'python' ? 'python' : 'node',
     path: String(r.path || ''),
+    params: normalizeParamNames(r.params),
   };
 }
 
@@ -111,10 +125,12 @@ export function saveScriptRunner(root, input = {}) {
   if (!lang.ok) return lang;
   const id = slug(input.id || input.title || path.basename(located.rel, path.extname(located.rel)));
   const title = String(input.title || id).trim().slice(0, 80) || id;
+  const prev = listScriptRunners(root).find((r) => r.id === id);
+  const params = input.params == null ? (prev?.params || []) : normalizeParamNames(input.params);
   const next = listScriptRunners(root).filter((r) => r.id !== id);
-  next.push({ id, title, lang: lang.lang, path: located.rel });
+  next.push({ id, title, lang: lang.lang, path: located.rel, params });
   writeCatalog(root, next);
-  return { ok: true, runner: publicRunner({ id, title, lang: lang.lang, path: located.rel }) };
+  return { ok: true, runner: publicRunner({ id, title, lang: lang.lang, path: located.rel, params }) };
 }
 
 export function removeScriptRunner(root, id) {
@@ -244,6 +260,7 @@ export function buildScriptArgv(input = {}) {
       const key = String(rawKey || '').trim().replace(/^-+/, '').slice(0, 80);
       if (!key || key.includes('\0')) continue;
       if (rawVal === false || rawVal == null) continue;
+      if (typeof rawVal === 'string' && !rawVal.trim()) continue;
       if (rawVal === true) {
         const bad = push(`--${key}`);
         if (bad) return bad;

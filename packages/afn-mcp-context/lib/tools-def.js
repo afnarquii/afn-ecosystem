@@ -190,7 +190,7 @@ export const CONTEXT_TOOLS = [
         },
         params: {
           type: 'object',
-          description: 'Parámetros con nombre opcionales. Cada clave llega al script como --clave valor. true llega como --clave. false se omite.',
+          description: 'Parámetros con nombre y valor. Cada clave llega como --clave valor. Mandá solo los que tengan valor: si el script tiene 3 nombres y solo hacen falta 2, omití el tercero. Un valor vacío no se envía.',
         },
       },
     },

@@ -192,12 +192,13 @@ ORDER BY 1, 2;</textarea>
             <div>
               <p class="k">Parámetros opcionales</p>
               <h3 id="wb-script-args-title">Ejecutar</h3>
-              <p class="muted">Vacío = sin parámetros. Una línea por argumento, o un JSON {"desde":"2024-01-01"} que llega como --desde 2024-01-01. Python los lee en sys.argv. Node en process.argv.</p>
+              <p class="muted">Cada fila es un nombre y su valor. Si el script tiene tres y solo llenás dos, se mandan esos dos. El valor vacío no se envía. El nombre queda para la próxima vez.</p>
             </div>
             <button type="button" class="btn" id="wb-script-args-close">Cerrar</button>
           </div>
           <div class="script-args-body">
-            <textarea id="wb-script-args" placeholder="2024-01-01&#10;cliente-9"></textarea>
+            <div id="wb-script-param-list" class="script-param-list"></div>
+            <button type="button" class="btn" id="wb-script-param-add">Agregar parámetro</button>
             <div class="script-actions">
               <button type="button" class="btn afn-pick-go" id="wb-script-args-go">Ejecutar</button>
               <button type="button" class="btn" id="wb-script-args-plain">Sin parámetros</button>
@@ -812,7 +813,9 @@ export function workbenchScript() {
     if (lang && filePath) lang.value = langFromPath(filePath);
     if (title && filePath && !title.value.trim()) title.value = base.replace(/\\.(py|js|mjs|cjs)$/i, "");
   }
+  let scriptCatalog = [];
   function paintScripts(list) {
+    scriptCatalog = list || [];
     const box = document.getElementById("wb-script-list");
     if (!box) return;
     if (!list.length) {
@@ -843,25 +846,64 @@ export function workbenchScript() {
     const modal = document.getElementById("wb-script-args-modal");
     if (modal) modal.hidden = true;
   }
+  function readParamRows() {
+    const box = document.getElementById("wb-script-param-list");
+    if (!box) return [];
+    return [...box.querySelectorAll(".script-param-row")].map((row) => ({
+      name: row.querySelector("[data-param-name]")?.value || "",
+      value: row.querySelector("[data-param-value]")?.value || "",
+    }));
+  }
+  function paintParamRows(rows) {
+    const box = document.getElementById("wb-script-param-list");
+    if (!box) return;
+    const list = rows && rows.length ? rows : [{ name: "", value: "" }];
+    box.innerHTML = list.map((row) => "<div class=script-param-row><input data-param-name placeholder=\\"Nombre\\" value=\\"" + favEsc(row.name) + "\\"><input data-param-value placeholder=\\"Valor\\" value=\\"" + favEsc(row.value) + "\\"><button type=button class=btn data-param-del>Quitar</button></div>").join("");
+    box.querySelectorAll("[data-param-del]").forEach((btn) => btn.addEventListener("click", () => {
+      const current = readParamRows();
+      const row = btn.closest(".script-param-row");
+      const idx = [...box.querySelectorAll(".script-param-row")].indexOf(row);
+      current.splice(idx, 1);
+      paintParamRows(current);
+    }));
+  }
+  function scriptParamsFromRows() {
+    const params = {};
+    const names = [];
+    for (const row of readParamRows()) {
+      const name = String(row.name || "").trim().replace(/^-+/, "");
+      const value = String(row.value || "").trim();
+      if (!name && !value) continue;
+      if (!name) throw new Error("Cada valor necesita el nombre del parámetro");
+      if (!names.includes(name)) names.push(name);
+      if (value) params[name] = value;
+    }
+    return { params: params, names: names };
+  }
+  async function rememberParamNames(names) {
+    const runner = scriptCatalog.find((r) => r.id === pendingScriptId);
+    if (!runner || !api) return;
+    try {
+      await apiCall("POST", "/api/scripts", {
+        id: runner.id,
+        title: runner.title,
+        lang: runner.lang,
+        path: runner.path,
+        params: names,
+      });
+      runner.params = names;
+    } catch (e) {}
+  }
   function openScriptArgs(id, title) {
     pendingScriptId = id || "";
     const modal = document.getElementById("wb-script-args-modal");
     const heading = document.getElementById("wb-script-args-title");
     if (heading) heading.textContent = title || id || "Ejecutar";
+    const runner = scriptCatalog.find((r) => r.id === id);
+    const names = runner && Array.isArray(runner.params) ? runner.params : [];
+    paintParamRows(names.length ? names.map((name) => ({ name: name, value: "" })) : [{ name: "", value: "" }]);
     if (modal) modal.hidden = false;
-    document.getElementById("wb-script-args")?.focus();
-  }
-  function scriptPayload(text) {
-    const raw = String(text || "").trim();
-    if (!raw) return {};
-    if (raw.charAt(0) === "{" || raw.charAt(0) === "[") {
-      let parsed;
-      try { parsed = JSON.parse(raw); } catch (e) { throw new Error("El JSON de parámetros no es válido"); }
-      if (Array.isArray(parsed)) return { args: parsed.map((x) => String(x)) };
-      if (parsed && typeof parsed === "object") return { params: parsed };
-      throw new Error("Usá un objeto o una lista JSON");
-    }
-    return { args: raw.split(/\\r?\\n/).map((s) => s.trim()).filter(Boolean) };
+    document.querySelector("#wb-script-param-list [data-param-value]")?.focus();
   }
   async function runScript(id, extra) {
     try {
@@ -930,9 +972,20 @@ export function workbenchScript() {
       await loadScripts();
     } catch (e) { setMsg("wb-script-msg", e.message, false); }
   });
-  document.getElementById("wb-script-args-go")?.addEventListener("click", () => {
-    try { runScript(pendingScriptId, scriptPayload(document.getElementById("wb-script-args")?.value)); }
-    catch (e) { setMsg("wb-script-msg", e.message, false); }
+  document.getElementById("wb-script-param-add")?.addEventListener("click", () => {
+    const rows = readParamRows();
+    rows.push({ name: "", value: "" });
+    paintParamRows(rows);
+    const inputs = document.querySelectorAll("#wb-script-param-list [data-param-name]");
+    inputs[inputs.length - 1]?.focus();
+  });
+  document.getElementById("wb-script-args-go")?.addEventListener("click", async () => {
+    try {
+      const built = scriptParamsFromRows();
+      await rememberParamNames(built.names);
+      const extra = Object.keys(built.params).length ? { params: built.params } : {};
+      runScript(pendingScriptId, extra);
+    } catch (e) { setMsg("wb-script-msg", e.message, false); }
   });
   document.getElementById("wb-script-args-plain")?.addEventListener("click", () => runScript(pendingScriptId, {}));
   document.getElementById("wb-script-args-close")?.addEventListener("click", closeScriptArgs);

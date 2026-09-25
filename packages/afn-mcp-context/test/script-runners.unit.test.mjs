@@ -120,6 +120,30 @@ test('los parámetros son opcionales y llegan como argv, sin devolver la ruta', 
   assert.equal(JSON.stringify(ran).includes('eco.js'), false);
 });
 
+test('un parámetro sin valor no se envía y el nombre queda para la próxima', async () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'eco.js'), 'process.stdout.write(JSON.stringify(process.argv.slice(2)))\n');
+  const saved = saveScriptRunner(root, {
+    title: 'Eco',
+    lang: 'node',
+    path: 'eco.js',
+    params: ['desde', 'hasta', 'cliente'],
+  });
+  assert.deepEqual(saved.runner.params, ['desde', 'hasta', 'cliente']);
+  const again = saveScriptRunner(root, { title: 'Eco', lang: 'node', path: 'eco.js' });
+  assert.deepEqual(again.runner.params, ['desde', 'hasta', 'cliente']);
+  const listed = await handleContextTool(root, 'afn_script', {});
+  assert.deepEqual(listed.runners[0].params, ['desde', 'hasta', 'cliente']);
+  assert.equal(JSON.stringify(listed).includes('eco.js'), false);
+  const ran = await handleContextTool(root, 'afn_script', {
+    action: 'run',
+    id: 'eco',
+    params: { desde: '2024-01-01', hasta: '', cliente: 'acme' },
+  });
+  assert.equal(ran.ok, true);
+  assert.deepEqual(ran.rows.map((r) => r.value), ['--desde', '2024-01-01', '--cliente', 'acme']);
+});
+
 test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(STEERING, /afn_script/);
   assert.match(STEERING, /No abras ese archivo/);
@@ -132,6 +156,8 @@ test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(html, /id="wb-script-run"|data-script-run/);
   assert.match(html, /id="wb-run-error"/);
   assert.match(html, /id="wb-script-args-modal"/);
+  assert.match(html, /data-param-name/);
+  assert.match(html, /Agregar parámetro/);
   assert.match(html, /Sin parámetros/);
   assert.match(STEERING, /no inventes ninguno/);
 });

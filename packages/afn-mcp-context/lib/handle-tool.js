@@ -104,7 +104,7 @@ async function runAfnScriptTool(base, args = {}) {
       ok: true,
       ran: false,
       runners,
-      hint: 'Solo id, título y lenguaje. No hay ruta ni código. No ejecutes un script salvo que el usuario lo pida por nombre. No abras el archivo. Si pide parámetros, en run usá args (lista) o params (objeto). Si no pidió ninguno, no mandes args ni params.',
+      hint: 'Solo id, título, lenguaje y los nombres de parámetros. No hay ruta ni código. No ejecutes un script salvo que el usuario lo pida por nombre. No abras el archivo. En run, params es {nombre: valor}. Mandá solo los nombres a los que el usuario les dio valor. Un nombre sin valor no se envía. Si no pidió ninguno, no mandes params.',
     };
   }
   const cap = Math.min(200, Math.max(1, Number(args.limit) || 80));
