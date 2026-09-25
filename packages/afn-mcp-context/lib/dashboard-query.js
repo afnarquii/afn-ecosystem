@@ -95,15 +95,25 @@ function credsFor(root, id) {
   return flat;
 }
 
+function originLabel(c) {
+  return [c?.id, c?.name || c?.connectionName, c?.database].filter(Boolean).join(' / ');
+}
+
 function pickOrigin(root, connectionId) {
   const list = loadOrigins(root);
-  if (connectionId) {
-    const hit = list.find((c) => String(c.id || '') === String(connectionId) || String(c.name || '') === String(connectionId));
-    if (hit) return hit;
+  const asked = String(connectionId || '').trim();
+  if (asked) {
+    const hit = list.find((c) => String(c.id || '') === asked || String(c.name || '') === asked || String(c.connectionName || '') === asked);
+    if (hit) return { origin: hit };
+    const known = list.map(originLabel).filter(Boolean);
+    return {
+      origin: null,
+      error: `No existe el origen "${asked}". Elegí uno de: ${known.join('; ') || 'ninguno'}.`,
+    };
   }
   const session = readJson(afnPath(root, 'db-connection.json'));
-  if (session) return session;
-  return list[0] || null;
+  if (session) return { origin: session };
+  return { origin: list[0] || null };
 }
 
 function engineOf(origin) {
@@ -120,10 +130,19 @@ export function sqlDriverStatus(root) {
 export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
   const safe = assertSafeReadonlySql(sql);
   if (!safe.ok) return { ok: false, error: safe.error, rows: [], columns: [] };
-  const origin = pickOrigin(root, connectionId);
+  const picked = pickOrigin(root, connectionId);
+  if (picked.error) return { ok: false, error: picked.error, rows: [], columns: [] };
+  const origin = picked.origin;
   if (!origin) return { ok: false, error: 'No hay origen en .afn/db-connections.json', rows: [], columns: [] };
   const cred = credsFor(root, origin.id);
   const engine = engineOf(origin);
+  const pub = {
+    id: String(origin.id || ''),
+    name: String(origin.name || origin.connectionName || ''),
+    engine,
+    host: String(origin.host || ''),
+    database: String(origin.database || ''),
+  };
   const cap = Math.min(MAX_ROWS, Math.max(1, Number(limit) || 100));
   const cfg = {
     host: origin.host || cred.DB_SERVER || cred.DB_HOST || '',
@@ -135,16 +154,16 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
   const driverOpts = { roots: [root, process.env.AFN_PROJECT_ROOT, process.cwd()] };
 
   if (/sqlserver|mssql/.test(engine)) {
+    if (!cfg.host || !cfg.database || !cfg.user) {
+      return { ok: false, error: 'Origen incompleto: host, database y DB_USER (credentials).', rows: [], columns: [], origin: pub };
+    }
     const drv = await loadSqlDriver('mssql', driverOpts);
     if (!drv.ok) {
-      return { ok: false, error: drv.error || 'No se pudo cargar mssql', rows: [], columns: [] };
+      return { ok: false, error: drv.error || 'No se pudo cargar mssql', rows: [], columns: [], origin: pub };
     }
     const sqlMod = drv.module;
     if (!sqlMod?.connect) {
-      return { ok: false, error: 'El módulo mssql no expone connect', rows: [], columns: [] };
-    }
-    if (!cfg.host || !cfg.database || !cfg.user) {
-      return { ok: false, error: 'Origen incompleto: host, database y DB_USER (credentials).', rows: [], columns: [] };
+      return { ok: false, error: 'El módulo mssql no expone connect', rows: [], columns: [], origin: pub };
     }
     try {
       const pool = await sqlMod.connect({
@@ -172,24 +191,28 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
           engine: 'sqlserver',
           driver: drv.source,
           kind: /^\s*EXEC/i.test(safe.sql) ? 'exec' : 'select',
+          origin: pub,
         };
       } finally {
         await pool.close?.();
       }
     } catch (e) {
-      return { ok: false, error: String(e?.message || e).slice(0, 300), rows: [], columns: [] };
+      return { ok: false, error: String(e?.message || e).slice(0, 300), rows: [], columns: [], origin: pub };
     }
   }
 
   if (/postgres/.test(engine)) {
+    if (!cfg.host || !cfg.database || !cfg.user) {
+      return { ok: false, error: 'Origen incompleto: host, database y DB_USER (credentials).', rows: [], columns: [], origin: pub };
+    }
     const drv = await loadSqlDriver('pg', driverOpts);
     if (!drv.ok) {
-      return { ok: false, error: drv.error || 'No se pudo cargar pg', rows: [], columns: [] };
+      return { ok: false, error: drv.error || 'No se pudo cargar pg', rows: [], columns: [], origin: pub };
     }
     const pg = drv.module;
     const Client = pg?.Client || pg?.default?.Client;
     if (!Client) {
-      return { ok: false, error: 'El módulo pg no expone Client', rows: [], columns: [] };
+      return { ok: false, error: 'El módulo pg no expone Client', rows: [], columns: [], origin: pub };
     }
     const client = new Client({
       host: cfg.host || 'localhost',
@@ -203,9 +226,9 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
       const result = await client.query(safe.sql);
       const rows = Array.isArray(result.rows) ? result.rows.slice(0, cap) : [];
       const columns = rows[0] ? Object.keys(rows[0]) : (result.fields || []).map((f) => f.name);
-      return { ok: true, rows, columns, truncated: (result.rows || []).length > cap, engine: 'postgresql', driver: drv.source };
+      return { ok: true, rows, columns, truncated: (result.rows || []).length > cap, engine: 'postgresql', driver: drv.source, origin: pub };
     } catch (e) {
-      return { ok: false, error: String(e?.message || e).slice(0, 300), rows: [], columns: [] };
+      return { ok: false, error: String(e?.message || e).slice(0, 300), rows: [], columns: [], origin: pub };
     } finally {
       await client.end?.().catch(() => {});
     }
@@ -216,6 +239,7 @@ export async function runDashboardSql(root, { sql, connectionId, limit } = {}) {
     error: `Motor ${engine || '?'} sin runner en el dashboard. SQL Server o PostgreSQL.`,
     rows: [],
     columns: [],
+    origin: pub,
   };
 }
 

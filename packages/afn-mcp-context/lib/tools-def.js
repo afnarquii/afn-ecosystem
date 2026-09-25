@@ -156,8 +156,22 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_data_sources',
     description:
-      'Lista orígenes de datos. El init escribe varios perfiles en .afn/db-connections.json (un repo puede ser otra fuente). db-connection.json es la sesión activa. No conecta. No secretos. El LLM usa el MCP de ese origen (data_inspect_schema) y afn_schema_commit.',
+      'Lista orígenes en .afn/db-connections.json (sin secretos, sin conectar). Si hay origen, la consulta va por afn_sql de este mismo MCP. No pidas al usuario que ejecute SQL ni que pegue el resultado.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'afn_sql',
+    description:
+      'Ejecuta una consulta de lectura en un origen de .afn/db-connections.json y devuelve las filas. Si hay varios, pasá connectionId (id o name de afn_data_sources). Sin connectionId usa la sesión activa. No consultes otro origen si el id no existe. No pidas que corran el SQL ni que peguen el resultado. No arranques npx afn-mcp-data-agent. Solo SELECT, WITH o EXEC/CALL de lectura.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sql: { type: 'string', description: 'SELECT, WITH o EXEC nombrePA (lectura)' },
+        connectionId: { type: 'string', description: 'id o name en .afn/db-connections.json. Vacío = sesión activa.' },
+        limit: { type: 'number', description: 'Máximo de filas (default 80, tope 200)' },
+      },
+      required: ['sql'],
+    },
   },
   {
     name: 'afn_schema_commit',

@@ -14,6 +14,7 @@ import { architectureExists, loadWorkspaceFlow } from './workspace-flow.js';
 import { buildSnapshot, doctorAfn } from './snapshot.js';
 import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 import { collectDataSources, commitLiveSchema } from './data-sources.js';
+import { runDashboardSql } from './dashboard-query.js';
 import { extractFileToMarkdown } from './extract-text.js';
 import {
   compactBootstrap,
@@ -42,6 +43,56 @@ function readProjects(root) {
 function writeProjects(root, cfg) {
   fs.mkdirSync(afnPath(root), { recursive: true });
   fs.writeFileSync(afnPath(root, 'projects.json'), `${JSON.stringify(cfg, null, 2)}\n`, 'utf8');
+}
+
+function compactSqlValue(v) {
+  if (v == null) return v;
+  if (typeof v === 'string') return v.length > 400 ? `${v.slice(0, 397)}…` : v;
+  if (v instanceof Date) return v.toISOString();
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(v)) return `[binary ${v.length}]`;
+  if (typeof v === 'object') {
+    const s = JSON.stringify(v);
+    return s.length > 400 ? `${s.slice(0, 397)}…` : v;
+  }
+  return v;
+}
+
+function compactSqlRows(rows, cap) {
+  return (Array.isArray(rows) ? rows : []).slice(0, cap).map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const out = {};
+    for (const [k, v] of Object.entries(row)) out[k] = compactSqlValue(v);
+    return out;
+  });
+}
+
+async function runAfnSqlTool(base, args = {}) {
+  const cap = Math.min(200, Math.max(1, Number(args.limit) || 80));
+  const r = await runDashboardSql(base, {
+    sql: args.sql,
+    connectionId: args.connectionId || args.connection || args.id,
+    limit: cap,
+  });
+  const rows = compactSqlRows(r.rows, cap);
+  const out = {
+    ok: r.ok === true,
+    origin: r.origin || null,
+    engine: r.engine || r.origin?.engine || '',
+    kind: r.kind || '',
+    columns: r.columns || [],
+    rowCount: rows.length,
+    truncated: r.truncated === true,
+    rows,
+    hint: r.ok
+      ? 'Filas del origen configurado. Mostralas al usuario. No pidas que vuelva a correr el SQL.'
+      : 'No pidas al usuario que ejecute la consulta. Si falta origen o credencial, decilo: .afn/db-connections.json y .afn/credentials/data-agent.json.',
+  };
+  if (!r.ok) {
+    out.error = String(r.error || 'consulta fallida')
+      .replace(/(password|pwd)\s*[=:]\s*\S+/gi, '$1=***')
+      .slice(0, 300);
+  }
+  return out;
 }
 
 /**
@@ -144,6 +195,8 @@ export async function handleContextTool(root, name, args = {}) {
       return compactCommit(commitArchitecture(base, args));
     case 'afn_data_sources':
       return collectDataSources(base);
+    case 'afn_sql':
+      return runAfnSqlTool(base, args);
     case 'afn_schema_commit':
       return commitLiveSchema(base, args);
     case 'afn_agent_assets':

@@ -9,6 +9,7 @@ import { bootstrapAfn } from '../lib/bootstrap.js';
 import { saveFact, searchFacts, loadFacts } from '../lib/memory.js';
 import { buildSnapshot, buildPromptHint, doctorAfn } from '../lib/snapshot.js';
 import { handleContextTool } from '../lib/handle-tool.js';
+import { CONTEXT_TOOLS } from '../lib/tools-def.js';
 import { redactSecrets } from '../lib/redact.js';
 import { setupAgent, packHasSqlDriver } from '../lib/setup.js';
 import { resolveWorkspaceRoot, resolveProjectRoot } from '../lib/resolve-root.js';
@@ -823,7 +824,10 @@ test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit'
   assert.equal(src.preferred.engine, 'sqlserver');
   assert.equal(JSON.stringify(src).includes('SUPERSECRET'), false);
   assert.ok(src.codeMentions.procedures.some((p) => /usp_GetOrder/.test(p)));
-  assert.equal(src.useMcp, 'afn-mcp-data-agent');
+  assert.equal(src.useMcp, 'afn-context');
+  assert.match(src.how, /afn_sql/);
+  assert.match(src.how, /No pidas/);
+  assert.match(src.how, /32000/);
   bootstrapAfn(root);
   const c = commitLiveSchema(root, {
     source: 'afn-mcp-data-agent',
@@ -973,10 +977,71 @@ test('varios repos / compose: varias fichas de origen, no una sola', () => {
   const dataServers = Object.keys(mcp.mcpServers).filter((k) => /data-agent/.test(k));
   assert.equal(dataServers.length, 0, String(dataServers));
   assert.ok(mcp.mcpServers['afn-context']);
+  assert.ok(mcp.mcpServers['afn-context'].autoApprove.includes('afn_sql'));
+  const steering = fs.readFileSync(path.join(root, '.kiro', 'steering', 'afn-context.md'), 'utf8');
+  assert.match(steering, /afn_sql/);
+  assert.match(steering, /No le pidas/);
   const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(html, /db-connections\.json/);
   assert.match(html, /sqlserver|mssql/i);
   assert.match(html, /mongo/i);
+});
+
+test('afn_sql responde en el MCP y no manda al usuario a correr la consulta', async () => {
+  const tool = CONTEXT_TOOLS.find((t) => t.name === 'afn_sql');
+  assert.ok(tool);
+  assert.match(tool.description, /No pidas/);
+  const empty = tmp();
+  const noOrigin = await handleContextTool(empty, 'afn_sql', { sql: 'SELECT 1' });
+  assert.equal(noOrigin.ok, false);
+  assert.match(noOrigin.error, /db-connections/);
+  assert.match(noOrigin.hint, /No pidas al usuario/);
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.afn'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.afn', 'db-connections.json'),
+    JSON.stringify({
+      version: 1,
+      connections: [{ id: 'o1', name: 'qa', dbEngine: 'sqlserver', host: 'db.interno', database: 'Pedidos' }],
+    }),
+  );
+  const blocked = await handleContextTool(root, 'afn_sql', { sql: 'DELETE FROM Pedidos' });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.error, /bloqueada/);
+  assert.equal(blocked.rows.length, 0);
+  const incomplete = await handleContextTool(root, 'afn_sql', { sql: 'SELECT TOP 1 * FROM Pedidos' });
+  assert.equal(incomplete.ok, false);
+  assert.match(incomplete.error, /DB_USER|incompleto/i);
+  assert.match(incomplete.hint, /No pidas al usuario/);
+  assert.equal(incomplete.origin.id, 'o1');
+  fs.writeFileSync(
+    path.join(root, '.afn', 'db-connections.json'),
+    JSON.stringify({
+      version: 1,
+      connections: [
+        { id: 'o1', name: 'pedidos', dbEngine: 'sqlserver', host: 'db.interno', database: 'Pedidos' },
+        { id: 'o2', name: 'catalogo', dbEngine: 'sqlserver', host: 'otro.interno', database: 'Catalogo' },
+      ],
+    }),
+  );
+  const wrong = await handleContextTool(root, 'afn_sql', { sql: 'SELECT 1', connectionId: 'no-existe' });
+  assert.equal(wrong.ok, false);
+  assert.match(wrong.error, /No existe el origen/);
+  assert.match(wrong.error, /o2/);
+  assert.equal(wrong.origin, null);
+  const many = collectDataSources(root);
+  assert.match(many.how, /connectionId/);
+  const src = collectDataSources(root);
+  assert.equal(src.useMcp, 'afn-context');
+  assert.match(src.how, /afn_sql/);
+  fs.mkdirSync(path.join(root, '.kiro', 'settings'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.kiro', 'settings', 'mcp.json'),
+    JSON.stringify({ mcpServers: { 'afn-mcp-data-agent': { command: 'node', args: ['server.js'] } } }),
+  );
+  const live = collectDataSources(root);
+  assert.match(live.how, /afn_sql/);
+  assert.match(live.how, /data_inspect_schema/);
 });
 
 test('sql-safety bloquea escrituras; selección recorta tablas del README', () => {
@@ -1030,8 +1095,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.30/);
-  assert.match(html, /data-afn-version="1\.4\.30"/);
+  assert.match(html, /v1\.4\.31/);
+  assert.match(html, /data-afn-version="1\.4\.31"/);
   assert.match(html, /data-view="skills"/);
   assert.match(html, /Nueva skill/);
   assert.match(html, /data-go="skills"/);
@@ -1099,7 +1164,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.30/);
+    assert.match(liveHtml, /v1\.4\.31/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);

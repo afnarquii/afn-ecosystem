@@ -1,5 +1,5 @@
 /**
- * El SQL del pack va por el dashboard (afn-context), no por un segundo MCP.
+ * El SQL de lectura va por la tool afn_sql del MCP afn-context (el mismo runner del dashboard).
  * setup kiro no debe registrar `npx @afn-ecosystem/mcp-data-agent`: el paquete
  * no está en npm público y, sin DATA_AGENT_MANIFEST, el proceso sale → MCP 32000.
  */

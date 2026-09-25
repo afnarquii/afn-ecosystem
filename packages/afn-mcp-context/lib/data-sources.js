@@ -326,7 +326,12 @@ function listMcpHints(root) {
   for (const id of Object.keys(servers)) {
     const low = id.toLowerCase();
     if (/data-agent|session-db|global-db|mssql|mongo/.test(low)) {
-      hints.push({ id, via: '.kiro/settings/mcp.json' });
+      const block = servers[id];
+      hints.push({
+        id,
+        via: '.kiro/settings/mcp.json',
+        command: String(block?.command || ''),
+      });
     }
   }
   const mcpsDir = afnPath(root, 'mcps');
@@ -336,13 +341,18 @@ function listMcpHints(root) {
       const j = readJson(path.join(mcpsDir, name));
       const id = String(j?.id || name.replace(/\.json$/i, ''));
       if (/data-agent|session-db|global-db|mssql|mongo/.test(id.toLowerCase())) {
-        hints.push({ id, via: `.afn/mcps/${name}` });
+        hints.push({ id, via: `.afn/mcps/${name}`, command: String(j?.command || '') });
       }
     }
   } catch {
     /* */
   }
   return hints;
+}
+
+/** npx @afn-ecosystem/mcp-data-agent no está publicado y cierra el stdio (MCP 32000). */
+function isNpxDataAgentHint(hint) {
+  return /data-agent/.test(String(hint?.id || '')) && /\bnpx\b/i.test(String(hint?.command || ''));
 }
 
 function walkCodeMentions(root, maxFiles = 80) {
@@ -403,6 +413,8 @@ export function collectDataSources(root) {
   const ctx = redactSecrets(readJson(afnPath(root, 'context.json')) || {});
   const ctxSafe = stripSecretFields(ctx && typeof ctx === 'object' ? ctx : {});
   const mcp = listMcpHints(root);
+  const usableMcp = mcp.filter((m) => !isNpxDataAgentHint(m));
+  const brokenNpx = mcp.filter((m) => isNpxDataAgentHint(m));
   const code = walkCodeMentions(root);
   const skillDirs = [];
   try {
@@ -418,15 +430,24 @@ export function collectDataSources(root) {
     ? { ...session, reason: '.afn/db-connection.json' }
     : profiles[0] || null;
 
-  let useMcp = 'ninguno en este workspace';
-  let how = 'Configurá afn-session-db (IDE) o afn-mcp-data-agent en .kiro/settings/mcp.json. No inventes el origen.';
-  if (mcp.some((m) => /session-db|global-db/.test(m.id))) {
-    useMcp = mcp.find((m) => /session-db|global-db/.test(m.id)).id;
-    how = 'Usá list_tables / describe_table / run_readonly_sql (solo SELECT TOP 1). Luego afn_schema_commit.';
-  } else if (mcp.some((m) => /data-agent/.test(m.id))) {
-    const agents = mcp.filter((m) => /data-agent/.test(m.id)).map((m) => m.id);
-    useMcp = agents.join(', ');
-    how = 'Usá data_inspect_schema del MCP de ese origen (sample:true). Si hay varios, elegí el id de .afn/db-connections.json. Luego afn_schema_commit.';
+  let useMcp = 'afn-context';
+  let how = 'No hay origen en .afn/db-connections.json. Llamá afn_bootstrap. No inventes el host y no pidas al usuario que corra una consulta.';
+  if (preferred || profiles.length) {
+    useMcp = 'afn-context';
+    how = 'Para datos del usuario llamá afn_sql en este MCP afn-context (SELECT, WITH o EXEC de lectura) y devolvé las filas. No pidas que ejecute la consulta ni que pegue el resultado.';
+    if (profiles.length > 1) {
+      how += ' Hay varios orígenes: pasá connectionId (id o name). Sin connectionId se usa la sesión activa, no otro origen.';
+    }
+    const sessionDb = usableMcp.find((m) => /session-db|global-db/.test(m.id));
+    const liveAgent = usableMcp.find((m) => /data-agent/.test(m.id));
+    if (sessionDb) {
+      useMcp = sessionDb.id;
+      how += ` Esquema vivo: ${sessionDb.id} (list_tables / describe_table) y afn_schema_commit.`;
+    } else if (liveAgent) {
+      how += ` Esquema vivo opcional: ${liveAgent.id} data_inspect_schema y afn_schema_commit.`;
+    } else if (brokenNpx.length) {
+      how += ' No arranques npx afn-mcp-data-agent (ese proceso cierra con MCP 32000).';
+    }
   }
 
   const names = profiles.map((p) => `${p.name || p.id} (${p.engine || '?'})`).filter(Boolean);

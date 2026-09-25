@@ -129,7 +129,7 @@ export function buildSnapshot(root) {
 
   try {
     if (fs.existsSync(afnPath(root, 'diagrams', 'datos.md')) || fs.existsSync(afnPath(root, 'db-connection.json')) || fs.existsSync(afnPath(root, 'db-connections.json'))) {
-      lines.push('Orígenes en `.afn/db-connections.json` (los escribe el init; puede haber varios). Sesión activa: `db-connection.json`. No conectes en cada turno. Si el usuario pide el esquema: elegí el origen → MCP de BD → `afn_schema_commit`.');
+      lines.push('Orígenes en `.afn/db-connections.json` (puede haber varios en el mismo repo). Un solo MCP: afn-context. Si el usuario pide datos, `afn_data_sources` y luego `afn_sql` con `connectionId` (id o name). Sin id se usa la sesión `.afn/db-connection.json`. No pidas que corra el SQL. No conectes en cada turno si no pidió datos.');
       lines.push('');
     }
   } catch {

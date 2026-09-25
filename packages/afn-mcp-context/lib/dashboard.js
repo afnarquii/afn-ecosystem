@@ -314,7 +314,7 @@ function buildHtml(data, opts = {}) {
     : '';
   const datosHtml = hasDatos
     ? mdToHtml(datosMd)
-    : '<p class="muted">El init arma el catálogo en <code>.afn/db-connections.json</code> (puede haber varios orígenes: un repo, un compose, un env). <code>db-connection.json</code> es solo la sesión activa. SQL se corre en la pestaña SQL de este dashboard (no hace falta un MCP data-agent). Pedí <strong>abre dashboard AFN</strong>.</p>';
+    : '<p class="muted">El init arma el catálogo en <code>.afn/db-connections.json</code> (puede haber varios orígenes: un repo, un compose, un env). <code>db-connection.json</code> es solo la sesión activa. Kiro consulta con la tool <code>afn_sql</code> del MCP afn-context. Esta pestaña SQL es para la persona (no hace falta npx data-agent).</p>';
 
   return `<!DOCTYPE html>
 <html lang="es">
