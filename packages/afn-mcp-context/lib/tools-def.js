@@ -176,7 +176,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_script',
     description:
-      'Catálogo de scripts Python/Node. Devuelve id, título y lenguaje, nunca la ruta ni el código (ahí pueden vivir tokens). action=list no ejecuta nada. action=run solo si el usuario pidió ese script por nombre. No abras el archivo. No pidas credenciales.',
+      'Catálogo de scripts Python/Node. Devuelve id, título y lenguaje, nunca la ruta ni el código (ahí pueden vivir tokens). action=list no ejecuta nada. action=run solo si el usuario pidió ese script por nombre. Si falla, el campo error trae el mensaje del proceso (por ejemplo un token vencido) y rows las filas si alcanzó a imprimir JSON. Mostrá ambos. No abras el archivo. No pidas credenciales.',
     inputSchema: {
       type: 'object',
       properties: {

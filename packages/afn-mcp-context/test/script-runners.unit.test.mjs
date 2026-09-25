@@ -73,6 +73,27 @@ test('una ruta absoluta fuera del repo se ejecuta y Kiro no ve ni la ruta ni las
   assert.equal(ran.rows[0].ok, true);
 });
 
+test('si el script falla se ve el error y también las filas, sin la ruta', async () => {
+  const root = tmp();
+  const secretDir = tmp();
+  const file = path.join(secretDir, 'job.js');
+  fs.writeFileSync(
+    file,
+    'process.stderr.write("token expirado\\n"); process.stdout.write(JSON.stringify([{n:1}])); process.exit(1);\n',
+  );
+  const saved = saveScriptRunner(root, { title: 'Falla', lang: 'node', path: file });
+  assert.equal(saved.ok, true);
+  const ran = await handleContextTool(root, 'afn_script', { action: 'run', id: 'falla' });
+  assert.equal(ran.ok, false);
+  assert.equal(ran.ran, true);
+  assert.match(ran.error, /token expirado/);
+  assert.equal(ran.rows.length, 1);
+  assert.equal(ran.rows[0].n, 1);
+  const blob = JSON.stringify(ran);
+  assert.equal(blob.includes(secretDir), false);
+  assert.equal(blob.includes(file), false);
+});
+
 test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(STEERING, /afn_script/);
   assert.match(STEERING, /No abras ese archivo/);
@@ -83,4 +104,5 @@ test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(html, /script-panel/);
   assert.match(html, /wb-script-new/);
   assert.match(html, /id="wb-script-run"|data-script-run/);
+  assert.match(html, /id="wb-run-error"/);
 });

@@ -105,6 +105,7 @@ ORDER BY 1, 2;</textarea>
             <span id="wb-sql-msg">Listo. F5 ejecuta.</span>
             <span id="wb-sql-meta"></span>
           </div>
+          <pre id="wb-run-error" class="script-error" hidden></pre>
           <div class="sql-rowbar" id="wb-sql-rowbar">
             <span class="muted" id="wb-sql-sel-count">Sin resultados</span>
             <button type="button" class="btn sql-ico" id="wb-sql-view-json" title="Previsualización JSON/Texto">👁</button>
@@ -494,6 +495,7 @@ export function workbenchScript() {
   }
   async function runSql() {
     try {
+      showRunError("");
       setMsg("wb-sql-msg", "Ejecutando…");
       const j = await apiCall("POST", "/api/sql", {
         sql: document.getElementById("wb-sql-ed").value,
@@ -505,7 +507,8 @@ export function workbenchScript() {
       setMsg("wb-sql-msg", n + " filas" + (j.truncated ? " (recorte)" : "") + (j.kind === "exec" ? " · EXEC" : ""), true);
     } catch (e) {
       renderGrid([], []);
-      setMsg("wb-sql-msg", e.message, false);
+      showRunError(e.message);
+      setMsg("wb-sql-msg", "Error de la consulta", false);
     }
   }
   document.getElementById("wb-sql-run")?.addEventListener("click", runSql);
@@ -809,14 +812,35 @@ export function workbenchScript() {
     const j = await apiCall("GET", "/api/scripts");
     paintScripts(j.runners || []);
   }
+  function showRunError(text) {
+    const box = document.getElementById("wb-run-error");
+    const msg = String(text || "").trim();
+    if (!box) return;
+    box.hidden = !msg;
+    box.textContent = msg;
+  }
   async function runScript(id) {
     try {
       setMsg("wb-script-msg", "Ejecutando…", true);
+      showRunError("");
       const j = await apiCall("POST", "/api/scripts/run", { id: id });
+      const rows = j.rows || [];
       document.querySelector("[data-go=sql]")?.click();
-      renderGrid(j.columns || [], j.rows || []);
-      setMsg("wb-sql-msg", "Script " + ((j.runner && j.runner.title) || id) + " · " + (j.rowCount || (j.rows || []).length) + " filas", true);
-    } catch (e) { setMsg("wb-script-msg", e.message, false); }
+      renderGrid(j.columns || [], rows);
+      if (j.ok === false || j.error) {
+        const err = j.error || "El script falló";
+        showRunError(err);
+        setMsg("wb-sql-msg", rows.length ? ("Error · " + rows.length + " filas") : "Error del script", false);
+        setMsg("wb-script-msg", err, false);
+        return;
+      }
+      showRunError("");
+      setMsg("wb-sql-msg", "Script " + ((j.runner && j.runner.title) || id) + " · " + (j.rowCount || rows.length) + " filas", true);
+      setMsg("wb-script-msg", "Listo", true);
+    } catch (e) {
+      showRunError(e.message);
+      setMsg("wb-script-msg", e.message, false);
+    }
   }
   async function dropScript(id) {
     if (!confirm("Quitar el script del catálogo? El archivo no se borra.")) return;

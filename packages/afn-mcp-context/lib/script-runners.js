@@ -213,6 +213,34 @@ async function runFile(lang, abs, cwd) {
   return { ok: false, error: last?.error || `No está ${lang} en el PATH`, stdout: '', stderr: '' };
 }
 
+function scriptOutputText(ran, abs) {
+  const err = String(ran?.stderr || '').trim();
+  const out = String(ran?.stdout || '').trim();
+  let text = err || (!ran?.ok ? out : '') || String(ran?.error || '').trim();
+  if (abs) {
+    text = text.split(abs).join('script');
+    text = text.split(String(abs).replace(/\\/g, '/')).join('script');
+  }
+  return text.slice(0, 4000);
+}
+
+function redactPath(text, abs) {
+  let s = String(text || '');
+  if (abs) {
+    s = s.split(abs).join('script');
+    s = s.split(String(abs).replace(/\\/g, '/')).join('script');
+  }
+  return s.trim().slice(0, 4000);
+}
+
+function embeddedError(parsed) {
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return '';
+  if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.trim();
+  const flagged = parsed.ok === false || parsed.success === false;
+  if (flagged && typeof parsed.message === 'string') return parsed.message.trim();
+  return '';
+}
+
 export async function runScriptRunner(root, id, { limit } = {}) {
   const key = String(id || '').trim();
   const runner = listScriptRunners(root).find((r) => r.id === key || r.title === key);
@@ -227,36 +255,33 @@ export async function runScriptRunner(root, id, { limit } = {}) {
   }
   const cwd = located.external ? path.dirname(located.abs) : root;
   const ran = await runFile(runner.lang, located.abs, cwd);
-  if (!ran.ok) {
-    return {
-      ok: false,
-      error: 'El script falló. El detalle queda en tu máquina; no se envía el código ni la ruta.',
-      runner: agentScriptView(runner),
-      rows: [],
-      columns: [],
-    };
+  const note = scriptOutputText(ran, located.abs);
+  let parsed = null;
+  const rawOut = String(ran.stdout || '').trim();
+  if (rawOut) {
+    try {
+      parsed = JSON.parse(rawOut);
+    } catch {
+      parsed = null;
+    }
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(String(ran.stdout || '').trim());
-  } catch {
-    return {
-      ok: false,
-      error: 'El script tiene que imprimir JSON por stdout',
-      runner: agentScriptView(runner),
-      rows: [],
-      columns: [],
-    };
-  }
-  const table = rowsFromScriptJson(parsed);
+  const table = parsed != null ? rowsFromScriptJson(parsed) : { columns: [], rows: [] };
   const cap = Math.min(MAX_ROWS, Math.max(1, Number(limit) || 200));
   const rows = table.rows.slice(0, cap);
+  const fromJson = embeddedError(parsed);
+  const failed = !ran.ok || Boolean(fromJson) || parsed == null;
+  const outRows = failed && !rows.length ? [] : rows;
+  const error = !failed
+    ? ''
+    : redactPath(fromJson || note || rawOut || 'El script tiene que imprimir JSON por stdout', located.abs);
   return {
-    ok: true,
+    ok: !failed && parsed != null,
+    ran: true,
+    error,
     runner: agentScriptView(runner),
-    columns: table.columns,
-    rows,
-    rowCount: rows.length,
+    columns: outRows.length ? table.columns : [],
+    rows: outRows,
+    rowCount: outRows.length,
     truncated: table.rows.length > cap,
   };
 }

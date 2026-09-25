@@ -110,12 +110,17 @@ async function runAfnScriptTool(base, args = {}) {
   const cap = Math.min(200, Math.max(1, Number(args.limit) || 80));
   const r = await runScriptRunner(base, args.id || args.name || args.title, { limit: cap });
   if (!r.ok) {
+    const rows = compactSqlRows(r.rows, cap);
     return {
       ok: false,
-      ran: false,
-      error: r.error,
+      ran: r.ran === true,
+      error: r.error || 'El script falló',
+      runner: r.runner || null,
+      columns: r.columns || [],
+      rowCount: rows.length,
+      rows,
       runners,
-      hint: 'No pidas la ruta ni leas el archivo. Si no está en la lista, decilo.',
+      hint: 'Mostrá este error al usuario. Si hay filas, mostralas también. No leas el archivo ni pidas la ruta.',
     };
   }
   const rows = compactSqlRows(r.rows, cap);
