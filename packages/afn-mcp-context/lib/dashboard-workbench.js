@@ -68,22 +68,22 @@ export function workbenchSections() {
       <div id="wb-schema-procs"></div>
     </section>
     <section data-view="sql" hidden class="sql-ide">
-      <h2>Consulta SQL</h2>
-      <p class="lead">Editor de solo lectura: <code>SELECT</code>, <code>WITH</code> y <code>EXEC dbo.NombrePA @p = 1</code>. F5 o Ctrl+Enter. Lupa por fila o casillas para varias: previsualizador JSON/Texto (igual que Connect BD).</p>
-      <p id="wb-sql-driver" class="muted">Driver: comprobando…</p>
-      <div class="sql-ide-toolbar">
+      <header class="sql-head">
+        <strong class="sql-head-title">SQL</strong>
         <label>Origen <select id="wb-sql-origin"></select></label>
-        <label>Límite <input id="wb-sql-limit" type="number" value="200" min="1" max="2000" style="width:4.8rem"/></label>
-        <button type="button" class="btn btn-run" id="wb-sql-run" title="F5">▶ Ejecutar</button>
-        <span class="sql-export">
-          <button type="button" class="btn" id="wb-sql-xls" title="Excel">Excel</button>
-          <button type="button" class="btn" id="wb-sql-json" title="Ver el resultado como JSON">JSON</button>
-          <button type="button" class="btn" id="wb-sql-txt">TXT</button>
-          <button type="button" class="btn" id="wb-sql-csv">CSV</button>
-        </span>
-        <button type="button" class="btn" id="wb-sql-fav">★ Guardar</button>
+        <label>Límite <input id="wb-sql-limit" type="number" value="200" min="1" max="2000"/></label>
+        <button type="button" class="btn btn-run" id="wb-sql-run" title="F5 o Ctrl+Enter">▶ Ejecutar</button>
+        <button type="button" class="btn" id="wb-sql-fav" title="Guardar la consulta">★</button>
         <button type="button" class="btn" id="wb-sql-fav-open">Favoritos</button>
-      </div>
+        <span class="sql-export">
+          <button type="button" class="btn" id="wb-sql-xls" title="Descargar Excel">Excel</button>
+          <button type="button" class="btn" id="wb-sql-json" title="Ver el resultado como JSON">JSON</button>
+          <button type="button" class="btn" id="wb-sql-txt" title="Descargar texto">TXT</button>
+          <button type="button" class="btn" id="wb-sql-csv" title="Descargar CSV">CSV</button>
+        </span>
+        <span class="sql-inspect-spacer"></span>
+        <span id="wb-sql-driver" class="muted">Driver: comprobando…</span>
+      </header>
       <div class="sql-ide-split">
         <div class="sql-editor-wrap" id="wb-sql-editor">
           <div class="sql-pane-bar">
