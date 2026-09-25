@@ -399,9 +399,14 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (n) n.textContent = q ? (hits + " coincidencias") : "";
     document.querySelectorAll("[data-view]").forEach((sec) => {
       if (!q) return;
+      if (sec.getAttribute("data-view") === "sql" && document.querySelector("nav button.on")?.dataset.go === "sql") {
+        sec.hidden = false;
+        return;
+      }
       const any = Array.from(sec.querySelectorAll("[data-q]")).some((el) => !el.hidden);
       sec.hidden = !any;
     });
+    if (typeof window.afnSqlFind === "function") window.afnSqlFind(document.getElementById("q")?.value || "");
     if (!q) {
       const on = document.querySelector("nav button.on")?.dataset.go || "readme";
       showView(on);
@@ -547,6 +552,10 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (e.target && e.target.id === "q") applySearch();
   });
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target && e.target.id === "q" && typeof window.afnSqlFindNext === "function") {
+      e.preventDefault();
+      window.afnSqlFindNext(e.shiftKey ? "prev" : "next");
+    }
     if (e.key === "Escape") closeOverlay();
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
@@ -703,7 +712,14 @@ ${projectBarScript()}
   .sql-grid-wrap::-webkit-scrollbar-thumb { background:#3d5166; border-radius:8px; }
   .sql-grid-wrap::-webkit-scrollbar-track, .sql-grid-wrap::-webkit-scrollbar-corner { background:#0e141c; }
   #wb-sql-grid { width:max-content; min-width:100%; max-width:none; font:12.5px/1.4 Consolas,"Cascadia Mono",ui-monospace,monospace; }
-  #wb-sql-grid th { position:sticky; top:0; background:#15202c; z-index:1; white-space:nowrap; }
+  #wb-sql-grid th { position:sticky; top:0; background:#15202c; z-index:1; white-space:nowrap; text-transform:none; letter-spacing:0; font-size:.78rem; }
+  .sql-json-pane { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; }
+  .sql-json-pane[hidden] { display:none !important; }
+  .sql-json-find { display:flex; gap:.35rem; align-items:center; padding:.35rem .65rem; border-bottom:1px solid var(--line); background:#121a24; }
+  .sql-json-find input { flex:1; min-width:8rem; background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.35rem .55rem; font:13px Consolas,ui-monospace,monospace; }
+  .sql-json-body { margin:0; flex:1; min-height:0; overflow:auto; padding:.85rem 1rem; white-space:pre; word-break:break-word; font:12.5px/1.45 Consolas,ui-monospace,monospace; color:#e5e7eb; scrollbar-width:thin; scrollbar-color:#5b6b7e #0e141c; }
+  .sql-json-body mark.sql-hit { background:#854d0e; color:#fef9c3; border-radius:2px; }
+  .sql-json-body mark.sql-hit.on { background:#f59e0b; color:#111827; }
   #wb-sql-grid td { white-space:nowrap; max-width:28rem; overflow:hidden; text-overflow:ellipsis; }
   #wb-sql-grid td.sql-ck, #wb-sql-grid th.sql-ck, #wb-sql-grid td.sql-lupa, #wb-sql-grid th.sql-lupa { width:2.1rem; text-align:center; padding:.25rem .35rem; }
   #wb-sql-grid td.sql-val { cursor:copy; }

@@ -77,7 +77,7 @@ export function workbenchSections() {
         <button type="button" class="btn btn-run" id="wb-sql-run" title="F5">▶ Ejecutar</button>
         <span class="sql-export">
           <button type="button" class="btn" id="wb-sql-xls" title="Excel">Excel</button>
-          <button type="button" class="btn" id="wb-sql-json">JSON</button>
+          <button type="button" class="btn" id="wb-sql-json" title="Ver el resultado como JSON">JSON</button>
           <button type="button" class="btn" id="wb-sql-txt">TXT</button>
           <button type="button" class="btn" id="wb-sql-csv">CSV</button>
         </span>
@@ -108,16 +108,26 @@ ORDER BY 1, 2;</textarea>
           <pre id="wb-run-error" class="script-error" hidden></pre>
           <div class="sql-rowbar" id="wb-sql-rowbar">
             <span class="muted" id="wb-sql-sel-count">Sin resultados</span>
+            <button type="button" class="btn on" id="wb-sql-view-grid" title="Ver filas y columnas">Columnas</button>
             <button type="button" class="btn sql-ico" id="wb-sql-view-json" title="Previsualización JSON/Texto">👁</button>
             <button type="button" class="btn" id="wb-sql-copy-sel">Copiar</button>
-            <button type="button" class="btn" id="wb-sql-dl-json">↓ JSON</button>
+            <button type="button" class="btn" id="wb-sql-dl-json" title="Descargar JSON">↓ JSON</button>
             <button type="button" class="btn" id="wb-sql-dl-txt">↓ Texto</button>
             <button type="button" class="btn" id="wb-sql-dl-xls">↓ Excel</button>
             <span class="sql-inspect-spacer"></span>
             <button type="button" class="btn sql-ico" id="wb-sql-res-max" title="Maximizar resultados">⛶</button>
             <button type="button" class="btn sql-ico" id="wb-sql-res-min" title="Minimizar resultados">−</button>
           </div>
-          <div class="table-wrap sql-grid-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
+          <div class="table-wrap sql-grid-wrap" id="wb-sql-grid-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
+          <div id="wb-sql-json-pane" class="sql-json-pane" hidden>
+            <div class="sql-json-find">
+              <input id="wb-sql-json-find" type="search" placeholder="Buscar en el JSON" autocomplete="off"/>
+              <button type="button" class="btn" id="wb-sql-json-prev">Anterior</button>
+              <button type="button" class="btn" id="wb-sql-json-next">Siguiente</button>
+              <span id="wb-sql-json-find-n" class="muted"></span>
+            </div>
+            <pre id="wb-sql-json-body" class="sql-json-body"></pre>
+          </div>
           <div class="sql-inspect" id="wb-sql-inspect" hidden>
             <div class="sql-inspect-bar">
               <span id="wb-sql-inspect-title">Previsualización</span>
@@ -505,6 +515,7 @@ export function workbenchScript() {
     const meta = document.getElementById("wb-sql-meta");
     if (meta) meta.textContent = lastCols.length + " columnas · lupa o clic = preview · casilla = varias · clic valor copia";
     syncSelUi({ autoPreview: false });
+    if (resultView === "json") paintJson("reset");
   }
   function previewOne(ri) {
     if (!lastRows[ri]) return;
@@ -607,6 +618,84 @@ export function workbenchScript() {
     const body = data.map((r) => "<tr>" + lastCols.map((c) => "<td>" + cellEsc(r[c]) + "</td>").join("") + "</tr>").join("");
     return "<html xmlns:o=\\"urn:schemas-microsoft-com:office:office\\" xmlns:x=\\"urn:schemas-microsoft-com:office:excel\\"><head><meta charset=\\"utf-8\\"/></head><body><table><thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody></table></body></html>";
   }
+  let resultView = "grid";
+  let jsonHit = 0;
+  function showResultView(mode) {
+    resultView = mode === "json" ? "json" : "grid";
+    const grid = document.getElementById("wb-sql-grid-wrap");
+    const pane = document.getElementById("wb-sql-json-pane");
+    if (grid) grid.hidden = resultView !== "grid";
+    if (pane) pane.hidden = resultView !== "json";
+    document.getElementById("wb-sql-view-grid")?.classList.toggle("on", resultView === "grid");
+    document.getElementById("wb-sql-json")?.classList.toggle("on", resultView === "json");
+    if (resultView === "json") {
+      closePreview();
+      const side = document.getElementById("q");
+      const find = document.getElementById("wb-sql-json-find");
+      if (find && side && side.value && !find.value) find.value = side.value;
+      paintJson("reset");
+    }
+  }
+  function paintJson(jump) {
+    const body = document.getElementById("wb-sql-json-body");
+    const nEl = document.getElementById("wb-sql-json-find-n");
+    if (!body) return;
+    const rows = selected.size ? pickRows() : lastRows;
+    const text = rows.length ? rowsJson(rows) : "";
+    const q = String(document.getElementById("wb-sql-json-find")?.value || "").trim();
+    if (!text) {
+      body.textContent = "Sin resultados";
+      if (nEl) nEl.textContent = "";
+      return;
+    }
+    if (!q) {
+      body.textContent = text;
+      jsonHit = 0;
+      if (nEl) nEl.textContent = "";
+      return;
+    }
+    const low = text.toLowerCase();
+    const needle = q.toLowerCase();
+    const hits = [];
+    let from = 0;
+    while (from < text.length) {
+      const at = low.indexOf(needle, from);
+      if (at < 0) break;
+      hits.push(at);
+      from = at + Math.max(needle.length, 1);
+    }
+    if (!hits.length) {
+      body.textContent = text;
+      jsonHit = 0;
+      if (nEl) nEl.textContent = "Sin coincidencias";
+      return;
+    }
+    if (jump === "next") jsonHit = (jsonHit + 1) % hits.length;
+    else if (jump === "prev") jsonHit = (jsonHit - 1 + hits.length) % hits.length;
+    else jsonHit = 0;
+    let html = "";
+    let cursor = 0;
+    hits.forEach((at, i) => {
+      html += cellEsc(text.slice(cursor, at));
+      html += "<mark class=\\"sql-hit" + (i === jsonHit ? " on" : "") + "\\">" + cellEsc(text.slice(at, at + q.length)) + "</mark>";
+      cursor = at + q.length;
+    });
+    html += cellEsc(text.slice(cursor));
+    body.innerHTML = html;
+    if (nEl) nEl.textContent = (jsonHit + 1) + " / " + hits.length;
+    body.querySelector("mark.sql-hit.on")?.scrollIntoView({ block: "center", inline: "nearest" });
+  }
+  window.afnSqlFindNext = (dir) => {
+    if (resultView !== "json") return;
+    paintJson(dir === "prev" ? "prev" : "next");
+  };
+  window.afnSqlFind = (raw) => {
+    if (resultView !== "json") return;
+    const find = document.getElementById("wb-sql-json-find");
+    const next = String(raw || "");
+    if (find && find.value !== next) find.value = next;
+    paintJson("reset");
+  };
   function dlJson() {
     if (!needRows()) return;
     downloadBlob("consulta" + fileTag() + "-" + stamp() + ".json", "application/json", rowsJson(pickRows()));
@@ -623,7 +712,16 @@ export function workbenchScript() {
     if (!needRows()) return;
     downloadBlob("consulta" + fileTag() + "-" + stamp() + ".csv", "text/csv;charset=utf-8", "\\uFEFF" + csvText());
   });
-  document.getElementById("wb-sql-json")?.addEventListener("click", dlJson);
+  document.getElementById("wb-sql-json")?.addEventListener("click", () => showResultView("json"));
+  document.getElementById("wb-sql-view-grid")?.addEventListener("click", () => showResultView("grid"));
+  document.getElementById("wb-sql-json-find")?.addEventListener("input", () => paintJson("reset"));
+  document.getElementById("wb-sql-json-next")?.addEventListener("click", () => paintJson("next"));
+  document.getElementById("wb-sql-json-prev")?.addEventListener("click", () => paintJson("prev"));
+  document.getElementById("wb-sql-json-find")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    paintJson(e.shiftKey ? "prev" : "next");
+  });
   document.getElementById("wb-sql-txt")?.addEventListener("click", dlTxt);
   document.getElementById("wb-sql-xls")?.addEventListener("click", dlXls);
   document.getElementById("wb-sql-dl-json")?.addEventListener("click", dlJson);
