@@ -687,7 +687,9 @@ ${projectBarScript()}
   .sql-ide-toolbar .btn-run:hover { border-color:var(--acc); }
   .sql-export { display:flex; gap:.3rem; margin-left:.15rem; }
   .sql-ide-split { display:grid; grid-template-rows:minmax(160px,auto) minmax(240px,1fr); flex:1; min-height:520px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b1016; }
-  .sql-editor-wrap { display:grid; grid-template-columns:48px 1fr; height:240px; min-height:140px; resize:vertical; overflow:hidden; border-bottom:1px solid var(--line); }
+  .sql-editor-wrap { display:grid; grid-template-columns:48px 1fr; grid-template-rows:auto 1fr; height:240px; min-height:140px; resize:vertical; overflow:hidden; border-bottom:1px solid var(--line); }
+  .sql-pane-bar { grid-column:1 / -1; display:flex; align-items:center; gap:.35rem; padding:.28rem .55rem; background:#121a24; border-bottom:1px solid var(--line); font-size:.75rem; color:var(--muted); }
+  .sql-editor-wrap.fs, .sql-results.fs { position:fixed; inset:0; z-index:42; width:100vw; height:100vh; max-height:none; min-height:0; resize:none; border:0; border-radius:0; background:#0b1016; }
   .sql-gutter { background:#0e1620; color:#5b6b7e; font:12px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; text-align:right; padding:.75rem .45rem; user-select:none; overflow:hidden; white-space:pre; }
   #wb-sql-ed.sql-ed { min-height:0; height:100%; border:0; border-radius:0; resize:none; padding:.75rem .9rem; font:13.5px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; background:#0b1016; outline:none; }
   .sql-results { display:flex; flex-direction:column; min-height:0; background:#101820; }
@@ -716,7 +718,21 @@ ${projectBarCss()}
   .sql-inspect-spacer { flex:1; }
   .sql-inspect-body { margin:0; padding:.85rem 1rem; overflow:auto; flex:1; font:13px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#e5e7eb; white-space:pre-wrap; word-break:break-word; background:#0b1016; }
   .sql-inspect .btn.on { background:#2563eb; border-color:#2563eb; color:#fff; }
-  #wb-sql-favs { margin:.65rem 0 0; }
+  .fav-modal { position:fixed; inset:0; z-index:55; background:rgba(7,11,16,.72); display:flex; align-items:center; justify-content:center; padding:1.2rem; }
+  .fav-modal[hidden] { display:none; }
+  .fav-sheet { width:min(980px,100%); height:min(680px,90vh); background:#111827; border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; box-shadow:0 24px 80px rgba(0,0,0,.5); overflow:hidden; }
+  .fav-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; padding:1rem 1.15rem; border-bottom:1px solid var(--line); }
+  .fav-head h3 { margin:.15rem 0 .25rem; font-size:1.15rem; }
+  .fav-head .k { margin:0; }
+  .fav-body { display:grid; grid-template-columns:minmax(220px,300px) 1fr; min-height:0; flex:1; }
+  .fav-list { overflow:auto; border-right:1px solid var(--line); padding:.45rem; display:flex; flex-direction:column; gap:.35rem; }
+  .fav-item { text-align:left; background:#0c1118; border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:.55rem .7rem; cursor:pointer; font:inherit; }
+  .fav-item.on, .fav-item:hover { border-color:var(--acc); background:#1e3a5f; }
+  .fav-item small { display:block; color:var(--muted); margin-top:.2rem; font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fav-preview { display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .fav-preview-bar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.55rem .75rem; border-bottom:1px solid var(--line); font-size:.82rem; }
+  .fav-preview-sql { margin:0; padding:1rem 1.1rem; overflow:auto; flex:1; font:13px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#e5e7eb; white-space:pre; background:#0b1016; }
+  @media (max-width:760px) { .fav-body { grid-template-columns:1fr; } .fav-list { max-height:34vh; border-right:0; border-bottom:1px solid var(--line); } }
 </style>
 </head>
 <body data-afn-version="${esc(FLOW_GENERATOR_VERSION)}">

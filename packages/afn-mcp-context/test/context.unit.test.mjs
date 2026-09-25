@@ -23,7 +23,7 @@ import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, sa
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
-import { saveOriginsPack, normalizeOriginsInput, inspectCredentialsFile } from '../lib/dashboard-query.js';
+import { saveOriginsPack, normalizeOriginsInput, inspectCredentialsFile, loadSqlFavorites, saveSqlFavorites } from '../lib/dashboard-query.js';
 import { findInstalledDriver, loadSqlDriver, resetSqlDriverCache, resolvePackDriver } from '../lib/sql-driver.js';
 
 function tmp() {
@@ -1095,8 +1095,12 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.31/);
-  assert.match(html, /data-afn-version="1\.4\.31"/);
+  assert.match(html, /v1\.4\.32/);
+  assert.match(html, /data-afn-version="1\.4\.32"/);
+  assert.match(html, /wb-sql-fav-modal/);
+  assert.match(html, /wb-sql-fav-preview/);
+  assert.match(html, /wb-sql-ed-max/);
+  assert.match(html, /wb-sql-res-max/);
   assert.match(html, /data-view="skills"/);
   assert.match(html, /Nueva skill/);
   assert.match(html, /data-go="skills"/);
@@ -1164,7 +1168,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.31/);
+    assert.match(liveHtml, /v1\.4\.32/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);
@@ -1188,6 +1192,21 @@ test('compactDashboard no entrega el html de _tmp', () => {
   assert.match(c.url, /^http:\/\/127\.0\.0\.1/);
   assert.equal(c.url.includes('dashboard.html'), false);
   assert.equal(c.version, '1.4.30');
+});
+
+test('favoritos SQL se guardan en .afn y se pueden quitar', () => {
+  const root = tmp();
+  const saved = saveSqlFavorites(root, [
+    { id: 'fav_1', title: 'tablas', sql: 'SELECT 1' },
+    { id: 'fav_2', title: 'vacio', sql: '   ' },
+  ]);
+  assert.equal(saved.length, 1);
+  assert.equal(loadSqlFavorites(root)[0].title, 'tablas');
+  const left = saveSqlFavorites(root, saved.filter((f) => f.id !== 'fav_1'));
+  assert.equal(left.length, 0);
+  assert.equal(loadSqlFavorites(root).length, 0);
+  const file = fs.readFileSync(path.join(root, '.afn', 'sql-favorites.json'), 'utf8');
+  assert.match(file, /favorites/);
 });
 
 test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {

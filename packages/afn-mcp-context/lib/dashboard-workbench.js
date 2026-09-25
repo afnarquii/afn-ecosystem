@@ -81,10 +81,17 @@ export function workbenchSections() {
           <button type="button" class="btn" id="wb-sql-txt">TXT</button>
           <button type="button" class="btn" id="wb-sql-csv">CSV</button>
         </span>
-        <button type="button" class="btn" id="wb-sql-fav">★ Favorito</button>
+        <button type="button" class="btn" id="wb-sql-fav">★ Guardar</button>
+        <button type="button" class="btn" id="wb-sql-fav-open">Favoritos</button>
       </div>
       <div class="sql-ide-split">
-        <div class="sql-editor-wrap">
+        <div class="sql-editor-wrap" id="wb-sql-editor">
+          <div class="sql-pane-bar">
+            <span>Consulta</span>
+            <span class="sql-inspect-spacer"></span>
+            <button type="button" class="btn sql-ico" id="wb-sql-ed-max" title="Maximizar el editor">⛶</button>
+            <button type="button" class="btn sql-ico" id="wb-sql-ed-min" title="Minimizar el editor">−</button>
+          </div>
           <pre class="sql-gutter" id="wb-sql-gutter">1</pre>
           <textarea id="wb-sql-ed" spellcheck="false" class="sql-ed" wrap="off">-- SELECT o EXEC de un PA de consulta. F5 / Ctrl+Enter.
 -- EXEC dbo.NombrePA @param = 1;
@@ -93,7 +100,7 @@ FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_TYPE = 'BASE TABLE'
 ORDER BY 1, 2;</textarea>
         </div>
-        <div class="sql-results">
+        <div class="sql-results" id="wb-sql-results">
           <div class="sql-statusbar">
             <span id="wb-sql-msg">Listo. F5 ejecuta.</span>
             <span id="wb-sql-meta"></span>
@@ -105,6 +112,9 @@ ORDER BY 1, 2;</textarea>
             <button type="button" class="btn" id="wb-sql-dl-json">↓ JSON</button>
             <button type="button" class="btn" id="wb-sql-dl-txt">↓ Texto</button>
             <button type="button" class="btn" id="wb-sql-dl-xls">↓ Excel</button>
+            <span class="sql-inspect-spacer"></span>
+            <button type="button" class="btn sql-ico" id="wb-sql-res-max" title="Maximizar resultados">⛶</button>
+            <button type="button" class="btn sql-ico" id="wb-sql-res-min" title="Minimizar resultados">−</button>
           </div>
           <div class="table-wrap sql-grid-wrap"><table class="doc-table" id="wb-sql-grid"><thead></thead><tbody></tbody></table></div>
           <div class="sql-inspect" id="wb-sql-inspect" hidden>
@@ -122,7 +132,30 @@ ORDER BY 1, 2;</textarea>
           </div>
         </div>
       </div>
-      <div id="wb-sql-favs" class="toolbar"></div>
+      <div id="wb-sql-fav-modal" class="fav-modal" hidden>
+        <div class="fav-sheet" role="dialog" aria-modal="true" aria-labelledby="wb-sql-fav-title">
+          <div class="fav-head">
+            <div>
+              <p class="k">Consultas guardadas</p>
+              <h3 id="wb-sql-fav-title">Favoritos</h3>
+              <p class="muted">Quedan en <code>.afn/sql-favorites.json</code>. Elegí una para verla y recién después cargala en el editor.</p>
+            </div>
+            <button type="button" class="btn" id="wb-sql-fav-close">Cerrar</button>
+          </div>
+          <div class="fav-body">
+            <div class="fav-list" id="wb-sql-fav-list"></div>
+            <div class="fav-preview">
+              <div class="fav-preview-bar">
+                <span id="wb-sql-fav-preview-title">Elegí una consulta</span>
+                <span class="sql-inspect-spacer"></span>
+                <button type="button" class="btn btn-run" id="wb-sql-fav-load" disabled>Cargar en el editor</button>
+                <button type="button" class="btn" id="wb-sql-fav-del" disabled>Quitar</button>
+              </div>
+              <pre id="wb-sql-fav-preview" class="fav-preview-sql">Seleccioná una consulta de la lista para previsualizarla.</pre>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>`;
 }
 
@@ -569,34 +602,137 @@ export function workbenchScript() {
     document.getElementById("wb-sql-inspect")?.classList.toggle("fs");
   });
   document.getElementById("wb-sql-inspect-close")?.addEventListener("click", closePreview);
+  function setSqlPane(id, full) {
+    const editor = document.getElementById("wb-sql-editor");
+    const results = document.getElementById("wb-sql-results");
+    [editor, results].forEach((pane) => {
+      if (!pane) return;
+      pane.classList.toggle("fs", full && pane.id === id);
+    });
+    syncGutter();
+  }
+  document.getElementById("wb-sql-ed-max")?.addEventListener("click", () => setSqlPane("wb-sql-editor", true));
+  document.getElementById("wb-sql-ed-min")?.addEventListener("click", () => setSqlPane("wb-sql-editor", false));
+  document.getElementById("wb-sql-res-max")?.addEventListener("click", () => setSqlPane("wb-sql-results", true));
+  document.getElementById("wb-sql-res-min")?.addEventListener("click", () => setSqlPane("wb-sql-results", false));
   window.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    const editor = document.getElementById("wb-sql-editor");
+    const results = document.getElementById("wb-sql-results");
+    if (editor?.classList.contains("fs") || results?.classList.contains("fs")) {
+      setSqlPane("", false);
+      e.preventDefault();
+      return;
+    }
     const box = document.getElementById("wb-sql-inspect");
     if (box?.classList.contains("fs")) { box.classList.remove("fs"); e.preventDefault(); }
     else if (previewOpen) closePreview();
   });
   syncGutter();
+  let favSelected = "";
+  function favTitle(sql) {
+    return (String(sql || "").split("\\n").find((l) => l.trim() && !l.trim().startsWith("--")) || "consulta").trim().slice(0, 60);
+  }
+  function favEsc(s) {
+    return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  }
+  function paintFavModal() {
+    const list = window.__afnFavs || [];
+    const box = document.getElementById("wb-sql-fav-list");
+    const pre = document.getElementById("wb-sql-fav-preview");
+    const titleEl = document.getElementById("wb-sql-fav-preview-title");
+    const loadBtn = document.getElementById("wb-sql-fav-load");
+    const delBtn = document.getElementById("wb-sql-fav-del");
+    const openBtn = document.getElementById("wb-sql-fav-open");
+    if (openBtn) openBtn.textContent = list.length ? ("Favoritos (" + list.length + ")") : "Favoritos";
+    if (!box) return;
+    if (!list.length) {
+      favSelected = "";
+      box.innerHTML = "<p class=muted>Todavía no hay consultas guardadas. ★ Guardar deja la del editor en .afn/sql-favorites.json.</p>";
+      if (pre) pre.textContent = "Cuando guardes una, la vas a ver acá antes de cargarla.";
+      if (titleEl) titleEl.textContent = "Sin favoritos";
+      if (loadBtn) loadBtn.disabled = true;
+      if (delBtn) delBtn.disabled = true;
+      return;
+    }
+    if (!list.some((f) => f.id === favSelected)) favSelected = list[0].id;
+    const hit = list.find((f) => f.id === favSelected) || list[0];
+    box.innerHTML = list.map((f) => {
+      const on = f.id === hit.id ? " on" : "";
+      const line = String(f.sql || "").replace(/\\s+/g, " ").trim().slice(0, 72);
+      return "<button type=button class=\\"fav-item" + on + "\\" data-fav-pick=\\"" + favEsc(f.id) + "\\"><strong>" + favEsc(f.title || "consulta") + "</strong><small>" + favEsc(line) + "</small></button>";
+    }).join("");
+    box.querySelectorAll("[data-fav-pick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        favSelected = btn.getAttribute("data-fav-pick") || "";
+        paintFavModal();
+      });
+    });
+    if (pre) pre.textContent = hit.sql || "";
+    if (titleEl) titleEl.textContent = hit.title || "consulta";
+    if (loadBtn) loadBtn.disabled = false;
+    if (delBtn) delBtn.disabled = false;
+  }
+  function openFavModal() {
+    const modal = document.getElementById("wb-sql-fav-modal");
+    if (!modal) return;
+    paintFavModal();
+    modal.hidden = false;
+  }
+  function closeFavModal() {
+    const modal = document.getElementById("wb-sql-fav-modal");
+    if (modal) modal.hidden = true;
+  }
   async function loadFavs() {
     if (!api) return;
     const j = await apiCall("GET", "/api/sql/favorites");
-    const box = document.getElementById("wb-sql-favs");
-    box.innerHTML = (j.favorites || []).map((f) => "<button type=button class=btn data-fav=\\"" + String(f.id).replace(/"/g,"") + "\\">" + String(f.title || "fav").replace(/</g,"") + "</button>").join("");
-    box.querySelectorAll("[data-fav]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const hit = (j.favorites || []).find((x) => x.id === btn.getAttribute("data-fav"));
-        if (hit) document.getElementById("wb-sql-ed").value = hit.sql;
-      });
-    });
     window.__afnFavs = j.favorites || [];
+    paintFavModal();
   }
+  document.getElementById("wb-sql-fav-open")?.addEventListener("click", () => { loadFavs().then(openFavModal).catch((e) => setMsg("wb-sql-msg", e.message, false)); });
+  document.getElementById("wb-sql-fav-close")?.addEventListener("click", closeFavModal);
+  document.getElementById("wb-sql-fav-modal")?.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "wb-sql-fav-modal") closeFavModal();
+  });
+  document.getElementById("wb-sql-fav-load")?.addEventListener("click", () => {
+    const hit = (window.__afnFavs || []).find((f) => f.id === favSelected);
+    if (!hit) return;
+    document.getElementById("wb-sql-ed").value = hit.sql;
+    syncGutter();
+    closeFavModal();
+    setMsg("wb-sql-msg", "Consulta cargada. F5 para ejecutar.", true);
+  });
+  document.getElementById("wb-sql-fav-del")?.addEventListener("click", async () => {
+    const hit = (window.__afnFavs || []).find((f) => f.id === favSelected);
+    if (!hit) return;
+    if (!confirm("Quitar «" + (hit.title || "consulta") + "» de los favoritos?")) return;
+    try {
+      const favorites = (window.__afnFavs || []).filter((f) => f.id !== hit.id);
+      await apiCall("PUT", "/api/sql/favorites", { favorites });
+      favSelected = "";
+      setMsg("wb-sql-msg", "Favorito quitado", true);
+      await loadFavs();
+    } catch (e) { setMsg("wb-sql-msg", e.message, false); }
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const modal = document.getElementById("wb-sql-fav-modal");
+    if (modal && !modal.hidden) { closeFavModal(); e.preventDefault(); }
+  });
   document.getElementById("wb-sql-fav")?.addEventListener("click", async () => {
     try {
-      const sql = document.getElementById("wb-sql-ed").value;
-      const title = (sql.split("\\n").find((l) => l.trim() && !l.trim().startsWith("--")) || "consulta").slice(0, 60);
-      const favorites = (window.__afnFavs || []).concat([{ id: "fav_" + Date.now(), title, sql }]);
+      const sql = String(document.getElementById("wb-sql-ed").value || "").trim();
+      if (!sql) { setMsg("wb-sql-msg", "No hay consulta para guardar", false); return; }
+      const title = favTitle(sql);
+      const prev = window.__afnFavs || [];
+      const same = prev.find((f) => String(f.sql || "").trim() === sql);
+      const favorites = same
+        ? prev.map((f) => f.id === same.id ? { id: f.id, title: title, sql: sql } : f)
+        : prev.concat([{ id: "fav_" + Date.now(), title: title, sql: sql }]);
       await apiCall("PUT", "/api/sql/favorites", { favorites });
-      setMsg("wb-sql-msg", "Favorito guardado", true);
+      setMsg("wb-sql-msg", same ? "Favorito actualizado" : "Guardada en .afn/sql-favorites.json", true);
       await loadFavs();
+      openFavModal();
     } catch (e) { setMsg("wb-sql-msg", e.message, false); }
   });
   if (api) {
