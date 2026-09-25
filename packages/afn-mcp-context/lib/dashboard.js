@@ -718,6 +718,15 @@ ${projectBarCss()}
   .sql-inspect-spacer { flex:1; }
   .sql-inspect-body { margin:0; padding:.85rem 1rem; overflow:auto; flex:1; font:13px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#e5e7eb; white-space:pre-wrap; word-break:break-word; background:#0b1016; }
   .sql-inspect .btn.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+  .script-panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:1rem 1.05rem 1.1rem; margin:0 0 1.2rem; }
+  .script-form { display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end; margin-top:.85rem; }
+  .script-form label { display:flex; flex-direction:column; gap:.28rem; font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); min-width:12rem; }
+  .script-form input, .script-form select { text-transform:none; letter-spacing:0; font:inherit; color:var(--ink); background:#0c1118; border:1px solid var(--line); border-radius:8px; padding:.5rem .65rem; }
+  .script-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.7rem; }
+  .script-item { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem 1rem; display:flex; flex-direction:column; gap:.35rem; }
+  .script-item:hover { border-color:var(--acc); }
+  .script-item strong { font-size:1rem; }
+  .script-item .script-actions { display:flex; gap:.4rem; margin-top:.45rem; }
   .fav-modal { position:fixed; inset:0; z-index:55; background:rgba(7,11,16,.72); display:flex; align-items:center; justify-content:center; padding:1.2rem; }
   .fav-modal[hidden] { display:none; }
   .fav-sheet { width:min(980px,100%); height:min(680px,90vh); background:#111827; border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; box-shadow:0 24px 80px rgba(0,0,0,.5); overflow:hidden; }

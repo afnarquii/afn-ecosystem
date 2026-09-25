@@ -159,16 +159,32 @@ ORDER BY 1, 2;</textarea>
     </section>
     <section data-view="scripts" hidden>
       <h2>Scripts</h2>
-      <p class="lead">Python o Node que imprimen JSON. Si el archivo tiene claves, poné la <strong>ruta absoluta fuera del repo</strong>. AFN guarda solo esa ruta en <code>.afn/script-runners.json</code> y no lee el código. Kiro no recibe la ruta ni el archivo: solo el JSON cuando se lo pedís.</p>
-      <div class="toolbar">
-        <input id="wb-script-title" placeholder="Nombre" style="min-width:10rem"/>
-        <select id="wb-script-lang"><option value="node">Node.js</option><option value="python">Python</option></select>
-        <input id="wb-script-path" placeholder="C:\\privado\\informe.py o ruta relativa sin claves" style="min-width:18rem"/>
-        <button type="button" class="btn" id="wb-script-add">Agregar archivo</button>
-        <button type="button" class="btn" id="wb-script-new">Crear nuevo</button>
+      <p class="lead">Elegí el archivo en el explorador. Si tiene claves, que esté fuera del repo. AFN guarda la ruta y Kiro solo ve el JSON cuando se lo pedís.</p>
+      <div class="script-panel">
+        <div class="afn-pick" id="wb-script-pick">
+          <div class="afn-pick-ico" aria-hidden="true">📄</div>
+          <div class="afn-pick-copy">
+            <strong id="wb-script-file-name">Ningún archivo elegido</strong>
+            <p id="wb-script-file-path" class="muted">Python o Node. El explorador devuelve la ruta; no hace falta pegarla.</p>
+          </div>
+          <button type="button" class="btn" id="wb-script-browse">Elegir archivo</button>
+        </div>
+        <div class="script-form">
+          <label>Nombre<input id="wb-script-title" placeholder="Informe de pedidos"/></label>
+          <label>Lenguaje
+            <select id="wb-script-lang">
+              <option value="node">Node.js</option>
+              <option value="python">Python</option>
+            </select>
+          </label>
+          <button type="button" class="btn afn-pick-go" id="wb-script-add" disabled>Guardar</button>
+          <button type="button" class="btn" id="wb-script-new">Crear plantilla vacía</button>
+        </div>
+        <input id="wb-script-path" type="hidden" value=""/>
+        <p id="wb-script-msg" class="muted"></p>
       </div>
-      <p id="wb-script-msg" class="muted"></p>
-      <div id="wb-script-list"></div>
+      <h3>Guardados</h3>
+      <div id="wb-script-list" class="script-grid"></div>
     </section>`;
 }
 
@@ -749,14 +765,42 @@ export function workbenchScript() {
       openFavModal();
     } catch (e) { setMsg("wb-sql-msg", e.message, false); }
   });
+  function scriptBase(p) {
+    const s = String(p || "").replace(/\\\\/g, "/");
+    const i = s.lastIndexOf("/");
+    return i >= 0 ? s.slice(i + 1) : s;
+  }
+  function langFromPath(p) {
+    return /\\.py$/i.test(String(p || "")) ? "python" : "node";
+  }
+  function showPickedFile(filePath) {
+    const pathEl = document.getElementById("wb-script-path");
+    const nameEl = document.getElementById("wb-script-file-name");
+    const hintEl = document.getElementById("wb-script-file-path");
+    const pick = document.getElementById("wb-script-pick");
+    const add = document.getElementById("wb-script-add");
+    const title = document.getElementById("wb-script-title");
+    const lang = document.getElementById("wb-script-lang");
+    if (pathEl) pathEl.value = filePath || "";
+    const base = scriptBase(filePath);
+    if (nameEl) nameEl.textContent = base || "Ningún archivo elegido";
+    if (hintEl) hintEl.textContent = filePath || "Python o Node. El explorador devuelve la ruta; no hace falta pegarla.";
+    if (pick) pick.classList.toggle("on", Boolean(filePath));
+    if (add) add.disabled = !filePath;
+    if (lang && filePath) lang.value = langFromPath(filePath);
+    if (title && filePath && !title.value.trim()) title.value = base.replace(/\\.(py|js|mjs|cjs)$/i, "");
+  }
   function paintScripts(list) {
     const box = document.getElementById("wb-script-list");
     if (!box) return;
     if (!list.length) {
-      box.innerHTML = "<p class=muted>Ninguno todavía. Creá uno nuevo o agregá un .py / .js del proyecto.</p>";
+      box.innerHTML = "<p class=empty>Todavía no hay scripts. Elegí un archivo y guardalo.</p>";
       return;
     }
-    box.innerHTML = list.map((r) => "<div class=toolbar data-q=\\"" + favEsc(r.title) + "\\"><strong>" + favEsc(r.title) + "</strong><span class=muted>" + favEsc(r.lang) + " · " + favEsc(r.path) + "</span><button type=button class=btn data-script-run=\\"" + favEsc(r.id) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div>").join("");
+    box.innerHTML = list.map((r) => {
+      const base = scriptBase(r.path);
+      return "<article class=script-item data-q=\\"" + favEsc(r.title) + "\\"><span class=k>" + favEsc(r.lang) + "</span><strong>" + favEsc(r.title) + "</strong><p class=muted>" + favEsc(base) + "</p><div class=script-actions><button type=button class=\\"btn afn-pick-go\\" data-script-run=\\"" + favEsc(r.id) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div></article>";
+    }).join("");
     box.querySelectorAll("[data-script-run]").forEach((btn) => btn.addEventListener("click", () => runScript(btn.getAttribute("data-script-run"))));
     box.querySelectorAll("[data-script-del]").forEach((btn) => btn.addEventListener("click", () => dropScript(btn.getAttribute("data-script-del"))));
   }
@@ -782,6 +826,17 @@ export function workbenchScript() {
       await loadScripts();
     } catch (e) { setMsg("wb-script-msg", e.message, false); }
   }
+  document.getElementById("wb-script-browse")?.addEventListener("click", async () => {
+    try {
+      setMsg("wb-script-msg", "Abriendo el explorador…", true);
+      const j = await apiCall("POST", "/api/pick-file", {});
+      showPickedFile(j.path || "");
+      setMsg("wb-script-msg", "Archivo elegido. Guardá para dejarlo en el catálogo.", true);
+    } catch (e) {
+      if (/cancelled/i.test(e.message || "")) setMsg("wb-script-msg", "No elegiste archivo", false);
+      else setMsg("wb-script-msg", e.message, false);
+    }
+  });
   document.getElementById("wb-script-add")?.addEventListener("click", async () => {
     try {
       await apiCall("POST", "/api/scripts", {

@@ -13,7 +13,7 @@ import { bootstrapAfn } from './bootstrap.js';
 import { isAfnEcosystemCatalog } from './resolve-root.js';
 import { aggregateCatalogMemory, registerKnownProject } from './catalog-registry.js';
 import { portProjectAssets } from './project-port.js';
-import { pickFolder } from './pick-folder.js';
+import { pickFolder, pickScriptFile } from './pick-folder.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -120,6 +120,11 @@ async function handleApi(state, token, req, res, url) {
   }
   if (req.method === 'POST' && route === '/api/pick-folder') {
     const r = await pickFolder();
+    send(res, r.ok ? 200 : 400, r);
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/pick-file') {
+    const r = await pickScriptFile();
     send(res, r.ok ? 200 : 400, r);
     return;
   }

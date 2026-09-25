@@ -78,6 +78,9 @@ test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(STEERING, /No abras ese archivo/);
   const html = fs.readFileSync(writeDashboard(tmp(), { open: false }).file, 'utf8');
   assert.match(html, /data-go="scripts"/);
+  assert.match(html, /Elegir archivo/);
+  assert.match(html, /wb-script-browse/);
+  assert.match(html, /script-panel/);
   assert.match(html, /wb-script-new/);
   assert.match(html, /id="wb-script-run"|data-script-run/);
 });
