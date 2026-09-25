@@ -215,7 +215,7 @@ async function handleApi(state, token, req, res, url) {
   }
   if (req.method === 'POST' && route === '/api/scripts/run') {
     const raw = JSON.parse((await readBody(req)) || '{}');
-    const r = await runScriptRunner(root, raw.id, { limit: raw.limit });
+    const r = await runScriptRunner(root, raw.id, { limit: raw.limit, args: raw.args, params: raw.params });
     send(res, r.ran || r.ok ? 200 : 400, r);
     return;
   }

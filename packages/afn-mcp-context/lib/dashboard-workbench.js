@@ -160,7 +160,7 @@ ORDER BY 1, 2;</textarea>
     </section>
     <section data-view="scripts" hidden>
       <h2>Scripts</h2>
-      <p class="lead">Elegí el archivo en el explorador. Si tiene claves, que esté fuera del repo. AFN guarda la ruta y Kiro solo ve el JSON cuando se lo pedís.</p>
+      <p class="lead">Elegí el archivo en el explorador. Si tiene claves, que esté fuera del repo. Al ejecutar podés mandar parámetros o dejarlo vacío. AFN guarda la ruta y Kiro solo ve el JSON cuando se lo pedís.</p>
       <div class="script-panel">
         <div class="afn-pick" id="wb-script-pick">
           <div class="afn-pick-ico" aria-hidden="true">📄</div>
@@ -186,6 +186,25 @@ ORDER BY 1, 2;</textarea>
       </div>
       <h3>Guardados</h3>
       <div id="wb-script-list" class="script-grid"></div>
+      <div id="wb-script-args-modal" class="fav-modal" hidden>
+        <div class="fav-sheet script-args-sheet">
+          <div class="fav-head">
+            <div>
+              <p class="k">Parámetros opcionales</p>
+              <h3 id="wb-script-args-title">Ejecutar</h3>
+              <p class="muted">Vacío = sin parámetros. Una línea por argumento, o un JSON {"desde":"2024-01-01"} que llega como --desde 2024-01-01. Python los lee en sys.argv. Node en process.argv.</p>
+            </div>
+            <button type="button" class="btn" id="wb-script-args-close">Cerrar</button>
+          </div>
+          <div class="script-args-body">
+            <textarea id="wb-script-args" placeholder="2024-01-01&#10;cliente-9"></textarea>
+            <div class="script-actions">
+              <button type="button" class="btn afn-pick-go" id="wb-script-args-go">Ejecutar</button>
+              <button type="button" class="btn" id="wb-script-args-plain">Sin parámetros</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>`;
 }
 
@@ -802,9 +821,9 @@ export function workbenchScript() {
     }
     box.innerHTML = list.map((r) => {
       const base = scriptBase(r.path);
-      return "<article class=script-item data-q=\\"" + favEsc(r.title) + "\\"><span class=k>" + favEsc(r.lang) + "</span><strong>" + favEsc(r.title) + "</strong><p class=muted>" + favEsc(base) + "</p><div class=script-actions><button type=button class=\\"btn afn-pick-go\\" data-script-run=\\"" + favEsc(r.id) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div></article>";
+      return "<article class=script-item data-q=\\"" + favEsc(r.title) + "\\"><span class=k>" + favEsc(r.lang) + "</span><strong>" + favEsc(r.title) + "</strong><p class=muted>" + favEsc(base) + "</p><div class=script-actions><button type=button class=\\"btn afn-pick-go\\" data-script-run=\\"" + favEsc(r.id) + "\\" data-script-title=\\"" + favEsc(r.title) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div></article>";
     }).join("");
-    box.querySelectorAll("[data-script-run]").forEach((btn) => btn.addEventListener("click", () => runScript(btn.getAttribute("data-script-run"))));
+    box.querySelectorAll("[data-script-run]").forEach((btn) => btn.addEventListener("click", () => openScriptArgs(btn.getAttribute("data-script-run"), btn.getAttribute("data-script-title"))));
     box.querySelectorAll("[data-script-del]").forEach((btn) => btn.addEventListener("click", () => dropScript(btn.getAttribute("data-script-del"))));
   }
   async function loadScripts() {
@@ -819,11 +838,38 @@ export function workbenchScript() {
     box.hidden = !msg;
     box.textContent = msg;
   }
-  async function runScript(id) {
+  let pendingScriptId = "";
+  function closeScriptArgs() {
+    const modal = document.getElementById("wb-script-args-modal");
+    if (modal) modal.hidden = true;
+  }
+  function openScriptArgs(id, title) {
+    pendingScriptId = id || "";
+    const modal = document.getElementById("wb-script-args-modal");
+    const heading = document.getElementById("wb-script-args-title");
+    if (heading) heading.textContent = title || id || "Ejecutar";
+    if (modal) modal.hidden = false;
+    document.getElementById("wb-script-args")?.focus();
+  }
+  function scriptPayload(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return {};
+    if (raw.charAt(0) === "{" || raw.charAt(0) === "[") {
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (e) { throw new Error("El JSON de parámetros no es válido"); }
+      if (Array.isArray(parsed)) return { args: parsed.map((x) => String(x)) };
+      if (parsed && typeof parsed === "object") return { params: parsed };
+      throw new Error("Usá un objeto o una lista JSON");
+    }
+    return { args: raw.split(/\\r?\\n/).map((s) => s.trim()).filter(Boolean) };
+  }
+  async function runScript(id, extra) {
     try {
+      closeScriptArgs();
       setMsg("wb-script-msg", "Ejecutando…", true);
       showRunError("");
-      const j = await apiCall("POST", "/api/scripts/run", { id: id });
+      const body = Object.assign({ id: id }, extra || {});
+      const j = await apiCall("POST", "/api/scripts/run", body);
       const rows = j.rows || [];
       document.querySelector("[data-go=sql]")?.click();
       renderGrid(j.columns || [], rows);
@@ -835,7 +881,8 @@ export function workbenchScript() {
         return;
       }
       showRunError("");
-      setMsg("wb-sql-msg", "Script " + ((j.runner && j.runner.title) || id) + " · " + (j.rowCount || rows.length) + " filas", true);
+      const argsNote = j.argCount ? (" · " + j.argCount + " parámetros") : " · sin parámetros";
+      setMsg("wb-sql-msg", "Script " + ((j.runner && j.runner.title) || id) + " · " + (j.rowCount || rows.length) + " filas" + argsNote, true);
       setMsg("wb-script-msg", "Listo", true);
     } catch (e) {
       showRunError(e.message);
@@ -882,6 +929,20 @@ export function workbenchScript() {
       setMsg("wb-script-msg", "Creado " + (j.runner && j.runner.path), true);
       await loadScripts();
     } catch (e) { setMsg("wb-script-msg", e.message, false); }
+  });
+  document.getElementById("wb-script-args-go")?.addEventListener("click", () => {
+    try { runScript(pendingScriptId, scriptPayload(document.getElementById("wb-script-args")?.value)); }
+    catch (e) { setMsg("wb-script-msg", e.message, false); }
+  });
+  document.getElementById("wb-script-args-plain")?.addEventListener("click", () => runScript(pendingScriptId, {}));
+  document.getElementById("wb-script-args-close")?.addEventListener("click", closeScriptArgs);
+  document.getElementById("wb-script-args-modal")?.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "wb-script-args-modal") closeScriptArgs();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const modal = document.getElementById("wb-script-args-modal");
+    if (modal && !modal.hidden) { closeScriptArgs(); e.preventDefault(); }
   });
   if (api) {
     loadOrigins().catch((e) => setMsg("wb-origins-msg", e.message, false));

@@ -727,6 +727,9 @@ ${projectBarCss()}
   .script-item:hover { border-color:var(--acc); }
   .script-item strong { font-size:1rem; }
   .script-item .script-actions { display:flex; gap:.4rem; margin-top:.45rem; }
+  .script-args-sheet { width:min(560px,100%); height:auto; }
+  .script-args-body { padding:0 1.15rem 1.15rem; display:flex; flex-direction:column; gap:.75rem; }
+  .script-args-body textarea { min-height:140px; resize:vertical; width:100%; box-sizing:border-box; font:13px/1.45 Consolas,ui-monospace,monospace; color:var(--ink); background:#0c1118; border:1px solid var(--line); border-radius:10px; padding:.7rem .8rem; }
   .script-error { margin:.55rem .7rem 0; padding:.75rem .9rem; border-radius:10px; background:#3f1d1d; border:1px solid #7f1d1d; color:#fecaca; white-space:pre-wrap; word-break:break-word; font:12.5px/1.45 Consolas,ui-monospace,monospace; max-height:240px; overflow:auto; }
   .script-error[hidden] { display:none; }
   .fav-modal { position:fixed; inset:0; z-index:55; background:rgba(7,11,16,.72); display:flex; align-items:center; justify-content:center; padding:1.2rem; }

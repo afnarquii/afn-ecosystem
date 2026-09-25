@@ -176,13 +176,22 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_script',
     description:
-      'Catálogo de scripts Python/Node. Devuelve id, título y lenguaje, nunca la ruta ni el código (ahí pueden vivir tokens). action=list no ejecuta nada. action=run solo si el usuario pidió ese script por nombre. Si falla, el campo error trae el mensaje del proceso (por ejemplo un token vencido) y rows las filas si alcanzó a imprimir JSON. Mostrá ambos. No abras el archivo. No pidas credenciales.',
+      'Catálogo de scripts Python/Node. Devuelve id, título y lenguaje, nunca la ruta ni el código (ahí pueden vivir tokens). action=list no ejecuta nada. action=run solo si el usuario pidió ese script por nombre. Parámetros opcionales: args es una lista de strings (sys.argv / process.argv) y params es un objeto que llega como --clave valor. Si el usuario no dio parámetros, no mandes args ni params. Si falla, el campo error trae el mensaje del proceso y rows las filas si alcanzó a imprimir JSON. Mostrá ambos. No abras el archivo. No pidas credenciales.',
     inputSchema: {
       type: 'object',
       properties: {
         action: { type: 'string', description: 'list (default) o run' },
         id: { type: 'string', description: 'id o título registrado. Obligatorio si action=run' },
         limit: { type: 'number', description: 'Máximo de filas al ejecutar (default 80, tope 200)' },
+        args: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Argumentos posicionales opcionales. Omitir o [] = sin parámetros.',
+        },
+        params: {
+          type: 'object',
+          description: 'Parámetros con nombre opcionales. Cada clave llega al script como --clave valor. true llega como --clave. false se omite.',
+        },
       },
     },
   },

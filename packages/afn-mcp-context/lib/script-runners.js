@@ -126,8 +126,8 @@ export function removeScriptRunner(root, id) {
 }
 
 const STARTER = {
-  node: `const rows = [{ ok: true, fuente: "node" }];\nprocess.stdout.write(JSON.stringify(rows));\n`,
-  python: `import json\nrows = [{"ok": True, "fuente": "python"}]\nprint(json.dumps(rows))\n`,
+  node: `const args = process.argv.slice(2);\nconst rows = [{ ok: true, fuente: "node", args }];\nprocess.stdout.write(JSON.stringify(rows));\n`,
+  python: `import json, sys\nrows = [{"ok": True, "fuente": "python", "args": sys.argv[1:]}]\nprint(json.dumps(rows))\n`,
 };
 
 export function createScriptRunner(root, input = {}) {
@@ -199,11 +199,98 @@ function spawnCapture(cmd, args, cwd) {
   });
 }
 
-async function runFile(lang, abs, cwd) {
+const MAX_SCRIPT_ARGS = 40;
+const MAX_SCRIPT_ARG = 2000;
+
+function scalarArg(value) {
+  if (value == null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : null;
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
+/** args = posicionales. params = --clave valor. Vacío = el script corre sin parámetros. */
+export function buildScriptArgv(input = {}) {
+  const out = [];
+  const push = (text) => {
+    const value = String(text);
+    if (value.includes('\0')) return { ok: false, error: 'Un parámetro tiene un carácter nulo' };
+    if (value.length > MAX_SCRIPT_ARG) return { ok: false, error: 'Un parámetro supera 2000 caracteres' };
+    if (out.length >= MAX_SCRIPT_ARGS) return { ok: false, error: 'Demasiados parámetros (máximo 40)' };
+    out.push(value);
+    return null;
+  };
+  let params = input.params && typeof input.params === 'object' && !Array.isArray(input.params)
+    ? input.params
+    : null;
+  if (typeof input.params === 'string' && input.params.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(input.params);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { ok: false, error: 'params tiene que ser un objeto' };
+      }
+      params = parsed;
+    } catch {
+      return { ok: false, error: 'params no es JSON válido' };
+    }
+  }
+  if (params) {
+    for (const [rawKey, rawVal] of Object.entries(params)) {
+      const key = String(rawKey || '').trim().replace(/^-+/, '').slice(0, 80);
+      if (!key || key.includes('\0')) continue;
+      if (rawVal === false || rawVal == null) continue;
+      if (rawVal === true) {
+        const bad = push(`--${key}`);
+        if (bad) return bad;
+        continue;
+      }
+      const list = Array.isArray(rawVal) ? rawVal : [rawVal];
+      for (const item of list) {
+        const text = scalarArg(item);
+        if (text == null) continue;
+        const flag = push(`--${key}`);
+        if (flag) return flag;
+        const val = push(text);
+        if (val) return val;
+      }
+    }
+  }
+  let args = [];
+  if (Array.isArray(input.args)) args = input.args;
+  else if (typeof input.args === 'string' && input.args.trim()) {
+    const text = input.args.trim();
+    if (text.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) return { ok: false, error: 'args tiene que ser una lista' };
+        args = parsed;
+      } catch {
+        return { ok: false, error: 'args no es JSON válido' };
+      }
+    } else {
+      args = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  for (const item of args) {
+    const text = scalarArg(item);
+    if (text == null || text === '') continue;
+    const bad = push(text);
+    if (bad) return bad;
+  }
+  return { ok: true, argv: out };
+}
+
+async function runFile(lang, abs, cwd, argv) {
   const commands = lang === 'python' ? ['python', 'py', 'python3'] : ['node'];
+  const tail = [abs, ...(argv || [])];
   let last = null;
   for (const cmd of commands) {
-    const r = await spawnCapture(cmd, [abs], cwd);
+    const r = await spawnCapture(cmd, tail, cwd);
     if (r.missing) {
       last = r;
       continue;
@@ -241,7 +328,7 @@ function embeddedError(parsed) {
   return '';
 }
 
-export async function runScriptRunner(root, id, { limit } = {}) {
+export async function runScriptRunner(root, id, options = {}) {
   const key = String(id || '').trim();
   const runner = listScriptRunners(root).find((r) => r.id === key || r.title === key);
   if (!runner) {
@@ -253,8 +340,10 @@ export async function runScriptRunner(root, id, { limit } = {}) {
   if (!fs.existsSync(located.abs)) {
     return { ok: false, error: 'El archivo registrado ya no está en disco', rows: [], columns: [] };
   }
+  const built = buildScriptArgv(options);
+  if (!built.ok) return { ...built, rows: [], columns: [], ran: false };
   const cwd = located.external ? path.dirname(located.abs) : root;
-  const ran = await runFile(runner.lang, located.abs, cwd);
+  const ran = await runFile(runner.lang, located.abs, cwd, built.argv);
   const note = scriptOutputText(ran, located.abs);
   let parsed = null;
   const rawOut = String(ran.stdout || '').trim();
@@ -266,7 +355,7 @@ export async function runScriptRunner(root, id, { limit } = {}) {
     }
   }
   const table = parsed != null ? rowsFromScriptJson(parsed) : { columns: [], rows: [] };
-  const cap = Math.min(MAX_ROWS, Math.max(1, Number(limit) || 200));
+  const cap = Math.min(MAX_ROWS, Math.max(1, Number(options.limit) || 200));
   const rows = table.rows.slice(0, cap);
   const fromJson = embeddedError(parsed);
   const failed = !ran.ok || Boolean(fromJson) || parsed == null;
@@ -283,5 +372,6 @@ export async function runScriptRunner(root, id, { limit } = {}) {
     rows: outRows,
     rowCount: outRows.length,
     truncated: table.rows.length > cap,
+    argCount: built.argv.length,
   };
 }

@@ -7,6 +7,7 @@ import { handleContextTool } from '../lib/handle-tool.js';
 import { STEERING } from '../lib/setup.js';
 import { writeDashboard } from '../lib/dashboard.js';
 import {
+  buildScriptArgv,
   createScriptRunner,
   resolveScriptFile,
   runScriptRunner,
@@ -94,6 +95,31 @@ test('si el script falla se ve el error y también las filas, sin la ruta', asyn
   assert.equal(blob.includes(file), false);
 });
 
+test('los parámetros son opcionales y llegan como argv, sin devolver la ruta', async () => {
+  const root = tmp();
+  fs.writeFileSync(
+    path.join(root, 'eco.js'),
+    'process.stdout.write(JSON.stringify(process.argv.slice(2)))\n',
+  );
+  saveScriptRunner(root, { title: 'Eco', lang: 'node', path: 'eco.js' });
+  const plain = await handleContextTool(root, 'afn_script', { action: 'run', id: 'eco' });
+  assert.equal(plain.ok, true);
+  assert.equal(plain.argCount, 0);
+  assert.equal(plain.rows.length, 0);
+  const named = buildScriptArgv({ params: { desde: '2024-01-01', activo: true, oculto: false }, args: ['cliente-9'] });
+  assert.deepEqual(named.argv, ['--desde', '2024-01-01', '--activo', 'cliente-9']);
+  const ran = await handleContextTool(root, 'afn_script', {
+    action: 'run',
+    id: 'eco',
+    params: { desde: '2024-01-01', activo: true, oculto: false },
+    args: ['cliente-9'],
+  });
+  assert.equal(ran.ok, true);
+  assert.equal(ran.argCount, 4);
+  assert.deepEqual(ran.rows.map((r) => r.value), ['--desde', '2024-01-01', '--activo', 'cliente-9']);
+  assert.equal(JSON.stringify(ran).includes('eco.js'), false);
+});
+
 test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(STEERING, /afn_script/);
   assert.match(STEERING, /No abras ese archivo/);
@@ -105,4 +131,7 @@ test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(html, /wb-script-new/);
   assert.match(html, /id="wb-script-run"|data-script-run/);
   assert.match(html, /id="wb-run-error"/);
+  assert.match(html, /id="wb-script-args-modal"/);
+  assert.match(html, /Sin parámetros/);
+  assert.match(STEERING, /no inventes ninguno/);
 });

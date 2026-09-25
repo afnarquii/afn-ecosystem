@@ -104,11 +104,15 @@ async function runAfnScriptTool(base, args = {}) {
       ok: true,
       ran: false,
       runners,
-      hint: 'Solo id, título y lenguaje. No hay ruta ni código. No ejecutes un script salvo que el usuario lo pida por nombre. No abras el archivo.',
+      hint: 'Solo id, título y lenguaje. No hay ruta ni código. No ejecutes un script salvo que el usuario lo pida por nombre. No abras el archivo. Si pide parámetros, en run usá args (lista) o params (objeto). Si no pidió ninguno, no mandes args ni params.',
     };
   }
   const cap = Math.min(200, Math.max(1, Number(args.limit) || 80));
-  const r = await runScriptRunner(base, args.id || args.name || args.title, { limit: cap });
+  const r = await runScriptRunner(base, args.id || args.name || args.title, {
+    limit: cap,
+    args: args.args,
+    params: args.params,
+  });
   if (!r.ok) {
     const rows = compactSqlRows(r.rows, cap);
     return {
@@ -119,6 +123,7 @@ async function runAfnScriptTool(base, args = {}) {
       columns: r.columns || [],
       rowCount: rows.length,
       rows,
+      argCount: r.argCount || 0,
       runners,
       hint: 'Mostrá este error al usuario. Si hay filas, mostralas también. No leas el archivo ni pidas la ruta.',
     };
@@ -131,6 +136,7 @@ async function runAfnScriptTool(base, args = {}) {
     columns: r.columns,
     rowCount: rows.length,
     truncated: r.truncated === true,
+    argCount: r.argCount || 0,
     rows,
     hint: 'El usuario pidió este script. Mostrá las filas. No leas el archivo ni pidas tokens. No lo vuelvas a ejecutar si no lo pide.',
   };
