@@ -15,6 +15,7 @@ import { buildSnapshot, doctorAfn } from './snapshot.js';
 import { collectArchitectureEvidence, commitArchitecture, LLM_ARCHITECTURE_PROMPT } from './architecture-llm.js';
 import { collectDataSources, commitLiveSchema } from './data-sources.js';
 import { runDashboardSql } from './dashboard-query.js';
+import { listScriptRunners, runScriptRunner } from './script-runners.js';
 import { extractFileToMarkdown } from './extract-text.js';
 import {
   compactBootstrap,
@@ -93,6 +94,41 @@ async function runAfnSqlTool(base, args = {}) {
       .slice(0, 300);
   }
   return out;
+}
+
+async function runAfnScriptTool(base, args = {}) {
+  const action = String(args.action || 'list').toLowerCase();
+  const runners = listScriptRunners(base).map((r) => ({ id: r.id, title: r.title, lang: r.lang, path: r.path }));
+  if (action !== 'run') {
+    return {
+      ok: true,
+      ran: false,
+      runners,
+      hint: 'Solo el catálogo. No ejecutes un script salvo que el usuario lo pida por nombre. Entonces action=run e id.',
+    };
+  }
+  const cap = Math.min(200, Math.max(1, Number(args.limit) || 80));
+  const r = await runScriptRunner(base, args.id || args.name || args.title, { limit: cap });
+  if (!r.ok) {
+    return {
+      ok: false,
+      ran: false,
+      error: r.error,
+      runners,
+      hint: 'No inventes otra ruta. Si no está en la lista, decilo.',
+    };
+  }
+  const rows = compactSqlRows(r.rows, cap);
+  return {
+    ok: true,
+    ran: true,
+    runner: r.runner,
+    columns: r.columns,
+    rowCount: rows.length,
+    truncated: r.truncated === true,
+    rows,
+    hint: 'El usuario pidió este script. Mostrá las filas. No lo vuelvas a ejecutar si no lo pide.',
+  };
 }
 
 /**
@@ -197,6 +233,8 @@ export async function handleContextTool(root, name, args = {}) {
       return collectDataSources(base);
     case 'afn_sql':
       return runAfnSqlTool(base, args);
+    case 'afn_script':
+      return runAfnScriptTool(base, args);
     case 'afn_schema_commit':
       return commitLiveSchema(base, args);
     case 'afn_agent_assets':

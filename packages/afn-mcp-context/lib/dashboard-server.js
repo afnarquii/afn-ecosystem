@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { collectDashboard, buildHtml } from './dashboard.js';
 import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
+import { createScriptRunner, listScriptRunners, removeScriptRunner, runScriptRunner, saveScriptRunner } from './script-runners.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
 import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWorkspaceSkill } from './skill-library.js';
@@ -190,6 +191,27 @@ async function handleApi(state, token, req, res, url) {
     const raw = JSON.parse((await readBody(req)) || '{}');
     const favorites = saveSqlFavorites(root, raw.favorites);
     send(res, 200, { ok: true, favorites });
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/scripts') {
+    send(res, 200, { ok: true, runners: listScriptRunners(root) });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/scripts') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = raw.create ? createScriptRunner(root, raw) : saveScriptRunner(root, raw);
+    send(res, r.ok ? 200 : 400, r.ok ? r : { ok: false, error: r.error });
+    return;
+  }
+  if (req.method === 'DELETE' && route === '/api/scripts') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    send(res, 200, removeScriptRunner(root, raw.id));
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/scripts/run') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = await runScriptRunner(root, raw.id, { limit: raw.limit });
+    send(res, r.ok ? 200 : 400, r);
     return;
   }
   if (req.method === 'GET' && route === '/api/skills') {

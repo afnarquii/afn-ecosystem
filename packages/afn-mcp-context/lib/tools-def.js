@@ -174,6 +174,19 @@ export const CONTEXT_TOOLS = [
     },
   },
   {
+    name: 'afn_script',
+    description:
+      'Catálogo de scripts Python/Node que la persona registró en .afn/script-runners.json. action=list no ejecuta nada. action=run solo si el usuario pidió explícitamente ejecutar ese script o consultar la data que genera, con id o title. No lo uses por tu cuenta. No inventes rutas ni pases código.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'list (default) o run' },
+        id: { type: 'string', description: 'id o título registrado. Obligatorio si action=run' },
+        limit: { type: 'number', description: 'Máximo de filas al ejecutar (default 80, tope 200)' },
+      },
+    },
+  },
+  {
     name: 'afn_schema_commit',
     description:
       'Guarda esquema vivo (tablas, PAs, quién llama qué, ejemplo corto) en .afn/diagrams/datos.md y ARQUITECTURA.md §6b. Solo lo que el MCP de datos devolvió. No inventes columnas. No al abrir el proyecto.',

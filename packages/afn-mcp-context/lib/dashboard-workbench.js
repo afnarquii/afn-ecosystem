@@ -156,6 +156,19 @@ ORDER BY 1, 2;</textarea>
           </div>
         </div>
       </div>
+    </section>
+    <section data-view="scripts" hidden>
+      <h2>Scripts</h2>
+      <p class="lead">Python o Node que imprimen JSON por la salida. Se registran en <code>.afn/script-runners.json</code>. Kiro los ejecuta solo si se lo pedís por nombre.</p>
+      <div class="toolbar">
+        <input id="wb-script-title" placeholder="Nombre" style="min-width:10rem"/>
+        <select id="wb-script-lang"><option value="node">Node.js</option><option value="python">Python</option></select>
+        <input id="wb-script-path" placeholder="ruta relativa, ej. tools/informe.py" style="min-width:16rem"/>
+        <button type="button" class="btn" id="wb-script-add">Agregar archivo</button>
+        <button type="button" class="btn" id="wb-script-new">Crear nuevo</button>
+      </div>
+      <p id="wb-script-msg" class="muted"></p>
+      <div id="wb-script-list"></div>
     </section>`;
 }
 
@@ -163,7 +176,8 @@ export function workbenchNavButtons() {
   return `
       <button type="button" data-go="origenes">Orígenes</button>
       <button type="button" data-go="esquema">Elegir tablas/PAs</button>
-      <button type="button" data-go="sql">SQL</button>`;
+      <button type="button" data-go="sql">SQL</button>
+      <button type="button" data-go="scripts">Scripts</button>`;
 }
 
 export function workbenchScript() {
@@ -172,7 +186,7 @@ export function workbenchScript() {
   const verEl = document.getElementById("wb-ver");
   const ver = document.body.getAttribute("data-afn-version") || "";
   if (verEl) verEl.textContent = api
-    ? ("v" + ver + " · 127.0.0.1 — Orígenes, SQL y Skills")
+    ? ("v" + ver + " · 127.0.0.1 — Orígenes, SQL, Scripts y Skills")
     : ("v" + ver + " · archivo local (sin SQL). Pedí «abre dashboard AFN» otra vez.");
   const warn = document.getElementById("wb-api-warn");
   if (warn && !api) warn.hidden = false;
@@ -735,8 +749,64 @@ export function workbenchScript() {
       openFavModal();
     } catch (e) { setMsg("wb-sql-msg", e.message, false); }
   });
+  function paintScripts(list) {
+    const box = document.getElementById("wb-script-list");
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = "<p class=muted>Ninguno todavía. Creá uno nuevo o agregá un .py / .js del proyecto.</p>";
+      return;
+    }
+    box.innerHTML = list.map((r) => "<div class=toolbar data-q=\\"" + favEsc(r.title) + "\\"><strong>" + favEsc(r.title) + "</strong><span class=muted>" + favEsc(r.lang) + " · " + favEsc(r.path) + "</span><button type=button class=btn data-script-run=\\"" + favEsc(r.id) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div>").join("");
+    box.querySelectorAll("[data-script-run]").forEach((btn) => btn.addEventListener("click", () => runScript(btn.getAttribute("data-script-run"))));
+    box.querySelectorAll("[data-script-del]").forEach((btn) => btn.addEventListener("click", () => dropScript(btn.getAttribute("data-script-del"))));
+  }
+  async function loadScripts() {
+    if (!api) return;
+    const j = await apiCall("GET", "/api/scripts");
+    paintScripts(j.runners || []);
+  }
+  async function runScript(id) {
+    try {
+      setMsg("wb-script-msg", "Ejecutando…", true);
+      const j = await apiCall("POST", "/api/scripts/run", { id: id });
+      document.querySelector("[data-go=sql]")?.click();
+      renderGrid(j.columns || [], j.rows || []);
+      setMsg("wb-sql-msg", "Script " + ((j.runner && j.runner.title) || id) + " · " + (j.rowCount || (j.rows || []).length) + " filas", true);
+    } catch (e) { setMsg("wb-script-msg", e.message, false); }
+  }
+  async function dropScript(id) {
+    if (!confirm("Quitar el script del catálogo? El archivo no se borra.")) return;
+    try {
+      await apiCall("DELETE", "/api/scripts", { id: id });
+      setMsg("wb-script-msg", "Quitado del catálogo", true);
+      await loadScripts();
+    } catch (e) { setMsg("wb-script-msg", e.message, false); }
+  }
+  document.getElementById("wb-script-add")?.addEventListener("click", async () => {
+    try {
+      await apiCall("POST", "/api/scripts", {
+        title: document.getElementById("wb-script-title").value,
+        lang: document.getElementById("wb-script-lang").value,
+        path: document.getElementById("wb-script-path").value,
+      });
+      setMsg("wb-script-msg", "Agregado a .afn/script-runners.json", true);
+      await loadScripts();
+    } catch (e) { setMsg("wb-script-msg", e.message, false); }
+  });
+  document.getElementById("wb-script-new")?.addEventListener("click", async () => {
+    try {
+      const j = await apiCall("POST", "/api/scripts", {
+        create: true,
+        title: document.getElementById("wb-script-title").value,
+        lang: document.getElementById("wb-script-lang").value,
+      });
+      setMsg("wb-script-msg", "Creado " + (j.runner && j.runner.path), true);
+      await loadScripts();
+    } catch (e) { setMsg("wb-script-msg", e.message, false); }
+  });
   if (api) {
     loadOrigins().catch((e) => setMsg("wb-origins-msg", e.message, false));
+    loadScripts().catch(() => {});
     loadSchema().catch(() => {});
     loadFavs().catch(() => {});
     apiCall("GET", "/api/health").then((j) => {
