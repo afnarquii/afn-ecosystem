@@ -8,6 +8,7 @@ Mapa y memoria de **`.afn/`** para cualquier agente con MCP. **Kiro es el ejempl
 - Prioridad: **bajar tokens** (snapshot chico, no reexplorar el monorepo).
 
 Paquete: [`packages/afn-mcp-context`](../../packages/afn-mcp-context/)  
+Guía: [`GUIA.md`](../../packages/afn-mcp-context/GUIA.md)  
 Skill: [`skills/skill-afn-context/SKILL.md`](../../skills/skill-afn-context/SKILL.md)  
 MCP descriptor: [`mcps/context/afn-mcp-context.json`](../../mcps/context/afn-mcp-context.json)
 
@@ -198,6 +199,9 @@ node …/index.js setup claude
 ```
 
 `~/.claude/mcp.json` + bloque en `CLAUDE.md` del repo.
+
+Guía de comandos (init, dashboard, SQL, scripts, memoria):  
+[`packages/afn-mcp-context/GUIA.md`](../../packages/afn-mcp-context/GUIA.md)
 
 ## Ejemplo — otro LLM / IDE con MCP
 

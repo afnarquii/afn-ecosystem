@@ -14,7 +14,10 @@ Origen de datos: el init escribe `.afn/db-connections.json` (host/puerto/base, s
 
 Varios orígenes: `{ "byId": { "origen_1": { "DB_USER": "sa", "DB_PASSWORD": "TU_PASSWORD" } } }`. Mongo: `{ "MONGODB_URI": "mongodb://USER:PASSWORD@host:27017/db" }`.
 
-Guía de integración (Kiro / Cursor / Claude / genérico):  
+Guía de uso (init, dashboard, SQL, scripts Python/Node, Kiro y cualquier otro agente):  
+[`GUIA.md`](GUIA.md)
+
+Detalle de instalación del pack:  
 [`packs/pack-afn-context/README.md`](../../packs/pack-afn-context/README.md)
 
 ```bash
