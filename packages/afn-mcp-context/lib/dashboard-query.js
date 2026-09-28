@@ -254,7 +254,7 @@ export function saveSqlFavorites(root, favorites) {
     .map((f) => ({
       id: String(f.id || `fav_${Date.now()}`).slice(0, 40),
       title: String(f.title || 'consulta').slice(0, 80),
-      sql: String(f.sql || '').slice(0, 8000),
+      sql: String(f.sql || '').slice(0, 400000),
     }))
     .filter((f) => f.sql.trim());
   fs.mkdirSync(afnPath(root), { recursive: true });

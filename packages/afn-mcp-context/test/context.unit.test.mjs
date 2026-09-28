@@ -1104,8 +1104,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.45/);
-  assert.match(html, /data-afn-version="1\.4\.45"/);
+  assert.match(html, /v1\.4\.46/);
+  assert.match(html, /data-afn-version="1\.4\.46"/);
   assert.match(html, /wb-sql-marks/);
   assert.match(html, /wb-sql-find-sel/);
   assert.match(html, /data-go="comparar"/);
@@ -1191,7 +1191,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.45/);
+    assert.match(liveHtml, /v1\.4\.46/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
@@ -1231,6 +1231,10 @@ test('favoritos SQL se guardan en .afn y se pueden quitar', () => {
   const left = saveSqlFavorites(root, saved.filter((f) => f.id !== 'fav_1'));
   assert.equal(left.length, 0);
   assert.equal(loadSqlFavorites(root).length, 0);
+  const pa = Array.from({ length: 500 }, (_, i) => `-- linea ${i + 1}`).join('\n');
+  const long = saveSqlFavorites(root, [{ id: 'fav_pa', title: 'pa largo', sql: pa }]);
+  assert.equal(long[0].sql.split('\n').length, 500);
+  assert.equal(loadSqlFavorites(root)[0].sql, pa);
   saveSqlFavorites(root, [{ id: 'fav_1', title: 'tablas', sql: 'SELECT SUPERQUERY 1' }]);
   const snap = buildSnapshot(root);
   assert.equal(String(snap.markdown || '').includes('SUPERQUERY'), false);
