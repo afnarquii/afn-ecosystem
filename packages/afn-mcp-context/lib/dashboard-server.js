@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { collectDashboard, buildHtml } from './dashboard.js';
-import { saveOriginsPack, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
+import { saveOriginsPack, saveOriginCredential, credentialLoginIndex, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
 import { createScriptRunner, listScriptRunners, removeScriptRunner, runScriptRunner, saveScriptRunner } from './script-runners.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
@@ -158,13 +158,27 @@ async function handleApi(state, token, req, res, url) {
       ok: true,
       connections: pack.connections || pack,
       credentials: inspectCredentialsFile(root),
+      logins: credentialLoginIndex(root),
     });
     return;
   }
   if (req.method === 'PUT' && route === '/api/origins') {
     const raw = JSON.parse((await readBody(req)) || '{}');
     const r = saveOriginsPack(root, raw.connections || raw);
-    send(res, r.ok ? 200 : 400, r);
+    if (!r.ok) {
+      send(res, 400, r);
+      return;
+    }
+    const creds = Array.isArray(raw.credentials) ? raw.credentials.slice(0, 10) : [];
+    for (const c of creds) {
+      if (!c || typeof c !== 'object') continue;
+      saveOriginCredential(root, c.id, { user: c.user, password: c.password });
+    }
+    send(res, 200, {
+      ...r,
+      credentials: inspectCredentialsFile(root),
+      logins: credentialLoginIndex(root),
+    });
     return;
   }
   if (req.method === 'GET' && route === '/api/schema') {

@@ -4,9 +4,8 @@ export function workbenchSections() {
   return `
     <section data-view="origenes" hidden>
       <h2>Orígenes de datos</h2>
-      <p class="lead">Hasta <strong>10</strong> SQL Server distintos. Cada uno se elige en la pestaña SQL. La contraseña <strong>no</strong> va acá: archivo <code>.afn/credentials/data-agent.json</code>.</p>
+      <p class="lead">Hasta <strong>10</strong> SQL Server. Cada uno se elige en la pestaña SQL. Usuario y contraseña son opcionales: si los cargás, quedan en <code>.afn/credentials/data-agent.json</code> y no se vuelven a mostrar.</p>
       <p id="wb-api-warn" class="muted" hidden style="color:#fbbf24">Esta pestaña no puede guardar: recargá con «abre dashboard AFN» (URL 127.0.0.1 con token).</p>
-      <p id="wb-origins-msg" class="muted" role="status"></p>
       <div class="toolbar" style="max-width:640px">
         <button type="button" class="btn" id="wb-origins-add">Nuevo origen</button>
         <span class="muted" id="wb-origins-count">0 / 10</span>
@@ -29,15 +28,20 @@ export function workbenchSections() {
         <input id="wb-o-port" type="number" placeholder="1433 / 5432 / 3306" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
         <label class="muted" style="display:block;margin:.6rem 0 .25rem">Base / database</label>
         <input id="wb-o-database" type="text" placeholder="nombre de la base" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Usuario (opcional)</label>
+        <input id="wb-o-user" type="text" autocomplete="off" placeholder="si lo cargás, se guarda en credentials" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
+        <label class="muted" style="display:block;margin:.6rem 0 .25rem">Contraseña (opcional)</label>
+        <input id="wb-o-pass" type="password" autocomplete="new-password" placeholder="vacío = no cambiar la que ya está" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
         <div class="toolbar" style="margin-top:1rem">
-          <button type="button" class="btn" id="wb-origins-save">Guardar orígenes</button>
+          <button type="button" class="btn" id="wb-origins-save">Guardar origen</button>
           <button type="button" class="btn" id="wb-origins-del">Eliminar este</button>
           <button type="button" class="btn" id="wb-origins-reload">Recargar</button>
+          <span id="wb-origins-msg" class="muted" role="status"></span>
         </div>
       </div>
       <div class="article" id="wb-cred-box" style="max-width:640px;margin-top:1.25rem">
         <h3>Contraseña — <code>.afn/credentials/data-agent.json</code></h3>
-        <p id="wb-cred-status" class="muted" role="status">Host/puerto/base van arriba. Acá solo usuario y password. El archivo no se versiona.</p>
+        <p id="wb-cred-status" class="muted" role="status">Si completás usuario o contraseña arriba, Guardar origen los escribe en este archivo. No se versiona y la contraseña no se vuelve a mostrar.</p>
         <p class="muted">Un solo SQL Server (el mismo usuario para todos):</p>
         <pre class="sql-ed" id="wb-cred-example">{
   "DB_USER": "sa",
@@ -311,7 +315,15 @@ export function workbenchScript() {
   let originsList = [];
   let originIdx = 0;
   let credSnap = null;
+  let loginSnap = {};
+  let originsLoadGen = 0;
+  let originsEditGen = 0;
   const ORIGIN_CAP = 10;
+  function markOriginEdit() { originsEditGen += 1; }
+  function loginFor(id) {
+    if (!id) return loginSnap["*"] || null;
+    return loginSnap[id] || loginSnap["*"] || null;
+  }
   function fillOriginForm(c) {
     const x = c || {};
     const name = document.getElementById("wb-o-name");
@@ -319,6 +331,8 @@ export function workbenchScript() {
     const host = document.getElementById("wb-o-host");
     const port = document.getElementById("wb-o-port");
     const database = document.getElementById("wb-o-database");
+    const user = document.getElementById("wb-o-user");
+    const pass = document.getElementById("wb-o-pass");
     const idline = document.getElementById("wb-o-idline");
     if (name) name.value = x.name || x.connectionName || "";
     const eng = String(x.engine || x.dbEngine || "sqlserver").toLowerCase();
@@ -326,7 +340,13 @@ export function workbenchScript() {
     if (host) host.value = x.host || x.server || "";
     if (port) port.value = x.port || "";
     if (database) database.value = x.database || "";
-    if (idline) idline.textContent = x.id ? ("id: " + x.id + "  ·  usalo en byId si este SQL Server tiene otro usuario") : "id: —";
+    const login = loginFor(x.id);
+    if (user) user.value = (login && login.user) || "";
+    if (pass) {
+      pass.value = "";
+      pass.placeholder = login && login.hasPassword ? "ya hay una, vacío = no cambiar" : "opcional";
+    }
+    if (idline) idline.textContent = x.id ? ("id: " + x.id) : "id: —";
   }
   function formToOrigin(prev) {
     const engine = (document.getElementById("wb-o-engine")?.value || "sqlserver").trim();
@@ -408,14 +428,19 @@ export function workbenchScript() {
     renderCredStatus(credSnap);
   }
   function selectOrigin(i) {
+    markOriginEdit();
     commitOriginForm();
     originIdx = i;
     renderOriginsUi();
   }
   async function loadOrigins() {
+    const gen = ++originsLoadGen;
+    const seen = originsEditGen;
     const j = await apiCall("GET", "/api/origins");
+    if (gen !== originsLoadGen || seen !== originsEditGen) return;
     originsList = Array.isArray(j.connections) ? j.connections.slice(0, ORIGIN_CAP) : [];
     credSnap = j.credentials || null;
+    loginSnap = j.logins && typeof j.logins === "object" ? j.logins : {};
     if (originIdx >= originsList.length) originIdx = Math.max(0, originsList.length - 1);
     renderOriginsUi();
   }
@@ -424,7 +449,11 @@ export function workbenchScript() {
     if (!btn) return;
     selectOrigin(Number(btn.getAttribute("data-oi")) || 0);
   });
+  ["wb-o-name", "wb-o-engine", "wb-o-host", "wb-o-port", "wb-o-database", "wb-o-user", "wb-o-pass"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", markOriginEdit);
+  });
   document.getElementById("wb-origins-add")?.addEventListener("click", () => {
+    markOriginEdit();
     if (originsList.length >= ORIGIN_CAP) {
       setMsg("wb-origins-msg", "Máximo 10 orígenes.", false);
       return;
@@ -458,6 +487,7 @@ export function workbenchScript() {
     setMsg("wb-origins-msg", "Origen nuevo. Completá host y base, y guardá.", true);
   });
   document.getElementById("wb-origins-del")?.addEventListener("click", () => {
+    markOriginEdit();
     if (!originsList.length) return;
     commitOriginForm();
     const gone = originsList[originIdx];
@@ -468,11 +498,13 @@ export function workbenchScript() {
   });
   document.getElementById("wb-origins-reload")?.addEventListener("click", () => loadOrigins().then(() => setMsg("wb-origins-msg","Recargado",true)).catch((e) => setMsg("wb-origins-msg", e.message, false)));
   document.getElementById("wb-origins-save")?.addEventListener("click", async () => {
+    setMsg("wb-origins-msg", "Guardando…", true);
     try {
+      markOriginEdit();
       if (!originsList.length) {
         const draft = formToOrigin({ id: "origen_1" });
         if (!draft.host && !draft.database) {
-          setMsg("wb-origins-msg", "Falta host o database", false);
+          setMsg("wb-origins-msg", "Falta host o database.", false);
           return;
         }
         originsList = [draft];
@@ -484,15 +516,25 @@ export function workbenchScript() {
         setMsg("wb-origins-msg", "Máximo 10 orígenes.", false);
         return;
       }
-      const bad = originsList.find((c) => !c.host && !c.database);
-      if (bad) {
-        setMsg("wb-origins-msg", "A " + (bad.name || bad.id) + " le falta host o database.", false);
+      const badAt = originsList.findIndex((c) => !String(c.host || "").trim() && !String(c.database || "").trim());
+      if (badAt >= 0) {
+        originIdx = badAt;
+        renderOriginsUi();
+        setMsg("wb-origins-msg", "A " + (originsList[badAt].name || originsList[badAt].id) + " le falta host o database.", false);
         return;
       }
-      const j = await apiCall("PUT", "/api/origins", { connections: originsList });
-      setMsg("wb-origins-msg", "Guardados " + (j.count || originsList.length) + " orígenes. La contraseña sigue en el archivo de credenciales.", true);
+      const cur = originsList[originIdx] || originsList[0];
+      const user = (document.getElementById("wb-o-user")?.value || "").trim();
+      const password = document.getElementById("wb-o-pass")?.value || "";
+      const credentials = (user || password) && cur && cur.id ? [{ id: cur.id, user: user, password: password }] : [];
+      const j = await apiCall("PUT", "/api/origins", { connections: originsList, credentials: credentials });
+      const credBit = credentials.length
+        ? (password ? " Usuario y contraseña guardados en credentials." : " Usuario guardado en credentials.")
+        : "";
+      setMsg("wb-origins-msg", "Guardado " + (cur.name || cur.id) + " (" + (j.count || originsList.length) + " orígenes)." + credBit, true);
+      markOriginEdit();
       await loadOrigins();
-    } catch (e) { setMsg("wb-origins-msg", e.message, false); }
+    } catch (e) { setMsg("wb-origins-msg", e.message || "No se pudo guardar", false); }
   });
   let schemaState = { live: { tables: [], procedures: [] }, selection: null, connectionId: "_default" };
   function tableName(t) { return String(t.name || t.fullName || ""); }

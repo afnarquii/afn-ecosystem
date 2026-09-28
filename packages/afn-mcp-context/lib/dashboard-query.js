@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { afnPath } from './paths.js';
 import { assertSafeReadonlySql } from './sql-safety.js';
 import { loadSqlDriver, driverProbe } from './sql-driver.js';
@@ -271,6 +272,51 @@ export function normalizeOriginsInput(raw) {
   return null;
 }
 
+/** Usuario por origen, sin devolver la contraseña. `*` es el login plano del archivo. */
+export function credentialLoginIndex(root) {
+  const cred = readJson(afnPath(root, 'credentials', 'data-agent.json')) || {};
+  const logins = {};
+  const add = (id, o) => {
+    if (!id || !o || typeof o !== 'object' || Array.isArray(o)) return;
+    const user = String(o.DB_USER || o.user || o.DB_USERNAME || '').slice(0, 120);
+    logins[String(id).slice(0, 80)] = {
+      user,
+      hasPassword: Boolean(o.DB_PASSWORD || o.password),
+    };
+  };
+  if (cred.byId && typeof cred.byId === 'object' && !Array.isArray(cred.byId)) {
+    for (const [id, v] of Object.entries(cred.byId)) add(id, v);
+  }
+  if (cred.connections && typeof cred.connections === 'object' && !Array.isArray(cred.connections)) {
+    for (const [id, v] of Object.entries(cred.connections)) add(id, v);
+  }
+  if (typeof cred.DB_USER === 'string' || typeof cred.DB_PASSWORD === 'string' || typeof cred.user === 'string' || typeof cred.password === 'string') {
+    add('*', cred);
+  }
+  return logins;
+}
+
+/** Guarda usuario y/o contraseña de un origen en `.afn/credentials/data-agent.json`. Vacío no pisa lo ya guardado. */
+export function saveOriginCredential(root, id, { user, password } = {}) {
+  const safeId = String(id || '').trim().slice(0, 80);
+  if (!safeId) return { ok: false, error: 'falta id' };
+  const userStr = String(user || '').trim().slice(0, 120);
+  const passStr = String(password ?? '');
+  if (!userStr && !passStr) return { ok: true, saved: false };
+  const file = afnPath(root, 'credentials', 'data-agent.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  let cred = readJson(file);
+  if (!cred || typeof cred !== 'object' || Array.isArray(cred)) cred = {};
+  if (!cred.byId || typeof cred.byId !== 'object' || Array.isArray(cred.byId)) cred.byId = {};
+  const prev = cred.byId[safeId] && typeof cred.byId[safeId] === 'object' ? cred.byId[safeId] : {};
+  const next = { ...prev };
+  if (userStr) next.DB_USER = userStr;
+  if (passStr) next.DB_PASSWORD = passStr;
+  cred.byId[safeId] = next;
+  fs.writeFileSync(file, `${JSON.stringify(cred, null, 2)}\n`, 'utf8');
+  return { ok: true, saved: true, id: safeId, hasUser: Boolean(next.DB_USER), hasPassword: Boolean(next.DB_PASSWORD) };
+}
+
 export function saveOriginsPack(root, connections) {
   const SECRET = /password|secret|token|connectionstring|connstr|pwd/i;
   const list = normalizeOriginsInput(connections);
@@ -279,7 +325,7 @@ export function saveOriginsPack(root, connections) {
   const clean = list.map((c, i) => {
     const o = c && typeof c === 'object' ? { ...c } : {};
     for (const k of Object.keys(o)) {
-      if (SECRET.test(k)) delete o[k];
+      if (SECRET.test(k) || /^(user|username|db_user|db_username)$/i.test(k)) delete o[k];
     }
     if (!o.id) o.id = `origen_${i + 1}`;
     if (!o.name) o.name = o.connectionName || o.database || o.host || o.id;

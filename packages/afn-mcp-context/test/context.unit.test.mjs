@@ -23,7 +23,7 @@ import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, sa
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
 import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
-import { saveOriginsPack, normalizeOriginsInput, inspectCredentialsFile, loadSqlFavorites, saveSqlFavorites } from '../lib/dashboard-query.js';
+import { saveOriginsPack, saveOriginCredential, credentialLoginIndex, normalizeOriginsInput, inspectCredentialsFile, loadSqlFavorites, saveSqlFavorites } from '../lib/dashboard-query.js';
 import { findInstalledDriver, loadSqlDriver, resetSqlDriverCache, resolvePackDriver } from '../lib/sql-driver.js';
 
 function tmp() {
@@ -1084,7 +1084,9 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /data-view="esquema"/);
   assert.match(html, /Ejecutar/);
   assert.match(html, /wb-o-host/);
-  assert.match(html, /Guardar orígenes/);
+  assert.match(html, /Guardar origen/);
+  assert.match(html, /id="wb-o-user"/);
+  assert.match(html, /id="wb-o-pass"/);
   assert.match(html, /DB_USER/);
   assert.match(html, /sql-ide/);
   assert.match(html, /sql-head/);
@@ -1104,8 +1106,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.49/);
-  assert.match(html, /data-afn-version="1\.4\.49"/);
+  assert.match(html, /v1\.4\.50/);
+  assert.match(html, /data-afn-version="1\.4\.50"/);
   assert.match(html, /id="wb-origins-add"/);
   assert.match(html, /id="wb-origins-list"/);
   assert.match(html, /selectNextSame/);
@@ -1188,6 +1190,25 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(gj.credentials.hasUser, true);
     assert.equal(gj.credentials.hasPassword, true);
     assert.equal(JSON.stringify(gj).includes('SuperSecretLeak'), false);
+    const withCred = await fetch(`http://127.0.0.1:${info.port}/api/origins`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        connections: [{ id: 'origen_2', name: 'Dos', host: 'h2', database: 'd2', dbEngine: 'sqlserver', user: 'no-en-conexion' }],
+        credentials: [{ id: 'origen_2', user: 'app', password: 'ClaveNueva99' }],
+      }),
+    });
+    const cj = await withCred.json();
+    assert.equal(cj.ok, true);
+    assert.equal(JSON.stringify(cj).includes('ClaveNueva99'), false);
+    assert.equal(cj.logins.origen_2.user, 'app');
+    assert.equal(cj.logins.origen_2.hasPassword, true);
+    const credFile = JSON.parse(fs.readFileSync(path.join(credDir, 'data-agent.json'), 'utf8'));
+    assert.equal(credFile.byId.origen_2.DB_USER, 'app');
+    assert.equal(credFile.byId.origen_2.DB_PASSWORD, 'ClaveNueva99');
+    const pack2 = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
+    assert.equal(JSON.stringify(pack2).includes('ClaveNueva99'), false);
+    assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
@@ -1195,7 +1216,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.49/);
+    assert.match(liveHtml, /v1\.4\.50/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
@@ -1288,6 +1309,20 @@ test('inspectCredentialsFile no filtra el password y detecta el shape', () => {
   const nested = inspectCredentialsFile(root);
   assert.equal(nested.shape, 'byId');
   assert.deepEqual(nested.ids, ['origen_1']);
+  const skipped = saveOriginCredential(root, 'origen_2', { user: '', password: '' });
+  assert.equal(skipped.saved, false);
+  const saved = saveOriginCredential(root, 'origen_2', { user: 'app', password: 'ClaveNueva99' });
+  assert.equal(saved.hasPassword, true);
+  assert.equal(JSON.stringify(saved).includes('ClaveNueva99'), false);
+  saveOriginCredential(root, 'origen_2', { user: 'app2', password: '' });
+  const file = JSON.parse(fs.readFileSync(path.join(dir, 'data-agent.json'), 'utf8'));
+  assert.equal(file.byId.origen_2.DB_USER, 'app2');
+  assert.equal(file.byId.origen_2.DB_PASSWORD, 'ClaveNueva99');
+  const idx = credentialLoginIndex(root);
+  assert.equal(idx.origen_2.user, 'app2');
+  assert.equal(JSON.stringify(idx).includes('ClaveNueva99'), false);
+  const snap = buildSnapshot(root);
+  assert.equal(String(snap.markdown || '').includes('ClaveNueva99'), false);
 });
 
 test('sql-driver encuentra mssql en node_modules del workspace, sin npm i en el producto', async () => {
