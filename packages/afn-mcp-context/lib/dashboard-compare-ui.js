@@ -20,6 +20,8 @@ export function compareSection() {
         <label class="cmp-check"><input id="cmp-json" type="checkbox" checked/> Formatear JSON</label>
         <label class="cmp-check"><input id="cmp-only" type="checkbox"/> Solo cambios</label>
         <button type="button" class="btn" id="cmp-mode">En línea</button>
+        <button type="button" class="btn" id="cmp-run">Ver diferencias</button>
+        <button type="button" class="btn" id="cmp-edit">Editar texto</button>
       </header>
       <div class="cmp-find">
         <input id="cmp-q" type="search" placeholder="Buscar en la comparación" autocomplete="off"/>
@@ -29,7 +31,11 @@ export function compareSection() {
         <span class="sql-inspect-spacer"></span>
         <span id="cmp-stats" class="muted"></span>
       </div>
-      <p class="cmp-note">Se lee acá, en el navegador. No se guarda y no entra al contexto del agente.</p>
+      <p class="cmp-note">Pegá texto o abrí un archivo. Se lee acá, en el navegador. No se guarda y no entra al contexto del agente.</p>
+      <div class="cmp-editors" id="cmp-editors">
+        <textarea id="cmp-ed-l" spellcheck="false" wrap="off" placeholder="Pegá o escribí el texto de la izquierda. También podés abrir un archivo."></textarea>
+        <textarea id="cmp-ed-r" spellcheck="false" wrap="off" placeholder="Pegá o escribí el texto de la derecha. También podés abrir un archivo."></textarea>
+      </div>
       <div class="cmp-scroll" id="cmp-scroll"></div>
     </section>`;
 }
@@ -45,6 +51,10 @@ export function compareCss() {
   .cmp-find { display:flex; gap:.35rem; align-items:center; padding:.35rem .5rem; border:1px solid var(--line); border-bottom:0; border-radius:12px 12px 0 0; background:#121a24; }
   .cmp-find input { flex:1; min-width:8rem; background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.35rem .55rem; font:13px Consolas,ui-monospace,monospace; }
   .cmp-note { margin:0; padding:.28rem .7rem; font-size:.72rem; color:var(--muted); background:#101820; border-left:1px solid var(--line); border-right:1px solid var(--line); }
+  .cmp-editors { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.45rem; }
+  .cmp-editors textarea { width:100%; height:100%; min-height:0; resize:none; border:1px solid var(--line); border-radius:12px; background:#0b1016; color:var(--ink); padding:.65rem .7rem; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; }
+  .cmp-ide.cmp-diffing .cmp-editors { display:none; }
+  .cmp-ide:not(.cmp-diffing) .cmp-scroll { display:none; }
   .cmp-scroll { flex:1; min-height:0; overflow:auto; border:1px solid var(--line); border-radius:0 0 12px 12px; background:#0b1016; scrollbar-width:thin; scrollbar-color:#5b6b7e #0e141c; }
   .cmp-scroll::-webkit-scrollbar { width:12px; height:12px; }
   .cmp-scroll::-webkit-scrollbar-thumb { background:#3d5166; border-radius:8px; }
@@ -172,7 +182,7 @@ export function compareScript() {
       const inline = box.classList.contains("inline");
       const q = String(document.getElementById("cmp-q")?.value || "").trim();
       if (!cmp.rows.length) {
-        box.innerHTML = "<div class=cmp-empty><p>Abrí un archivo a la izquierda y otro a la derecha, o soltalos sobre esta zona.</p><p>Si son JSON, se formatean para alinear claves. Buscar resalta y salta a la coincidencia. Solo cambios oculta las líneas iguales.</p></div>";
+        box.innerHTML = "<div class=cmp-empty><p>Pegá un texto en cada lado, o abrí un archivo, y tocá Ver diferencias.</p><p>Si son JSON, se formatean para alinear claves. Buscar resalta y salta a la coincidencia. Solo cambios oculta las líneas iguales.</p></div>";
         if (nEl) nEl.textContent = "";
         return;
       }
@@ -222,6 +232,33 @@ export function compareScript() {
       if (jump !== "stay") marks[cmp.hit]?.scrollIntoView({ block: "center", inline: "nearest" });
       if (nEl) nEl.textContent = (cmp.hit + 1) + " / " + marks.length;
     }
+    function cmpSection() {
+      return document.querySelector("section[data-view=comparar]");
+    }
+    function showEditors(on) {
+      cmpSection()?.classList.toggle("cmp-diffing", !on);
+    }
+    function pullEditors() {
+      const l = document.getElementById("cmp-ed-l");
+      const r = document.getElementById("cmp-ed-r");
+      if (l) l.value = cmp.left;
+      if (r) r.value = cmp.right;
+    }
+    function pushEditors() {
+      const l = document.getElementById("cmp-ed-l");
+      const r = document.getElementById("cmp-ed-r");
+      if (l) cmp.left = l.value || "";
+      if (r) cmp.right = r.value || "";
+    }
+    function markPasted(side) {
+      const isL = side === "l";
+      const key = isL ? "leftName" : "rightName";
+      const plain = isL ? "Texto izquierdo" : "Texto derecho";
+      const current = cmp[key];
+      if (!current || current === "Izquierda" || current === "Derecha" || current === "sin archivo") cmp[key] = plain;
+      const el = document.getElementById(isL ? "cmp-name-l" : "cmp-name-r");
+      if (el && cmp[key] === plain) el.textContent = plain;
+    }
     function readFile(file, side) {
       if (!file) return;
       const reader = new FileReader();
@@ -231,23 +268,60 @@ export function compareScript() {
         else { cmp.right = text; cmp.rightName = file.name || "Derecha"; }
         const name = document.getElementById(side === "l" ? "cmp-name-l" : "cmp-name-r");
         if (name) name.textContent = file.name || "archivo";
+        pullEditors();
+        showEditors(false);
         runDiff();
       };
       reader.readAsText(file);
+    }
+    function bindDrop(el, side) {
+      if (!el) return;
+      el.addEventListener("dragover", (e) => { e.preventDefault(); });
+      el.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!file) return;
+        readFile(file, side);
+      });
     }
     document.getElementById("cmp-open-l")?.addEventListener("click", () => document.getElementById("cmp-file-l")?.click());
     document.getElementById("cmp-open-r")?.addEventListener("click", () => document.getElementById("cmp-file-r")?.click());
     document.getElementById("cmp-file-l")?.addEventListener("change", (e) => readFile(e.target.files && e.target.files[0], "l"));
     document.getElementById("cmp-file-r")?.addEventListener("change", (e) => readFile(e.target.files && e.target.files[0], "r"));
     document.getElementById("cmp-swap")?.addEventListener("click", () => {
+      pushEditors();
       const L = cmp.left; cmp.left = cmp.right; cmp.right = L;
       const N = cmp.leftName; cmp.leftName = cmp.rightName; cmp.rightName = N;
       const nl = document.getElementById("cmp-name-l");
       const nr = document.getElementById("cmp-name-r");
       if (nl) nl.textContent = cmp.left ? cmp.leftName : "sin archivo";
       if (nr) nr.textContent = cmp.right ? cmp.rightName : "sin archivo";
-      runDiff();
+      pullEditors();
+      if (cmpSection()?.classList.contains("cmp-diffing")) runDiff();
     });
+    function compareNow() {
+      pushEditors();
+      showEditors(false);
+      runDiff();
+    }
+    function onEditorKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        compareNow();
+      }
+    }
+    document.getElementById("cmp-ed-l")?.addEventListener("input", () => markPasted("l"));
+    document.getElementById("cmp-ed-r")?.addEventListener("input", () => markPasted("r"));
+    document.getElementById("cmp-ed-l")?.addEventListener("keydown", onEditorKey);
+    document.getElementById("cmp-ed-r")?.addEventListener("keydown", onEditorKey);
+    document.getElementById("cmp-run")?.addEventListener("click", compareNow);
+    document.getElementById("cmp-edit")?.addEventListener("click", () => {
+      pullEditors();
+      showEditors(true);
+      document.getElementById("cmp-ed-l")?.focus();
+    });
+    bindDrop(document.getElementById("cmp-ed-l"), "l");
+    bindDrop(document.getElementById("cmp-ed-r"), "r");
     document.getElementById("cmp-json")?.addEventListener("change", runDiff);
     document.getElementById("cmp-only")?.addEventListener("change", () => paintCmp("reset"));
     document.getElementById("cmp-mode")?.addEventListener("click", () => {
