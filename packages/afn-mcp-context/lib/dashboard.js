@@ -718,6 +718,13 @@ ${projectBarScript()}
   .sql-code { display:grid; grid-template-columns:3.4rem minmax(0,1fr); flex:1; min-height:0; min-width:0; }
   .sql-stage { position:relative; min-width:0; min-height:0; overflow:hidden; background:#0b1016; }
   .sql-caretline { position:absolute; left:0; right:0; background:rgba(30,58,95,.45); pointer-events:none; z-index:0; }
+  .sql-marks { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+  .sql-mark { position:absolute; border-radius:2px; }
+  .sql-mark.sel { background:rgba(38,79,120,.72); }
+  .sql-mark.scope { background:rgba(37,99,235,.16); outline:1px solid rgba(96,165,250,.75); }
+  .sql-mark.hit { background:rgba(234,179,8,.38); }
+  .sql-mark.hit.on { background:rgba(245,158,11,.9); }
+  .sql-findbar .btn.on { background:#1e3a5f; border-color:#60a5fa; color:#e0f2fe; }
   .sql-editor-wrap.fs, .sql-results.fs { position:fixed; inset:0; z-index:42; width:100vw; height:100vh; max-height:none; max-width:100vw; min-height:0; min-width:0; resize:none; border:0; border-radius:0; background:#0b1016; overflow:hidden; }
   .sql-gutter { background:#0e1620; color:#5b6b7e; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; text-align:right; padding:.75rem .45rem 0; user-select:none; overflow:hidden; white-space:pre; }
   .sql-gutter .ln { display:block; }
@@ -809,6 +816,11 @@ ${projectBarCss()}
   .fav-preview { display:flex; flex-direction:column; min-width:0; min-height:0; }
   .fav-preview-bar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.55rem .75rem; border-bottom:1px solid var(--line); font-size:.82rem; }
   .fav-preview-sql { margin:0; padding:1rem 1.1rem; overflow:auto; flex:1; font:13px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#e5e7eb; white-space:pre; background:#0b1016; }
+  .fav-code { display:grid; grid-template-columns:3.4rem minmax(0,1fr); flex:1; min-height:0; min-width:0; background:#0b1016; }
+  .fav-code .sql-stage { position:relative; min-width:0; min-height:0; overflow:hidden; background:#0b1016; }
+  .fav-code .sql-gutter { overflow:hidden; }
+  #wb-sql-fav-ed.sql-ed { position:absolute; inset:0; z-index:2; min-height:0; width:100%; height:100%; border:0; border-radius:0; resize:none; overflow:auto; padding:.75rem .9rem; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; color:transparent; caret-color:#f8fafc; background:transparent; outline:none; white-space:pre; tab-size:2; font-variant-ligatures:none; }
+  #wb-sql-fav-ed.sql-ed::selection { background:rgba(37,99,235,.55); color:transparent; }
   .fav-read { display:grid; grid-template-columns:3.4rem minmax(0,1fr); flex:1; min-height:0; overflow:auto; background:#0b1016; scrollbar-width:thin; scrollbar-color:#5b6b7e #0e141c; }
   .fav-read::-webkit-scrollbar { width:12px; height:12px; }
   .fav-read::-webkit-scrollbar-thumb { background:#3d5166; border-radius:8px; }

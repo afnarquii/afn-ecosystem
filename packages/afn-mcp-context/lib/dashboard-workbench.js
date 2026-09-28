@@ -96,6 +96,8 @@ export function workbenchSections() {
           </div>
           <div class="sql-findbar" id="wb-sql-findbar" hidden>
             <input id="wb-sql-find" type="search" placeholder="Buscar en la consulta" autocomplete="off"/>
+            <button type="button" class="btn" id="wb-sql-find-case" title="Coincidir mayúsculas y minúsculas">Aa</button>
+            <button type="button" class="btn" id="wb-sql-find-sel" title="Buscar solo en lo seleccionado. Apagado: busca en toda la consulta.">En selección</button>
             <button type="button" class="btn" id="wb-sql-find-prev">Anterior</button>
             <button type="button" class="btn" id="wb-sql-find-next">Siguiente</button>
             <span id="wb-sql-find-n" class="muted"></span>
@@ -105,6 +107,7 @@ export function workbenchSections() {
             <pre class="sql-gutter" id="wb-sql-gutter">1</pre>
             <div class="sql-stage">
               <div class="sql-caretline" id="wb-sql-caretline"></div>
+              <div class="sql-marks" id="wb-sql-marks" aria-hidden="true"></div>
               <pre class="sql-hl" id="wb-sql-hl" aria-hidden="true"></pre>
               <textarea id="wb-sql-ed" spellcheck="false" class="sql-ed" wrap="off" autocomplete="off" autocorrect="off" autocapitalize="off">-- SELECT o EXEC de un PA de consulta. F5 / Ctrl+Enter.
 -- EXEC dbo.NombrePA @param = 1;
@@ -182,12 +185,27 @@ ORDER BY 1, 2;</textarea>
                 <span id="wb-sql-fav-preview-title">Elegí una consulta</span>
                 <span id="wb-sql-fav-lines" class="muted"></span>
                 <span class="sql-inspect-spacer"></span>
+                <button type="button" class="btn" id="wb-sql-fav-find-open" title="Buscar en el favorito (Ctrl+F)">Buscar</button>
                 <button type="button" class="btn btn-run" id="wb-sql-fav-load" disabled>Cargar en el editor</button>
                 <button type="button" class="btn" id="wb-sql-fav-del" disabled>Quitar</button>
               </div>
-              <div class="fav-read" id="wb-sql-fav-read">
+              <div class="sql-findbar" id="wb-sql-fav-findbar" hidden>
+                <input id="wb-sql-fav-find" type="search" placeholder="Buscar en el favorito" autocomplete="off"/>
+                <button type="button" class="btn" id="wb-sql-fav-find-case" title="Coincidir mayúsculas y minúsculas">Aa</button>
+                <button type="button" class="btn" id="wb-sql-fav-find-sel" title="Buscar solo en lo seleccionado. Apagado: busca en todo el favorito.">En selección</button>
+                <button type="button" class="btn" id="wb-sql-fav-find-prev">Anterior</button>
+                <button type="button" class="btn" id="wb-sql-fav-find-next">Siguiente</button>
+                <span id="wb-sql-fav-find-n" class="muted"></span>
+                <button type="button" class="btn" id="wb-sql-fav-find-close">Cerrar</button>
+              </div>
+              <div class="fav-code" id="wb-sql-fav-code">
                 <pre class="sql-gutter" id="wb-sql-fav-gutter"><span class="ln">1</span></pre>
-                <pre class="sql-hl" id="wb-sql-fav-preview">Seleccioná una consulta de la lista para previsualizarla.</pre>
+                <div class="sql-stage">
+                  <div class="sql-caretline" id="wb-sql-fav-caret"></div>
+                  <div class="sql-marks" id="wb-sql-fav-marks" aria-hidden="true"></div>
+                  <pre class="sql-hl" id="wb-sql-fav-preview">Seleccioná una consulta de la lista para previsualizarla.</pre>
+                  <textarea id="wb-sql-fav-ed" class="sql-ed" readonly spellcheck="false" wrap="off" autocomplete="off"></textarea>
+                </div>
               </div>
             </div>
           </div>
@@ -527,6 +545,7 @@ export function workbenchScript() {
       bar.style.height = lh + "px";
       bar.style.top = ((info.line - 1) * lh + pad - ta.scrollTop) + "px";
     }
+    paintMarks();
   }
   function paintSqlEditor() {
     const ta = document.getElementById("wb-sql-ed");
@@ -599,22 +618,105 @@ export function workbenchScript() {
     ta.focus();
   }
   let sqlFindAt = 0;
+  let sqlFindInSel = false;
+  let sqlFindScope = null;
+  let sqlFindCase = false;
+  let sqlCw = 0;
+  function sqlCharWidth() {
+    if (sqlCw) return sqlCw;
+    const c = document.createElement("canvas");
+    const ctx = c.getContext && c.getContext("2d");
+    if (!ctx) return 8.1;
+    ctx.font = "13.5px Consolas, Cascadia Mono, monospace";
+    sqlCw = ctx.measureText("0000000000").width / 10;
+    return sqlCw || 8.1;
+  }
+  function sqlLineAt(text, pos) {
+    let n = 0;
+    const stop = Math.min(pos, text.length);
+    for (let i = 0; i < stop; i += 1) if (text[i] === "\\n") n += 1;
+    return n;
+  }
+  function sqlColAt(text, pos) {
+    const cut = text.slice(0, pos);
+    const i = cut.lastIndexOf("\\n");
+    return pos - (i + 1);
+  }
+  function sqlBoxes(text, start, end, ta) {
+    const a = Math.max(0, Math.min(start, end));
+    const b = Math.min(text.length, Math.max(start, end));
+    if (b <= a) return [];
+    const cs = getComputedStyle(ta);
+    const padX = parseFloat(cs.paddingLeft) || 0;
+    const padY = parseFloat(cs.paddingTop) || 0;
+    const lh = 21;
+    const cw = sqlCharWidth();
+    const lines = text.split("\\n");
+    const lineA = sqlLineAt(text, a);
+    const lineB = sqlLineAt(text, b);
+    const out = [];
+    for (let line = lineA; line <= lineB; line += 1) {
+      const colA = line === lineA ? sqlColAt(text, a) : 0;
+      const colB = line === lineB ? sqlColAt(text, b) : (lines[line] || "").length;
+      out.push({
+        top: padY + line * lh - ta.scrollTop,
+        left: padX + colA * cw - ta.scrollLeft,
+        width: Math.max((colB - colA) * cw, 2),
+        height: lh,
+      });
+    }
+    return out;
+  }
+  function paintFindToggles() {
+    document.getElementById("wb-sql-find-sel")?.classList.toggle("on", sqlFindInSel);
+    document.getElementById("wb-sql-find-case")?.classList.toggle("on", sqlFindCase);
+  }
   function sqlFindHits() {
     const ta = document.getElementById("wb-sql-ed");
     const q = String(document.getElementById("wb-sql-find")?.value || "");
     if (!ta || !q) return [];
     const text = ta.value;
-    const low = text.toLowerCase();
-    const needle = q.toLowerCase();
+    const hay = sqlFindCase ? text : text.toLowerCase();
+    const needle = sqlFindCase ? q : q.toLowerCase();
+    const lo = sqlFindInSel && sqlFindScope ? sqlFindScope.start : 0;
+    const hi = sqlFindInSel && sqlFindScope ? sqlFindScope.end : text.length;
     const hits = [];
-    let from = 0;
-    while (from < text.length) {
-      const at = low.indexOf(needle, from);
-      if (at < 0) break;
+    let from = lo;
+    while (from < hi) {
+      const at = hay.indexOf(needle, from);
+      if (at < 0 || at >= hi || at + needle.length > hi) break;
       hits.push(at);
       from = at + Math.max(needle.length, 1);
     }
     return hits;
+  }
+  function paintMarks() {
+    const ta = document.getElementById("wb-sql-ed");
+    const box = document.getElementById("wb-sql-marks");
+    if (!ta || !box) return;
+    const text = ta.value || "";
+    const q = String(document.getElementById("wb-sql-find")?.value || "");
+    const bar = document.getElementById("wb-sql-findbar");
+    const finding = Boolean(bar && !bar.hidden && q);
+    const hits = finding ? sqlFindHits() : [];
+    const cur = finding && hits.length ? hits[(sqlFindAt % hits.length + hits.length) % hits.length] : -1;
+    let html = "";
+    function add(ranges, cls) {
+      ranges.forEach((r) => {
+        html += "<i class=\\"sql-mark " + cls + "\\" style=\\"top:" + r.top + "px;left:" + r.left + "px;width:" + r.width + "px;height:" + r.height + "px\\"></i>";
+      });
+    }
+    if (sqlFindInSel && sqlFindScope) add(sqlBoxes(text, sqlFindScope.start, sqlFindScope.end, ta), "scope");
+    hits.forEach((at) => {
+      if (at === cur) return;
+      add(sqlBoxes(text, at, at + q.length, ta), "hit");
+    });
+    const ss = ta.selectionStart || 0;
+    const se = ta.selectionEnd || 0;
+    const selIsHit = cur >= 0 && ss === cur && se === cur + q.length;
+    if (ss !== se && !selIsHit) add(sqlBoxes(text, ss, se, ta), "sel");
+    if (cur >= 0) add(sqlBoxes(text, cur, cur + q.length, ta), "hit on");
+    box.innerHTML = html;
   }
   function jumpSqlFind(dir) {
     const ta = document.getElementById("wb-sql-ed");
@@ -623,23 +725,51 @@ export function workbenchScript() {
     const hits = sqlFindHits();
     if (!ta || !q || !hits.length) {
       if (nEl) nEl.textContent = q ? "Sin coincidencias" : "";
+      sqlFindAt = 0;
+      paintMarks();
       return;
     }
     if (dir === "next") sqlFindAt = (sqlFindAt + 1) % hits.length;
     else if (dir === "prev") sqlFindAt = (sqlFindAt - 1 + hits.length) % hits.length;
     else {
-      const cur = ta.selectionStart || 0;
+      const cur = sqlFindInSel && sqlFindScope ? sqlFindScope.start : (ta.selectionStart || 0);
       let idx = 0;
       for (let h = 0; h < hits.length; h += 1) if (hits[h] >= cur) { idx = h; break; }
       sqlFindAt = idx;
     }
     const at = hits[sqlFindAt];
-    ta.focus();
     ta.setSelectionRange(at, at + q.length);
     const line = ta.value.slice(0, at).split("\\n").length;
     ta.scrollTop = Math.max(0, (line - 4) * 21);
-    if (nEl) nEl.textContent = (sqlFindAt + 1) + " / " + hits.length;
+    if (nEl) nEl.textContent = (sqlFindAt + 1) + " / " + hits.length + (sqlFindInSel ? " en la selección" : "");
     paintSqlEditor();
+  }
+  function closeSqlFind() {
+    const bar = document.getElementById("wb-sql-findbar");
+    if (bar) bar.hidden = true;
+    sqlFindInSel = false;
+    sqlFindScope = null;
+    paintFindToggles();
+    document.getElementById("wb-sql-ed")?.focus();
+    paintMarks();
+  }
+  function toggleFindSel() {
+    const ta = document.getElementById("wb-sql-ed");
+    const hasSel = ta && ta.selectionStart !== ta.selectionEnd;
+    const same = hasSel && sqlFindScope && ta.selectionStart === sqlFindScope.start && ta.selectionEnd === sqlFindScope.end;
+    if (sqlFindInSel && (!hasSel || same)) {
+      sqlFindInSel = false;
+      sqlFindScope = null;
+    } else if (hasSel) {
+      sqlFindInSel = true;
+      sqlFindScope = { start: ta.selectionStart, end: ta.selectionEnd };
+    } else {
+      setMsg("wb-sql-msg", "Seleccioná un trozo de la consulta para buscar ahí.", false);
+      return;
+    }
+    paintFindToggles();
+    sqlFindAt = -1;
+    jumpSqlFind("reset");
   }
   function openSqlFind() {
     const bar = document.getElementById("wb-sql-findbar");
@@ -647,10 +777,18 @@ export function workbenchScript() {
     const ta = document.getElementById("wb-sql-ed");
     if (!bar) return;
     bar.hidden = false;
-    if (ta && ta.selectionStart !== ta.selectionEnd && input) {
+    if (ta && ta.selectionStart !== ta.selectionEnd) {
       const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
-      if (sel && sel.indexOf("\\n") < 0) input.value = sel.slice(0, 200);
+      if (sel.indexOf("\\n") >= 0) {
+        sqlFindInSel = true;
+        sqlFindScope = { start: ta.selectionStart, end: ta.selectionEnd };
+      } else if (sel && input) {
+        input.value = sel.slice(0, 200);
+        sqlFindInSel = false;
+        sqlFindScope = null;
+      }
     }
+    paintFindToggles();
     input?.focus();
     input?.select();
     sqlFindAt = -1;
@@ -785,6 +923,7 @@ export function workbenchScript() {
   sqlEd?.addEventListener("keyup", paintSqlEditor);
   document.addEventListener("selectionchange", () => {
     if (document.activeElement && document.activeElement.id === "wb-sql-ed") paintSqlEditor();
+    if (document.activeElement && document.activeElement.id === "wb-sql-fav-ed") paintFavChrome();
   });
   sqlEd?.addEventListener("keydown", (e) => {
     const acBox = document.getElementById("wb-sql-ac");
@@ -798,6 +937,7 @@ export function workbenchScript() {
     if (acOpen && (e.key === "Enter" || e.key === "Tab")) { e.preventDefault(); acceptAc(acIndex); return; }
     if (acOpen && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); hideAc(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); openSqlFind(); return; }
+    if (e.altKey && e.key.toLowerCase() === "l") { e.preventDefault(); toggleFindSel(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === " " || e.code === "Space")) { e.preventDefault(); showAc(true); return; }
     if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) { e.preventDefault(); runSql(); return; }
     if (e.key === "Tab") {
@@ -815,20 +955,22 @@ export function workbenchScript() {
     acceptAc(Number(btn.getAttribute("data-ac")));
   });
   document.getElementById("wb-sql-find-open")?.addEventListener("click", openSqlFind);
-  document.getElementById("wb-sql-find-close")?.addEventListener("click", () => {
-    const bar = document.getElementById("wb-sql-findbar");
-    if (bar) bar.hidden = true;
-    document.getElementById("wb-sql-ed")?.focus();
+  document.getElementById("wb-sql-find-close")?.addEventListener("click", closeSqlFind);
+  document.getElementById("wb-sql-find-sel")?.addEventListener("click", toggleFindSel);
+  document.getElementById("wb-sql-find-case")?.addEventListener("click", () => {
+    sqlFindCase = !sqlFindCase;
+    paintFindToggles();
+    sqlFindAt = -1;
+    jumpSqlFind("reset");
   });
   document.getElementById("wb-sql-find")?.addEventListener("input", () => { sqlFindAt = -1; jumpSqlFind("reset"); });
   document.getElementById("wb-sql-find-next")?.addEventListener("click", () => jumpSqlFind("next"));
   document.getElementById("wb-sql-find-prev")?.addEventListener("click", () => jumpSqlFind("prev"));
   document.getElementById("wb-sql-find")?.addEventListener("keydown", (e) => {
+    if (e.altKey && e.key.toLowerCase() === "l") { e.preventDefault(); toggleFindSel(); return; }
     if (e.key === "Escape") {
       e.preventDefault();
-      const bar = document.getElementById("wb-sql-findbar");
-      if (bar) bar.hidden = true;
-      document.getElementById("wb-sql-ed")?.focus();
+      closeSqlFind();
       return;
     }
     if (e.key !== "Enter") return;
@@ -1065,18 +1207,179 @@ export function workbenchScript() {
   syncGutter();
   let favSelected = "";
   let favQuery = "";
-  function paintFavSql(sql) {
-    const pre = document.getElementById("wb-sql-fav-preview");
+  let favFindAt = 0;
+  let favFindInSel = false;
+  let favFindScope = null;
+  let favFindCase = false;
+  function paintFavFindToggles() {
+    document.getElementById("wb-sql-fav-find-sel")?.classList.toggle("on", favFindInSel);
+    document.getElementById("wb-sql-fav-find-case")?.classList.toggle("on", favFindCase);
+  }
+  function favFindHits() {
+    const ta = document.getElementById("wb-sql-fav-ed");
+    const q = String(document.getElementById("wb-sql-fav-find")?.value || "");
+    if (!ta || !q) return [];
+    const text = ta.value;
+    const hay = favFindCase ? text : text.toLowerCase();
+    const needle = favFindCase ? q : q.toLowerCase();
+    const lo = favFindInSel && favFindScope ? favFindScope.start : 0;
+    const hi = favFindInSel && favFindScope ? favFindScope.end : text.length;
+    const hits = [];
+    let from = lo;
+    while (from < hi) {
+      const at = hay.indexOf(needle, from);
+      if (at < 0 || at >= hi || at + needle.length > hi) break;
+      hits.push(at);
+      from = at + Math.max(needle.length, 1);
+    }
+    return hits;
+  }
+  function paintFavMarks() {
+    const ta = document.getElementById("wb-sql-fav-ed");
+    const box = document.getElementById("wb-sql-fav-marks");
+    if (!ta || !box) return;
+    const text = ta.value || "";
+    const q = String(document.getElementById("wb-sql-fav-find")?.value || "");
+    const bar = document.getElementById("wb-sql-fav-findbar");
+    const finding = Boolean(bar && !bar.hidden && q);
+    const hits = finding ? favFindHits() : [];
+    const cur = finding && hits.length ? hits[(favFindAt % hits.length + hits.length) % hits.length] : -1;
+    let html = "";
+    function add(ranges, cls) {
+      ranges.forEach((r) => {
+        html += "<i class=\\"sql-mark " + cls + "\\" style=\\"top:" + r.top + "px;left:" + r.left + "px;width:" + r.width + "px;height:" + r.height + "px\\"></i>";
+      });
+    }
+    if (favFindInSel && favFindScope) add(sqlBoxes(text, favFindScope.start, favFindScope.end, ta), "scope");
+    hits.forEach((at) => {
+      if (at === cur) return;
+      add(sqlBoxes(text, at, at + q.length, ta), "hit");
+    });
+    const ss = ta.selectionStart || 0;
+    const se = ta.selectionEnd || 0;
+    const selIsHit = cur >= 0 && ss === cur && se === cur + q.length;
+    if (ss !== se && !selIsHit) add(sqlBoxes(text, ss, se, ta), "sel");
+    if (cur >= 0) add(sqlBoxes(text, cur, cur + q.length, ta), "hit on");
+    box.innerHTML = html;
+  }
+  function paintFavChrome() {
+    const ta = document.getElementById("wb-sql-fav-ed");
     const g = document.getElementById("wb-sql-fav-gutter");
+    const bar = document.getElementById("wb-sql-fav-caret");
+    const hl = document.getElementById("wb-sql-fav-preview");
+    if (!ta || !g) return;
+    const text = ta.value || "";
+    const info = caretPos(ta);
+    const n = Math.max(1, text ? text.split("\\n").length : 1);
+    g.innerHTML = Array.from({ length: n }, (_, i) => "<span class=\\"ln" + (i + 1 === info.line ? " on" : "") + "\\">" + (i + 1) + "</span>").join("");
+    g.scrollTop = ta.scrollTop;
+    if (hl) { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; }
+    if (bar) {
+      const lh = 21;
+      const pad = parseFloat(getComputedStyle(ta).paddingTop) || 0;
+      bar.style.height = lh + "px";
+      bar.style.top = ((info.line - 1) * lh + pad - ta.scrollTop) + "px";
+    }
+    paintFavMarks();
+  }
+  function jumpFavFind(dir) {
+    const ta = document.getElementById("wb-sql-fav-ed");
+    const q = String(document.getElementById("wb-sql-fav-find")?.value || "");
+    const nEl = document.getElementById("wb-sql-fav-find-n");
+    const hits = favFindHits();
+    if (!ta || !q || !hits.length) {
+      if (nEl) nEl.textContent = q ? "Sin coincidencias" : "";
+      favFindAt = 0;
+      paintFavMarks();
+      return;
+    }
+    if (dir === "next") favFindAt = (favFindAt + 1) % hits.length;
+    else if (dir === "prev") favFindAt = (favFindAt - 1 + hits.length) % hits.length;
+    else {
+      const cur = favFindInSel && favFindScope ? favFindScope.start : (ta.selectionStart || 0);
+      let idx = 0;
+      for (let h = 0; h < hits.length; h += 1) if (hits[h] >= cur) { idx = h; break; }
+      favFindAt = idx;
+    }
+    const at = hits[favFindAt];
+    ta.setSelectionRange(at, at + q.length);
+    const line = ta.value.slice(0, at).split("\\n").length;
+    ta.scrollTop = Math.max(0, (line - 4) * 21);
+    if (nEl) nEl.textContent = (favFindAt + 1) + " / " + hits.length + (favFindInSel ? " en la selección" : "");
+    paintFavChrome();
+  }
+  function closeFavFind() {
+    const bar = document.getElementById("wb-sql-fav-findbar");
+    if (bar) bar.hidden = true;
+    favFindInSel = false;
+    favFindScope = null;
+    paintFavFindToggles();
+    document.getElementById("wb-sql-fav-ed")?.focus();
+    paintFavMarks();
+  }
+  function toggleFavFindSel() {
+    const ta = document.getElementById("wb-sql-fav-ed");
+    const hasSel = ta && ta.selectionStart !== ta.selectionEnd;
+    const same = hasSel && favFindScope && ta.selectionStart === favFindScope.start && ta.selectionEnd === favFindScope.end;
+    if (favFindInSel && (!hasSel || same)) {
+      favFindInSel = false;
+      favFindScope = null;
+    } else if (hasSel) {
+      favFindInSel = true;
+      favFindScope = { start: ta.selectionStart, end: ta.selectionEnd };
+    } else {
+      setMsg("wb-sql-msg", "Seleccioná un trozo del favorito para buscar ahí.", false);
+      return;
+    }
+    paintFavFindToggles();
+    favFindAt = -1;
+    jumpFavFind("reset");
+  }
+  function openFavFind() {
+    const bar = document.getElementById("wb-sql-fav-findbar");
+    const input = document.getElementById("wb-sql-fav-find");
+    const ta = document.getElementById("wb-sql-fav-ed");
+    if (!bar) return;
+    bar.hidden = false;
+    if (ta && ta.selectionStart !== ta.selectionEnd) {
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+      if (sel.indexOf("\\n") >= 0) {
+        favFindInSel = true;
+        favFindScope = { start: ta.selectionStart, end: ta.selectionEnd };
+      } else if (sel && input) {
+        input.value = sel.slice(0, 200);
+        favFindInSel = false;
+        favFindScope = null;
+      }
+    }
+    paintFavFindToggles();
+    input?.focus();
+    input?.select();
+    favFindAt = -1;
+    jumpFavFind("reset");
+  }
+  function paintFavSql(sql, emptyMsg) {
+    const pre = document.getElementById("wb-sql-fav-preview");
+    const ta = document.getElementById("wb-sql-fav-ed");
     const linesEl = document.getElementById("wb-sql-fav-lines");
     const text = String(sql || "");
     const n = Math.max(1, text ? text.split("\\n").length : 1);
-    if (g) g.innerHTML = Array.from({ length: n }, (_, i) => "<span class=ln>" + (i + 1) + "</span>").join("");
+    let changed = false;
+    if (ta && ta.value !== text) {
+      ta.value = text;
+      changed = true;
+      favFindInSel = false;
+      favFindScope = null;
+      paintFavFindToggles();
+    }
     if (pre) {
-      if (!text) pre.textContent = "Seleccioná una consulta de la lista para previsualizarla.";
+      if (!text) pre.textContent = emptyMsg || "Seleccioná una consulta de la lista para previsualizarla.";
       else pre.innerHTML = highlightSql(text);
     }
     if (linesEl) linesEl.textContent = text ? (n + (n === 1 ? " línea" : " líneas")) : "";
+    paintFavChrome();
+    const bar = document.getElementById("wb-sql-fav-findbar");
+    if (changed && bar && !bar.hidden) jumpFavFind("reset");
   }
   function favTitle(sql) {
     return (String(sql || "").split("\\n").find((l) => l.trim() && !l.trim().startsWith("--")) || "consulta").trim().slice(0, 60);
@@ -1101,8 +1404,7 @@ export function workbenchScript() {
     if (!list.length) {
       favSelected = "";
       box.innerHTML = "<p class=muted>Todavía no hay consultas guardadas. ★ Guardar deja la del editor en .afn/sql-favorites.json.</p>";
-      paintFavSql("");
-      if (pre) pre.textContent = "Cuando guardes una, la vas a ver acá antes de cargarla.";
+      paintFavSql("", "Cuando guardes una, la vas a ver acá antes de cargarla.");
       if (titleEl) titleEl.textContent = "Sin favoritos";
       if (loadBtn) loadBtn.disabled = true;
       if (delBtn) delBtn.disabled = true;
@@ -1110,7 +1412,7 @@ export function workbenchScript() {
     }
     if (!shown.length) {
       box.innerHTML = "<p class=muted>Ningún favorito coincide con la búsqueda.</p>";
-      paintFavSql("");
+      paintFavSql("", "Ningún favorito coincide con la búsqueda.");
       if (titleEl) titleEl.textContent = "Sin coincidencias";
       if (loadBtn) loadBtn.disabled = true;
       if (delBtn) delBtn.disabled = true;
@@ -1155,6 +1457,41 @@ export function workbenchScript() {
     favQuery = e.target.value || "";
     paintFavModal();
   });
+  const favEd = document.getElementById("wb-sql-fav-ed");
+  favEd?.addEventListener("scroll", paintFavChrome);
+  favEd?.addEventListener("keyup", paintFavChrome);
+  favEd?.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); openFavFind(); return; }
+    if (e.altKey && e.key.toLowerCase() === "l") { e.preventDefault(); toggleFavFindSel(); return; }
+  });
+  document.getElementById("wb-sql-fav-find-open")?.addEventListener("click", openFavFind);
+  document.getElementById("wb-sql-fav-find-close")?.addEventListener("click", closeFavFind);
+  document.getElementById("wb-sql-fav-find-sel")?.addEventListener("click", toggleFavFindSel);
+  document.getElementById("wb-sql-fav-find-case")?.addEventListener("click", () => {
+    favFindCase = !favFindCase;
+    paintFavFindToggles();
+    favFindAt = -1;
+    jumpFavFind("reset");
+  });
+  document.getElementById("wb-sql-fav-find")?.addEventListener("input", () => { favFindAt = -1; jumpFavFind("reset"); });
+  document.getElementById("wb-sql-fav-find-next")?.addEventListener("click", () => jumpFavFind("next"));
+  document.getElementById("wb-sql-fav-find-prev")?.addEventListener("click", () => jumpFavFind("prev"));
+  document.getElementById("wb-sql-fav-find")?.addEventListener("keydown", (e) => {
+    if (e.altKey && e.key.toLowerCase() === "l") { e.preventDefault(); toggleFavFindSel(); return; }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeFavFind(); return; }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    jumpFavFind(e.shiftKey ? "prev" : "next");
+  });
+  window.addEventListener("keydown", (e) => {
+    const modal = document.getElementById("wb-sql-fav-modal");
+    if (!modal || modal.hidden) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      e.stopPropagation();
+      openFavFind();
+    }
+  }, true);
   document.getElementById("wb-sql-fav-open")?.addEventListener("click", () => { loadFavs().then(openFavModal).catch((e) => setMsg("wb-sql-msg", e.message, false)); });
   document.getElementById("wb-sql-fav-close")?.addEventListener("click", closeFavModal);
   document.getElementById("wb-sql-fav-modal")?.addEventListener("click", (e) => {
