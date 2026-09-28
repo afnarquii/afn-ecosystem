@@ -1084,7 +1084,7 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /data-view="esquema"/);
   assert.match(html, /Ejecutar/);
   assert.match(html, /wb-o-host/);
-  assert.match(html, /Guardar origen/);
+  assert.match(html, /Guardar orígenes/);
   assert.match(html, /DB_USER/);
   assert.match(html, /sql-ide/);
   assert.match(html, /sql-head/);
@@ -1104,8 +1104,10 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.48/);
-  assert.match(html, /data-afn-version="1\.4\.48"/);
+  assert.match(html, /v1\.4\.49/);
+  assert.match(html, /data-afn-version="1\.4\.49"/);
+  assert.match(html, /id="wb-origins-add"/);
+  assert.match(html, /id="wb-origins-list"/);
   assert.match(html, /selectNextSame/);
   assert.match(html, /id="wb-sql-split"/);
   assert.match(html, /wb-sql-marks/);
@@ -1193,7 +1195,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.48/);
+    assert.match(liveHtml, /v1\.4\.49/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
@@ -1257,6 +1259,12 @@ test('saveOriginsPack acepta un objeto suelto y no escribe password', () => {
   assert.equal(JSON.stringify(pack).includes('secret'), false);
   const session = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connection.json'), 'utf8'));
   assert.equal(session.port, 5432);
+  const ten = Array.from({ length: 10 }, (_, i) => ({ id: `origen_${i + 1}`, name: `sql${i + 1}`, host: `h${i}`, database: `db${i}`, dbEngine: 'sqlserver' }));
+  const ok10 = saveOriginsPack(root, ten);
+  assert.equal(ok10.ok, true);
+  assert.equal(ok10.count, 10);
+  const tooMany = saveOriginsPack(root, ten.concat([{ id: 'origen_11', host: 'h', database: 'd', dbEngine: 'sqlserver' }]));
+  assert.equal(tooMany.ok, false);
 });
 
 test('inspectCredentialsFile no filtra el password y detecta el shape', () => {

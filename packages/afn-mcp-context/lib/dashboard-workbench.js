@@ -4,10 +4,16 @@ export function workbenchSections() {
   return `
     <section data-view="origenes" hidden>
       <h2>Orígenes de datos</h2>
-      <p class="lead">Completá host, puerto y base. La contraseña <strong>no</strong> va acá: archivo <code>.afn/credentials/data-agent.json</code>.</p>
+      <p class="lead">Hasta <strong>10</strong> SQL Server distintos. Cada uno se elige en la pestaña SQL. La contraseña <strong>no</strong> va acá: archivo <code>.afn/credentials/data-agent.json</code>.</p>
       <p id="wb-api-warn" class="muted" hidden style="color:#fbbf24">Esta pestaña no puede guardar: recargá con «abre dashboard AFN» (URL 127.0.0.1 con token).</p>
       <p id="wb-origins-msg" class="muted" role="status"></p>
+      <div class="toolbar" style="max-width:640px">
+        <button type="button" class="btn" id="wb-origins-add">Nuevo origen</button>
+        <span class="muted" id="wb-origins-count">0 / 10</span>
+      </div>
+      <div id="wb-origins-list" class="origin-list"></div>
       <div class="article" id="wb-origins-form" style="max-width:640px">
+        <p class="muted" id="wb-o-idline">id: —</p>
         <label class="muted" style="display:block;margin:.6rem 0 .25rem">Nombre</label>
         <input id="wb-o-name" type="text" placeholder="Pedidos QA" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
         <label class="muted" style="display:block;margin:.6rem 0 .25rem">Motor</label>
@@ -24,19 +30,20 @@ export function workbenchSections() {
         <label class="muted" style="display:block;margin:.6rem 0 .25rem">Base / database</label>
         <input id="wb-o-database" type="text" placeholder="nombre de la base" style="width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line);background:#0b1016;color:inherit"/>
         <div class="toolbar" style="margin-top:1rem">
-          <button type="button" class="btn" id="wb-origins-save">Guardar origen</button>
+          <button type="button" class="btn" id="wb-origins-save">Guardar orígenes</button>
+          <button type="button" class="btn" id="wb-origins-del">Eliminar este</button>
           <button type="button" class="btn" id="wb-origins-reload">Recargar</button>
         </div>
       </div>
       <div class="article" id="wb-cred-box" style="max-width:640px;margin-top:1.25rem">
         <h3>Contraseña — <code>.afn/credentials/data-agent.json</code></h3>
         <p id="wb-cred-status" class="muted" role="status">Host/puerto/base van arriba. Acá solo usuario y password. El archivo no se versiona.</p>
-        <p class="muted">Un origen (SQL Server o PostgreSQL):</p>
+        <p class="muted">Un solo SQL Server (el mismo usuario para todos):</p>
         <pre class="sql-ed" id="wb-cred-example">{
   "DB_USER": "sa",
   "DB_PASSWORD": "TU_PASSWORD"
 }</pre>
-        <p class="muted">Varios orígenes (el <code>id</code> es el del JSON de orígenes, p. ej. <code>origen_1</code>):</p>
+        <p class="muted">Varios SQL Server, cada uno con su usuario. La clave <code>byId</code> es el id de arriba (máximo 10):</p>
         <pre class="sql-ed">{
   "byId": {
     "origen_1": { "DB_USER": "sa", "DB_PASSWORD": "TU_PASSWORD" }
@@ -302,6 +309,9 @@ export function workbenchScript() {
     el.style.fontWeight = ok === true || ok === false ? "600" : "";
   }
   let originsList = [];
+  let originIdx = 0;
+  let credSnap = null;
+  const ORIGIN_CAP = 10;
   function fillOriginForm(c) {
     const x = c || {};
     const name = document.getElementById("wb-o-name");
@@ -309,21 +319,24 @@ export function workbenchScript() {
     const host = document.getElementById("wb-o-host");
     const port = document.getElementById("wb-o-port");
     const database = document.getElementById("wb-o-database");
+    const idline = document.getElementById("wb-o-idline");
     if (name) name.value = x.name || x.connectionName || "";
     const eng = String(x.engine || x.dbEngine || "sqlserver").toLowerCase();
     if (engine) engine.value = /mongo/.test(eng) ? "mongodb" : /postgres/.test(eng) ? "postgresql" : /mysql/.test(eng) ? "mysql" : "sqlserver";
     if (host) host.value = x.host || x.server || "";
     if (port) port.value = x.port || "";
     if (database) database.value = x.database || "";
+    if (idline) idline.textContent = x.id ? ("id: " + x.id + "  ·  usalo en byId si este SQL Server tiene otro usuario") : "id: —";
   }
   function formToOrigin(prev) {
     const engine = (document.getElementById("wb-o-engine")?.value || "sqlserver").trim();
     const portRaw = document.getElementById("wb-o-port")?.value;
+    const label = (document.getElementById("wb-o-name")?.value || "").trim() || "origen";
     return {
       ...(prev && typeof prev === "object" ? prev : {}),
       id: prev?.id || "origen_1",
-      name: (document.getElementById("wb-o-name")?.value || "").trim() || "origen",
-      connectionName: (document.getElementById("wb-o-name")?.value || "").trim() || "origen",
+      name: label,
+      connectionName: label,
       dbEngine: engine,
       engine,
       host: (document.getElementById("wb-o-host")?.value || "").trim(),
@@ -332,48 +345,152 @@ export function workbenchScript() {
       needsCredentials: true,
     };
   }
+  function nextOriginId() {
+    const used = {};
+    originsList.forEach((c) => { if (c && c.id) used[c.id] = true; });
+    for (let i = 1; i <= ORIGIN_CAP; i += 1) {
+      const id = "origen_" + i;
+      if (!used[id]) return id;
+    }
+    return "origen_" + Date.now();
+  }
+  function commitOriginForm() {
+    if (!originsList.length) return;
+    if (originIdx < 0 || originIdx >= originsList.length) originIdx = 0;
+    originsList[originIdx] = formToOrigin(originsList[originIdx]);
+  }
   function renderCredStatus(c) {
     const el = document.getElementById("wb-cred-status");
     if (!el) return;
+    const cur = originsList[originIdx];
+    const id = cur && cur.id ? cur.id : "";
     if (!c) {
       el.textContent = "Host/puerto/base van arriba. Acá solo usuario y password.";
+      el.style.color = "";
       return;
     }
-    if (!c.exists) el.textContent = "Falta el archivo. Creá .afn/credentials/data-agent.json con el JSON de ejemplo.";
+    if (!c.exists) el.textContent = "Falta el archivo. Creá .afn/credentials/data-agent.json. Si cada SQL Server tiene otro usuario, usá byId con el id " + (id || "origen_1") + ".";
     else if (!c.validJson) el.textContent = "El archivo existe pero no es JSON válido.";
     else if (c.shape === "empty") el.textContent = "El archivo está vacío. Pegá DB_USER y DB_PASSWORD.";
     else if (!c.hasUser || !c.hasPassword) el.textContent = "El archivo existe pero falta DB_USER o DB_PASSWORD (o MONGODB_URI).";
-    else el.textContent = "Credenciales OK (hay usuario y password). No se muestran acá.";
-    el.style.color = (!c.exists || !c.validJson || !c.hasUser || !c.hasPassword) ? "#fbbf24" : "#34d399";
+    else if ((c.shape === "byId" || c.shape === "connections") && id && (c.ids || []).indexOf(id) >= 0) el.textContent = "Credencial propia OK para " + id + ". No se muestra la contraseña.";
+    else if (c.shape === "byId" || c.shape === "connections") el.textContent = "Este origen (" + (id || "sin id") + ") no está en byId. Agregá su usuario, o todos van a fallar si no comparten login.";
+    else el.textContent = "Hay un usuario compartido. Sirve si los SQL Server usan el mismo login. Si no, pasá a byId con el id " + (id || "origen_1") + ".";
+    const missing = !c.exists || !c.validJson || !c.hasUser || !c.hasPassword || ((c.shape === "byId" || c.shape === "connections") && id && (c.ids || []).indexOf(id) < 0);
+    el.style.color = missing ? "#fbbf24" : "#34d399";
   }
-  async function loadOrigins() {
-    const j = await apiCall("GET", "/api/origins");
-    originsList = Array.isArray(j.connections) ? j.connections : [];
-    fillOriginForm(originsList[0] || {});
-    renderCredStatus(j.credentials);
+  function renderOriginsUi() {
+    const count = document.getElementById("wb-origins-count");
+    if (count) count.textContent = originsList.length + " / " + ORIGIN_CAP;
+    const box = document.getElementById("wb-origins-list");
+    if (box) {
+      box.innerHTML = originsList.length
+        ? originsList.map((c, i) => {
+            const id = String(c.id || "");
+            const label = (c.name || c.connectionName || id || "origen") + " · " + (c.host || "sin host") + (c.database ? (" / " + c.database) : "");
+            return "<button type=\\"button\\" class=\\"btn" + (i === originIdx ? " on" : "") + "\\" data-oi=\\"" + i + "\\">" + label.replace(/</g, "") + "</button>";
+          }).join("")
+        : "<p class=\\"muted\\">Todavía no hay orígenes. Completá el formulario y guardá.</p>";
+    }
     const ta = document.getElementById("wb-origins-json");
     if (ta) ta.value = JSON.stringify({ connections: originsList }, null, 2);
     const sel = document.getElementById("wb-sql-origin");
     if (sel) {
+      const prev = sel.value;
       sel.innerHTML = originsList.map((c) => {
         const id = c.id || c.name || "";
-        const label = (c.name || c.connectionName || id) + " · " + (c.engine || c.dbEngine || "");
-        return "<option value=\\"" + String(id).replace(/"/g,"") + "\\">" + label.replace(/</g,"") + "</option>";
+        const label = (c.name || c.connectionName || id) + " · " + (c.host || "") + (c.database ? (" / " + c.database) : "");
+        return "<option value=\\"" + String(id).replace(/"/g, "") + "\\">" + label.replace(/</g, "") + "</option>";
       }).join("");
+      if (prev && originsList.some((c) => String(c.id || c.name || "") === prev)) sel.value = prev;
     }
+    fillOriginForm(originsList[originIdx] || {});
+    renderCredStatus(credSnap);
   }
+  function selectOrigin(i) {
+    commitOriginForm();
+    originIdx = i;
+    renderOriginsUi();
+  }
+  async function loadOrigins() {
+    const j = await apiCall("GET", "/api/origins");
+    originsList = Array.isArray(j.connections) ? j.connections.slice(0, ORIGIN_CAP) : [];
+    credSnap = j.credentials || null;
+    if (originIdx >= originsList.length) originIdx = Math.max(0, originsList.length - 1);
+    renderOriginsUi();
+  }
+  document.getElementById("wb-origins-list")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-oi]");
+    if (!btn) return;
+    selectOrigin(Number(btn.getAttribute("data-oi")) || 0);
+  });
+  document.getElementById("wb-origins-add")?.addEventListener("click", () => {
+    if (originsList.length >= ORIGIN_CAP) {
+      setMsg("wb-origins-msg", "Máximo 10 orígenes.", false);
+      return;
+    }
+    if (!originsList.length) {
+      const typedName = (document.getElementById("wb-o-name")?.value || "").trim();
+      const draft = formToOrigin({ id: nextOriginId(), name: typedName || "SQL Server 1", connectionName: typedName || "SQL Server 1" });
+      if (draft.host || draft.database || typedName) {
+        originsList = [draft];
+        originIdx = 0;
+        renderOriginsUi();
+        setMsg("wb-origins-msg", "Origen listo en la lista. Guardá para dejarlo.", true);
+        return;
+      }
+    }
+    commitOriginForm();
+    const n = originsList.length + 1;
+    originsList.push({
+      id: nextOriginId(),
+      name: "SQL Server " + n,
+      connectionName: "SQL Server " + n,
+      dbEngine: "sqlserver",
+      engine: "sqlserver",
+      host: "",
+      port: 1433,
+      database: "",
+      needsCredentials: true,
+    });
+    originIdx = originsList.length - 1;
+    renderOriginsUi();
+    setMsg("wb-origins-msg", "Origen nuevo. Completá host y base, y guardá.", true);
+  });
+  document.getElementById("wb-origins-del")?.addEventListener("click", () => {
+    if (!originsList.length) return;
+    commitOriginForm();
+    const gone = originsList[originIdx];
+    originsList.splice(originIdx, 1);
+    if (originIdx >= originsList.length) originIdx = Math.max(0, originsList.length - 1);
+    renderOriginsUi();
+    setMsg("wb-origins-msg", "Quitado " + ((gone && gone.name) || "el origen") + ". Guardá para dejarlo así.", true);
+  });
   document.getElementById("wb-origins-reload")?.addEventListener("click", () => loadOrigins().then(() => setMsg("wb-origins-msg","Recargado",true)).catch((e) => setMsg("wb-origins-msg", e.message, false)));
   document.getElementById("wb-origins-save")?.addEventListener("click", async () => {
     try {
-      const first = formToOrigin(originsList[0] || { id: "origen_1" });
-      if (!first.host && !first.database) {
-        setMsg("wb-origins-msg", "Falta host o database", false);
+      if (!originsList.length) {
+        const draft = formToOrigin({ id: "origen_1" });
+        if (!draft.host && !draft.database) {
+          setMsg("wb-origins-msg", "Falta host o database", false);
+          return;
+        }
+        originsList = [draft];
+        originIdx = 0;
+      } else {
+        commitOriginForm();
+      }
+      if (originsList.length > ORIGIN_CAP) {
+        setMsg("wb-origins-msg", "Máximo 10 orígenes.", false);
         return;
       }
-      const rest = originsList.slice(1);
-      const connections = [first].concat(rest);
-      const j = await apiCall("PUT", "/api/origins", { connections });
-      setMsg("wb-origins-msg", "Guardado (" + (j.count || connections.length) + "). Password no se guarda acá.", true);
+      const bad = originsList.find((c) => !c.host && !c.database);
+      if (bad) {
+        setMsg("wb-origins-msg", "A " + (bad.name || bad.id) + " le falta host o database.", false);
+        return;
+      }
+      const j = await apiCall("PUT", "/api/origins", { connections: originsList });
+      setMsg("wb-origins-msg", "Guardados " + (j.count || originsList.length) + " orígenes. La contraseña sigue en el archivo de credenciales.", true);
       await loadOrigins();
     } catch (e) { setMsg("wb-origins-msg", e.message, false); }
   });

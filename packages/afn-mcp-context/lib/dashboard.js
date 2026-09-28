@@ -696,6 +696,8 @@ ${projectBarScript()}
   #ov-mermaid { min-height:100%; padding:1rem; }
   .sql-ed { width:100%; min-height:12rem; background:#0b1016; color:#e8eef5; border:1px solid var(--line); border-radius:10px; padding:.75rem .85rem; font:13px/1.45 Consolas,ui-monospace,monospace; tab-size:2; }
   .chk { display:block; padding:.28rem 0; }
+  .origin-list { display:flex; flex-direction:column; gap:.35rem; margin:0 0 1rem; max-width:640px; }
+  .origin-list .btn { text-align:left; }
   .chk input { margin-right:.4rem; }
   section[data-view="sql"].sql-ide:not([hidden]) { max-width:none; min-width:0; flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
   .sql-head { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; margin:0 0 .4rem; flex-shrink:0; min-width:0; }

@@ -275,6 +275,7 @@ export function saveOriginsPack(root, connections) {
   const SECRET = /password|secret|token|connectionstring|connstr|pwd/i;
   const list = normalizeOriginsInput(connections);
   if (!list) return { ok: false, error: 'Mandá una lista connections o un origen con host/database' };
+  if (list.length > 10) return { ok: false, error: 'Máximo 10 orígenes de datos' };
   const clean = list.map((c, i) => {
     const o = c && typeof c === 'object' ? { ...c } : {};
     for (const k of Object.keys(o)) {
