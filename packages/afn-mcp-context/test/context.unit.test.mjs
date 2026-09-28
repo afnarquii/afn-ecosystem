@@ -140,6 +140,8 @@ test('mem_save / search / snapshot redacta secretos y recorta', () => {
   assert.equal(snap.ok, true);
   assert.ok(snap.markdown.includes('AFN CONTEXT'));
   assert.equal(snap.markdown.includes('SUPERSECRET'), false);
+  assert.match(snap.markdown, /sql-favorites\.json/);
+  assert.equal(snap.markdown.includes('SELECT SUPERQUERY'), false);
   assert.ok(snap.markdown.includes('[redacted]'));
   assert.ok(snap.markdown.length <= 3200);
   const red = redactSecrets({ password: 'x', nested: { token: 'y' } });
@@ -1102,9 +1104,17 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.43/);
-  assert.match(html, /data-afn-version="1\.4\.43"/);
+  assert.match(html, /v1\.4\.44/);
+  assert.match(html, /data-afn-version="1\.4\.44"/);
+  assert.match(html, /data-go="comparar"/);
+  assert.match(html, /data-view="comparar"/);
+  assert.match(html, /cmp-file-l/);
+  assert.match(html, /wb-sql-find/);
+  assert.match(html, /wb-sql-pos/);
+  assert.match(html, /wb-sql-hl/);
   assert.match(html, /wb-sql-fav-modal/);
+  assert.match(html, /wb-sql-fav-q/);
+  assert.match(html, /wb-sql-fav-gutter/);
   assert.match(html, /wb-sql-fav-preview/);
   assert.match(html, /wb-sql-ed-max/);
   assert.match(html, /wb-sql-res-max/);
@@ -1176,7 +1186,8 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.43/);
+    assert.match(liveHtml, /v1\.4\.44/);
+    assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
     assert.match(liveHtml, /wb-o-host/);
@@ -1204,6 +1215,8 @@ test('compactDashboard no entrega el html de _tmp', () => {
 
 test('favoritos SQL se guardan en .afn y se pueden quitar', () => {
   const root = tmp();
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  bootstrapAfn(root);
   const saved = saveSqlFavorites(root, [
     { id: 'fav_1', title: 'tablas', sql: 'SELECT 1' },
     { id: 'fav_2', title: 'vacio', sql: '   ' },
@@ -1213,6 +1226,9 @@ test('favoritos SQL se guardan en .afn y se pueden quitar', () => {
   const left = saveSqlFavorites(root, saved.filter((f) => f.id !== 'fav_1'));
   assert.equal(left.length, 0);
   assert.equal(loadSqlFavorites(root).length, 0);
+  saveSqlFavorites(root, [{ id: 'fav_1', title: 'tablas', sql: 'SELECT SUPERQUERY 1' }]);
+  const snap = buildSnapshot(root);
+  assert.equal(String(snap.markdown || '').includes('SUPERQUERY'), false);
   const file = fs.readFileSync(path.join(root, '.afn', 'sql-favorites.json'), 'utf8');
   assert.match(file, /favorites/);
 });

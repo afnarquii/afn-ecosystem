@@ -147,6 +147,8 @@ test('un parámetro sin valor no se envía y el nombre queda para la próxima', 
 test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(STEERING, /afn_script/);
   assert.match(STEERING, /No abras ese archivo/);
+  assert.match(STEERING, /sql-favorites\.json/);
+  assert.match(STEERING, /no los metas en el contexto/);
   const html = fs.readFileSync(writeDashboard(tmp(), { open: false }).file, 'utf8');
   assert.match(html, /data-go="scripts"/);
   assert.match(html, /Elegir archivo/);

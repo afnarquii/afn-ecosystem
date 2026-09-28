@@ -88,17 +88,33 @@ export function workbenchSections() {
         <div class="sql-editor-wrap" id="wb-sql-editor">
           <div class="sql-pane-bar">
             <span>Consulta</span>
+            <span id="wb-sql-pos" class="sql-pos">Línea 1, col 1</span>
             <span class="sql-inspect-spacer"></span>
+            <button type="button" class="btn" id="wb-sql-find-open" title="Buscar en la consulta (Ctrl+F)">Buscar</button>
             <button type="button" class="btn sql-ico" id="wb-sql-ed-max" title="Maximizar el editor">⛶</button>
             <button type="button" class="btn sql-ico" id="wb-sql-ed-min" title="Minimizar el editor">−</button>
           </div>
-          <pre class="sql-gutter" id="wb-sql-gutter">1</pre>
-          <textarea id="wb-sql-ed" spellcheck="false" class="sql-ed" wrap="off">-- SELECT o EXEC de un PA de consulta. F5 / Ctrl+Enter.
+          <div class="sql-findbar" id="wb-sql-findbar" hidden>
+            <input id="wb-sql-find" type="search" placeholder="Buscar en la consulta" autocomplete="off"/>
+            <button type="button" class="btn" id="wb-sql-find-prev">Anterior</button>
+            <button type="button" class="btn" id="wb-sql-find-next">Siguiente</button>
+            <span id="wb-sql-find-n" class="muted"></span>
+            <button type="button" class="btn" id="wb-sql-find-close">Cerrar</button>
+          </div>
+          <div class="sql-code">
+            <pre class="sql-gutter" id="wb-sql-gutter">1</pre>
+            <div class="sql-stage">
+              <div class="sql-caretline" id="wb-sql-caretline"></div>
+              <pre class="sql-hl" id="wb-sql-hl" aria-hidden="true"></pre>
+              <textarea id="wb-sql-ed" spellcheck="false" class="sql-ed" wrap="off" autocomplete="off" autocorrect="off" autocapitalize="off">-- SELECT o EXEC de un PA de consulta. F5 / Ctrl+Enter.
 -- EXEC dbo.NombrePA @param = 1;
 SELECT TOP 20 TABLE_SCHEMA, TABLE_NAME
 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_TYPE = 'BASE TABLE'
 ORDER BY 1, 2;</textarea>
+              <div class="sql-ac" id="wb-sql-ac" hidden></div>
+            </div>
+          </div>
         </div>
         <div class="sql-results" id="wb-sql-results">
           <div class="sql-statusbar">
@@ -151,20 +167,28 @@ ORDER BY 1, 2;</textarea>
             <div>
               <p class="k">Consultas guardadas</p>
               <h3 id="wb-sql-fav-title">Favoritos</h3>
-              <p class="muted">Quedan en <code>.afn/sql-favorites.json</code>. Elegí una para verla y recién después cargala en el editor.</p>
+              <p class="muted">Quedan en <code>.afn/sql-favorites.json</code>, solo en esta pestaña. No entran al contexto del agente.</p>
             </div>
             <button type="button" class="btn" id="wb-sql-fav-close">Cerrar</button>
+          </div>
+          <div class="fav-tools">
+            <input id="wb-sql-fav-q" type="search" placeholder="Buscar favorito por título o SQL" autocomplete="off"/>
+            <span id="wb-sql-fav-count" class="muted"></span>
           </div>
           <div class="fav-body">
             <div class="fav-list" id="wb-sql-fav-list"></div>
             <div class="fav-preview">
               <div class="fav-preview-bar">
                 <span id="wb-sql-fav-preview-title">Elegí una consulta</span>
+                <span id="wb-sql-fav-lines" class="muted"></span>
                 <span class="sql-inspect-spacer"></span>
                 <button type="button" class="btn btn-run" id="wb-sql-fav-load" disabled>Cargar en el editor</button>
                 <button type="button" class="btn" id="wb-sql-fav-del" disabled>Quitar</button>
               </div>
-              <pre id="wb-sql-fav-preview" class="fav-preview-sql">Seleccioná una consulta de la lista para previsualizarla.</pre>
+              <div class="fav-read" id="wb-sql-fav-read">
+                <pre class="sql-gutter" id="wb-sql-fav-gutter"><span class="ln">1</span></pre>
+                <pre class="sql-hl" id="wb-sql-fav-preview">Seleccioná una consulta de la lista para previsualizarla.</pre>
+              </div>
             </div>
           </div>
         </div>
@@ -226,6 +250,7 @@ export function workbenchNavButtons() {
       <button type="button" data-go="origenes">Orígenes</button>
       <button type="button" data-go="esquema">Elegir tablas/PAs</button>
       <button type="button" data-go="sql">SQL</button>
+      <button type="button" data-go="comparar">Comparar</button>
       <button type="button" data-go="scripts">Scripts</button>`;
 }
 
@@ -235,7 +260,7 @@ export function workbenchScript() {
   const verEl = document.getElementById("wb-ver");
   const ver = document.body.getAttribute("data-afn-version") || "";
   if (verEl) verEl.textContent = api
-    ? ("v" + ver + " · 127.0.0.1 — Orígenes, SQL, Scripts y Skills")
+    ? ("v" + ver + " · 127.0.0.1 — Orígenes, SQL, Comparar, Scripts y Skills")
     : ("v" + ver + " · archivo local (sin SQL). Pedí «abre dashboard AFN» otra vez.");
   const warn = document.getElementById("wb-api-warn");
   if (warn && !api) warn.hidden = false;
@@ -414,13 +439,222 @@ export function workbenchScript() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1500);
   }
-  function syncGutter() {
+  const SQL_KW = ["SELECT","FROM","WHERE","AND","OR","NOT","IN","EXISTS","JOIN","LEFT","RIGHT","INNER","OUTER","FULL","CROSS","ON","GROUP","BY","ORDER","HAVING","INSERT","UPDATE","DELETE","INTO","VALUES","EXEC","EXECUTE","DECLARE","SET","AS","TOP","DISTINCT","CASE","WHEN","THEN","ELSE","END","UNION","ALL","WITH","NOLOCK","BEGIN","COMMIT","ROLLBACK","CREATE","ALTER","DROP","TABLE","PROCEDURE","FUNCTION","VIEW","INDEX","NULL","IS","LIKE","BETWEEN","ASC","DESC","OFFSET","FETCH","NEXT","ROWS","ONLY","APPLY","OVER","PARTITION","GO","USE","IF","WHILE","RETURN","OUTPUT","TRY","CATCH","THROW","MERGE","USING","MATCHED","PIVOT"];
+  const SQL_FN = ["COUNT","SUM","AVG","MIN","MAX","CAST","CONVERT","ISNULL","COALESCE","LEN","SUBSTRING","REPLACE","GETDATE","DATEADD","DATEDIFF","UPPER","LOWER","LTRIM","RTRIM","NULLIF","ROW_NUMBER","RANK","DENSE_RANK"];
+  function sqlEsc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function highlightSql(src) {
+    const text = String(src || "");
+    let i = 0;
+    let html = "";
+    while (i < text.length) {
+      const ch = text[i];
+      const nxt = text[i + 1] || "";
+      if (ch === "-" && nxt === "-") {
+        let j = text.indexOf("\\n", i);
+        j = j < 0 ? text.length : j;
+        html += "<span class=sql-cmt>" + sqlEsc(text.slice(i, j)) + "</span>";
+        i = j;
+        continue;
+      }
+      if (ch === "/" && nxt === "*") {
+        let j = text.indexOf("*/", i + 2);
+        j = j < 0 ? text.length : j + 2;
+        html += "<span class=sql-cmt>" + sqlEsc(text.slice(i, j)) + "</span>";
+        i = j;
+        continue;
+      }
+      if (ch === "'" || (ch === "N" && nxt === "'")) {
+        const start = ch === "N" ? i + 1 : i;
+        let j = start + 1;
+        while (j < text.length) {
+          if (text[j] === "'" && text[j + 1] === "'") { j += 2; continue; }
+          if (text[j] === "'") { j += 1; break; }
+          j += 1;
+        }
+        html += "<span class=sql-str>" + sqlEsc(text.slice(ch === "N" ? i : start, j)) + "</span>";
+        i = j;
+        continue;
+      }
+      if (ch === "[") {
+        let j = text.indexOf("]", i + 1);
+        j = j < 0 ? i + 1 : j + 1;
+        html += "<span class=sql-id>" + sqlEsc(text.slice(i, j)) + "</span>";
+        i = j;
+        continue;
+      }
+      if (/[0-9]/.test(ch) && (i === 0 || !/[A-Za-z0-9_]/.test(text[i - 1]))) {
+        let j = i + 1;
+        while (j < text.length && /[0-9.]/.test(text[j])) j += 1;
+        html += "<span class=sql-num>" + sqlEsc(text.slice(i, j)) + "</span>";
+        i = j;
+        continue;
+      }
+      if (/[A-Za-z_@#]/.test(ch)) {
+        let j = i + 1;
+        while (j < text.length && /[A-Za-z0-9_@#$]/.test(text[j])) j += 1;
+        const word = text.slice(i, j);
+        const up = word.toUpperCase();
+        const cls = SQL_KW.indexOf(up) >= 0 ? "sql-kw" : (SQL_FN.indexOf(up) >= 0 ? "sql-fn" : "");
+        html += cls ? ("<span class=" + cls + ">" + sqlEsc(word) + "</span>") : sqlEsc(word);
+        i = j;
+        continue;
+      }
+      html += sqlEsc(ch);
+      i += 1;
+    }
+    return html;
+  }
+  function caretPos(ta) {
+    const v = String(ta.value || "");
+    const at = ta.selectionStart || 0;
+    const parts = v.slice(0, at).split("\\n");
+    return { line: parts.length, col: parts[parts.length - 1].length + 1, total: Math.max(1, v.split("\\n").length) };
+  }
+  function syncSqlScroll() {
     const ta = document.getElementById("wb-sql-ed");
     const g = document.getElementById("wb-sql-gutter");
-    if (!ta || !g) return;
-    const n = Math.max(1, String(ta.value || "").split("\\n").length);
-    g.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\\n");
-    g.scrollTop = ta.scrollTop;
+    const hl = document.getElementById("wb-sql-hl");
+    const bar = document.getElementById("wb-sql-caretline");
+    if (!ta) return;
+    if (g) g.scrollTop = ta.scrollTop;
+    if (hl) { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; }
+    if (bar) {
+      const info = caretPos(ta);
+      const lh = 21;
+      const pad = parseFloat(getComputedStyle(ta).paddingTop) || 0;
+      bar.style.height = lh + "px";
+      bar.style.top = ((info.line - 1) * lh + pad - ta.scrollTop) + "px";
+    }
+  }
+  function paintSqlEditor() {
+    const ta = document.getElementById("wb-sql-ed");
+    const g = document.getElementById("wb-sql-gutter");
+    const hl = document.getElementById("wb-sql-hl");
+    const pos = document.getElementById("wb-sql-pos");
+    if (!ta || !g || !hl) return;
+    const info = caretPos(ta);
+    g.innerHTML = Array.from({ length: info.total }, (_, i) => "<span class=\\"ln" + (i + 1 === info.line ? " on" : "") + "\\">" + (i + 1) + "</span>").join("");
+    hl.innerHTML = highlightSql(ta.value);
+    if (pos) pos.textContent = "Línea " + info.line + ", col " + info.col + " · " + info.total + (info.total === 1 ? " línea" : " líneas");
+    syncSqlScroll();
+  }
+  function syncGutter() { paintSqlEditor(); }
+  let acItems = [];
+  let acIndex = 0;
+  let acFrom = 0;
+  function hideAc() {
+    const box = document.getElementById("wb-sql-ac");
+    if (box) { box.hidden = true; box.innerHTML = ""; }
+    acItems = [];
+  }
+  function paintAc() {
+    const box = document.getElementById("wb-sql-ac");
+    if (!box) return;
+    box.innerHTML = acItems.map((name, i) => "<button type=button data-ac=\\"" + i + "\\" class=\\"" + (i === acIndex ? "on" : "") + "\\">" + sqlEsc(name) + "</button>").join("");
+    box.querySelector(".on")?.scrollIntoView({ block: "nearest" });
+  }
+  function wordAtCaret(ta) {
+    const v = ta.value;
+    const i = ta.selectionStart || 0;
+    let a = i;
+    while (a > 0 && /[A-Za-z0-9_@#.]/.test(v[a - 1])) a -= 1;
+    return { start: a, end: i, word: v.slice(a, i) };
+  }
+  function showAc(force) {
+    const ta = document.getElementById("wb-sql-ed");
+    const box = document.getElementById("wb-sql-ac");
+    if (!ta || !box) return;
+    const w = wordAtCaret(ta);
+    if (!force && w.word.length < 2) { hideAc(); return; }
+    const p = w.word.toLowerCase();
+    const names = [];
+    (schemaState.live.tables || []).forEach((t) => { const n = tableName(t); if (n) names.push(n); });
+    (schemaState.live.procedures || []).forEach((pr) => { const n = procName(pr); if (n) names.push(n); });
+    const seen = new Set();
+    acItems = SQL_KW.concat(SQL_FN).concat(names).filter((name) => {
+      const k = String(name).toLowerCase();
+      if (!k || seen.has(k) || k === p) return false;
+      if (p && k.indexOf(p) !== 0 && k.indexOf(p) < 0) return false;
+      seen.add(k);
+      return true;
+    }).slice(0, 14);
+    if (!acItems.length) { hideAc(); return; }
+    acIndex = 0;
+    acFrom = w.start;
+    box.hidden = false;
+    paintAc();
+  }
+  function acceptAc(i) {
+    const ta = document.getElementById("wb-sql-ed");
+    const name = acItems[i];
+    if (!ta || !name) return;
+    const end = ta.selectionStart || 0;
+    ta.value = ta.value.slice(0, acFrom) + name + ta.value.slice(end);
+    const next = acFrom + name.length;
+    ta.selectionStart = ta.selectionEnd = next;
+    hideAc();
+    paintSqlEditor();
+    ta.focus();
+  }
+  let sqlFindAt = 0;
+  function sqlFindHits() {
+    const ta = document.getElementById("wb-sql-ed");
+    const q = String(document.getElementById("wb-sql-find")?.value || "");
+    if (!ta || !q) return [];
+    const text = ta.value;
+    const low = text.toLowerCase();
+    const needle = q.toLowerCase();
+    const hits = [];
+    let from = 0;
+    while (from < text.length) {
+      const at = low.indexOf(needle, from);
+      if (at < 0) break;
+      hits.push(at);
+      from = at + Math.max(needle.length, 1);
+    }
+    return hits;
+  }
+  function jumpSqlFind(dir) {
+    const ta = document.getElementById("wb-sql-ed");
+    const q = String(document.getElementById("wb-sql-find")?.value || "");
+    const nEl = document.getElementById("wb-sql-find-n");
+    const hits = sqlFindHits();
+    if (!ta || !q || !hits.length) {
+      if (nEl) nEl.textContent = q ? "Sin coincidencias" : "";
+      return;
+    }
+    if (dir === "next") sqlFindAt = (sqlFindAt + 1) % hits.length;
+    else if (dir === "prev") sqlFindAt = (sqlFindAt - 1 + hits.length) % hits.length;
+    else {
+      const cur = ta.selectionStart || 0;
+      let idx = 0;
+      for (let h = 0; h < hits.length; h += 1) if (hits[h] >= cur) { idx = h; break; }
+      sqlFindAt = idx;
+    }
+    const at = hits[sqlFindAt];
+    ta.focus();
+    ta.setSelectionRange(at, at + q.length);
+    const line = ta.value.slice(0, at).split("\\n").length;
+    ta.scrollTop = Math.max(0, (line - 4) * 21);
+    if (nEl) nEl.textContent = (sqlFindAt + 1) + " / " + hits.length;
+    paintSqlEditor();
+  }
+  function openSqlFind() {
+    const bar = document.getElementById("wb-sql-findbar");
+    const input = document.getElementById("wb-sql-find");
+    const ta = document.getElementById("wb-sql-ed");
+    if (!bar) return;
+    bar.hidden = false;
+    if (ta && ta.selectionStart !== ta.selectionEnd && input) {
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+      if (sel && sel.indexOf("\\n") < 0) input.value = sel.slice(0, 200);
+    }
+    input?.focus();
+    input?.select();
+    sqlFindAt = -1;
+    jumpSqlFind("reset");
   }
   function pickRows() {
     if (selected.size) return [...selected].sort((a,b) => a - b).map((i) => lastRows[i]).filter(Boolean);
@@ -527,14 +761,16 @@ export function workbenchScript() {
     try {
       showRunError("");
       setMsg("wb-sql-msg", "Ejecutando…");
+      const taRun = document.getElementById("wb-sql-ed");
+      const selectedSql = taRun && taRun.selectionStart !== taRun.selectionEnd;
       const j = await apiCall("POST", "/api/sql", {
-        sql: document.getElementById("wb-sql-ed").value,
+        sql: selectedSql ? taRun.value.slice(taRun.selectionStart, taRun.selectionEnd) : taRun.value,
         connectionId: document.getElementById("wb-sql-origin").value,
         limit: Number(document.getElementById("wb-sql-limit").value || 200),
       });
       renderGrid(j.columns, j.rows);
       const n = (j.rows || []).length;
-      setMsg("wb-sql-msg", n + " filas" + (j.truncated ? " (recorte)" : "") + (j.kind === "exec" ? " · EXEC" : ""), true);
+      setMsg("wb-sql-msg", n + " filas" + (j.truncated ? " (recorte)" : "") + (j.kind === "exec" ? " · EXEC" : "") + (selectedSql ? " · selección" : ""), true);
     } catch (e) {
       renderGrid([], []);
       showRunError(e.message);
@@ -543,20 +779,61 @@ export function workbenchScript() {
   }
   document.getElementById("wb-sql-run")?.addEventListener("click", runSql);
   const sqlEd = document.getElementById("wb-sql-ed");
-  sqlEd?.addEventListener("input", syncGutter);
-  sqlEd?.addEventListener("scroll", () => {
-    const g = document.getElementById("wb-sql-gutter");
-    if (g) g.scrollTop = sqlEd.scrollTop;
+  sqlEd?.addEventListener("input", () => { paintSqlEditor(); showAc(false); });
+  sqlEd?.addEventListener("scroll", syncSqlScroll);
+  sqlEd?.addEventListener("click", paintSqlEditor);
+  sqlEd?.addEventListener("keyup", paintSqlEditor);
+  document.addEventListener("selectionchange", () => {
+    if (document.activeElement && document.activeElement.id === "wb-sql-ed") paintSqlEditor();
   });
   sqlEd?.addEventListener("keydown", (e) => {
-    if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) { e.preventDefault(); runSql(); }
+    const acBox = document.getElementById("wb-sql-ac");
+    const acOpen = acBox && !acBox.hidden;
+    if (acOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      acIndex = e.key === "ArrowDown" ? (acIndex + 1) % acItems.length : (acIndex - 1 + acItems.length) % acItems.length;
+      paintAc();
+      return;
+    }
+    if (acOpen && (e.key === "Enter" || e.key === "Tab")) { e.preventDefault(); acceptAc(acIndex); return; }
+    if (acOpen && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); hideAc(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); openSqlFind(); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === " " || e.code === "Space")) { e.preventDefault(); showAc(true); return; }
+    if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) { e.preventDefault(); runSql(); return; }
     if (e.key === "Tab") {
       e.preventDefault();
       const a = sqlEd.selectionStart, b = sqlEd.selectionEnd;
       sqlEd.value = sqlEd.value.slice(0, a) + "  " + sqlEd.value.slice(b);
       sqlEd.selectionStart = sqlEd.selectionEnd = a + 2;
-      syncGutter();
+      paintSqlEditor();
     }
+  });
+  document.getElementById("wb-sql-ac")?.addEventListener("mousedown", (e) => {
+    const btn = e.target.closest && e.target.closest("[data-ac]");
+    if (!btn) return;
+    e.preventDefault();
+    acceptAc(Number(btn.getAttribute("data-ac")));
+  });
+  document.getElementById("wb-sql-find-open")?.addEventListener("click", openSqlFind);
+  document.getElementById("wb-sql-find-close")?.addEventListener("click", () => {
+    const bar = document.getElementById("wb-sql-findbar");
+    if (bar) bar.hidden = true;
+    document.getElementById("wb-sql-ed")?.focus();
+  });
+  document.getElementById("wb-sql-find")?.addEventListener("input", () => { sqlFindAt = -1; jumpSqlFind("reset"); });
+  document.getElementById("wb-sql-find-next")?.addEventListener("click", () => jumpSqlFind("next"));
+  document.getElementById("wb-sql-find-prev")?.addEventListener("click", () => jumpSqlFind("prev"));
+  document.getElementById("wb-sql-find")?.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      const bar = document.getElementById("wb-sql-findbar");
+      if (bar) bar.hidden = true;
+      document.getElementById("wb-sql-ed")?.focus();
+      return;
+    }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    jumpSqlFind(e.shiftKey ? "prev" : "next");
   });
   window.addEventListener("keydown", (e) => {
     if (e.key !== "F5") return;
@@ -787,6 +1064,20 @@ export function workbenchScript() {
   });
   syncGutter();
   let favSelected = "";
+  let favQuery = "";
+  function paintFavSql(sql) {
+    const pre = document.getElementById("wb-sql-fav-preview");
+    const g = document.getElementById("wb-sql-fav-gutter");
+    const linesEl = document.getElementById("wb-sql-fav-lines");
+    const text = String(sql || "");
+    const n = Math.max(1, text ? text.split("\\n").length : 1);
+    if (g) g.innerHTML = Array.from({ length: n }, (_, i) => "<span class=ln>" + (i + 1) + "</span>").join("");
+    if (pre) {
+      if (!text) pre.textContent = "Seleccioná una consulta de la lista para previsualizarla.";
+      else pre.innerHTML = highlightSql(text);
+    }
+    if (linesEl) linesEl.textContent = text ? (n + (n === 1 ? " línea" : " líneas")) : "";
+  }
   function favTitle(sql) {
     return (String(sql || "").split("\\n").find((l) => l.trim() && !l.trim().startsWith("--")) || "consulta").trim().slice(0, 60);
   }
@@ -801,23 +1092,37 @@ export function workbenchScript() {
     const loadBtn = document.getElementById("wb-sql-fav-load");
     const delBtn = document.getElementById("wb-sql-fav-del");
     const openBtn = document.getElementById("wb-sql-fav-open");
+    const countEl = document.getElementById("wb-sql-fav-count");
+    const q = favQuery.trim().toLowerCase();
+    const shown = q ? list.filter((f) => (String(f.title || "") + " " + String(f.sql || "")).toLowerCase().indexOf(q) >= 0) : list;
     if (openBtn) openBtn.textContent = list.length ? ("Favoritos (" + list.length + ")") : "Favoritos";
+    if (countEl) countEl.textContent = list.length ? (shown.length + " de " + list.length) : "";
     if (!box) return;
     if (!list.length) {
       favSelected = "";
       box.innerHTML = "<p class=muted>Todavía no hay consultas guardadas. ★ Guardar deja la del editor en .afn/sql-favorites.json.</p>";
+      paintFavSql("");
       if (pre) pre.textContent = "Cuando guardes una, la vas a ver acá antes de cargarla.";
       if (titleEl) titleEl.textContent = "Sin favoritos";
       if (loadBtn) loadBtn.disabled = true;
       if (delBtn) delBtn.disabled = true;
       return;
     }
-    if (!list.some((f) => f.id === favSelected)) favSelected = list[0].id;
-    const hit = list.find((f) => f.id === favSelected) || list[0];
-    box.innerHTML = list.map((f) => {
+    if (!shown.length) {
+      box.innerHTML = "<p class=muted>Ningún favorito coincide con la búsqueda.</p>";
+      paintFavSql("");
+      if (titleEl) titleEl.textContent = "Sin coincidencias";
+      if (loadBtn) loadBtn.disabled = true;
+      if (delBtn) delBtn.disabled = true;
+      return;
+    }
+    if (!shown.some((f) => f.id === favSelected)) favSelected = shown[0].id;
+    const hit = shown.find((f) => f.id === favSelected) || shown[0];
+    box.innerHTML = shown.map((f) => {
       const on = f.id === hit.id ? " on" : "";
+      const n = String(f.sql || "").split("\\n").length;
       const line = String(f.sql || "").replace(/\\s+/g, " ").trim().slice(0, 72);
-      return "<button type=button class=\\"fav-item" + on + "\\" data-fav-pick=\\"" + favEsc(f.id) + "\\"><strong>" + favEsc(f.title || "consulta") + "</strong><small>" + favEsc(line) + "</small></button>";
+      return "<button type=button class=\\"fav-item" + on + "\\" data-fav-pick=\\"" + favEsc(f.id) + "\\"><strong>" + favEsc(f.title || "consulta") + "</strong><small>" + n + (n === 1 ? " línea · " : " líneas · ") + favEsc(line) + "</small></button>";
     }).join("");
     box.querySelectorAll("[data-fav-pick]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -825,7 +1130,7 @@ export function workbenchScript() {
         paintFavModal();
       });
     });
-    if (pre) pre.textContent = hit.sql || "";
+    paintFavSql(hit.sql || "");
     if (titleEl) titleEl.textContent = hit.title || "consulta";
     if (loadBtn) loadBtn.disabled = false;
     if (delBtn) delBtn.disabled = false;
@@ -846,6 +1151,10 @@ export function workbenchScript() {
     window.__afnFavs = j.favorites || [];
     paintFavModal();
   }
+  document.getElementById("wb-sql-fav-q")?.addEventListener("input", (e) => {
+    favQuery = e.target.value || "";
+    paintFavModal();
+  });
   document.getElementById("wb-sql-fav-open")?.addEventListener("click", () => { loadFavs().then(openFavModal).catch((e) => setMsg("wb-sql-msg", e.message, false)); });
   document.getElementById("wb-sql-fav-close")?.addEventListener("click", closeFavModal);
   document.getElementById("wb-sql-fav-modal")?.addEventListener("click", (e) => {

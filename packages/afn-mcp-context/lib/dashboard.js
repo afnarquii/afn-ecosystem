@@ -13,6 +13,7 @@ import { irToMermaid } from './diagram-ir.js';
 import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid, workspaceFlowMarkdown } from './workspace-flow.js';
 import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
+import { compareCss, compareScript, compareSection } from './dashboard-compare-ui.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
 import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
 import { projectBarHtml, projectBarScript, projectBarCss } from './dashboard-project-ui.js';
@@ -399,7 +400,8 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (n) n.textContent = q ? (hits + " coincidencias") : "";
     document.querySelectorAll("[data-view]").forEach((sec) => {
       if (!q) return;
-      if (sec.getAttribute("data-view") === "sql" && document.querySelector("nav button.on")?.dataset.go === "sql") {
+      const onView = document.querySelector("nav button.on")?.dataset.go;
+      if ((sec.getAttribute("data-view") === "sql" && onView === "sql") || (sec.getAttribute("data-view") === "comparar" && onView === "comparar")) {
         sec.hidden = false;
         return;
       }
@@ -418,9 +420,10 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.go === id));
     const sqlPreview = document.getElementById("wb-sql-inspect");
     if (id !== "sql" && sqlPreview) sqlPreview.classList.remove("fs");
+    const wide = id === "sql" || id === "comparar";
     const project = document.getElementById("afn-project");
-    if (project) project.hidden = id === "sql";
-    document.querySelector("main")?.classList.toggle("sql-focus", id === "sql");
+    if (project) project.hidden = wide;
+    document.querySelector("main")?.classList.toggle("sql-focus", wide);
     if (id === "mapa") render(document.getElementById("flow-mermaid"), document.getElementById("flow-src").textContent);
     if (id === "capas") render(document.getElementById("layers-mermaid"), document.getElementById("layers-src").textContent);
     if (id === "howto") render(document.getElementById("e2e-mermaid"), document.getElementById("e2e-src").textContent);
@@ -560,11 +563,12 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       window.afnSqlFindNext(e.shiftKey ? "prev" : "next");
     }
     if (e.key === "Escape") closeOverlay();
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && document.activeElement?.tagName !== "TEXTAREA") {
       e.preventDefault();
       document.getElementById("q")?.focus();
     }
-    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+    const typing = document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA";
+    if (e.key === "/" && !typing) {
       e.preventDefault();
       document.getElementById("q")?.focus();
     }
@@ -612,8 +616,9 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const i = rest.indexOf("/");
     showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
   }
-  else showView(["inicio","readme","datos","origenes","esquema","sql","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "readme");
+  else showView(["inicio","readme","datos","origenes","esquema","sql","comparar","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "readme");
 ${workbenchScript()}
+${compareScript()}
 ${skillsScript()}
 ${extractScript()}
 ${projectBarScript()}
@@ -704,11 +709,32 @@ ${projectBarScript()}
   .sql-head #wb-sql-driver { font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:16rem; }
   .sql-export { display:flex; gap:.3rem; margin-left:.15rem; }
   .sql-ide-split { display:grid; grid-template-rows:auto minmax(0,1fr); flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b1016; }
-  .sql-editor-wrap { display:grid; grid-template-columns:48px minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); height:28vh; min-height:150px; max-width:100%; min-width:0; resize:vertical; overflow:hidden; border-bottom:1px solid var(--line); }
-  .sql-pane-bar { grid-column:1 / -1; display:flex; align-items:center; gap:.35rem; padding:.28rem .55rem; background:#121a24; border-bottom:1px solid var(--line); font-size:.75rem; color:var(--muted); }
+  .sql-editor-wrap { display:flex; flex-direction:column; height:28vh; min-height:150px; max-width:100%; min-width:0; resize:vertical; overflow:hidden; border-bottom:1px solid var(--line); }
+  .sql-pane-bar { display:flex; align-items:center; gap:.35rem; padding:.28rem .55rem; background:#121a24; border-bottom:1px solid var(--line); font-size:.75rem; color:var(--muted); flex-shrink:0; }
+  .sql-pos { color:#93c5fd; font:12px/1 Consolas,ui-monospace,monospace; }
+  .sql-findbar { display:flex; gap:.35rem; align-items:center; padding:.3rem .5rem; background:#121a24; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .sql-findbar[hidden] { display:none !important; }
+  .sql-findbar input { flex:1; min-width:8rem; background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.3rem .5rem; font:13px Consolas,ui-monospace,monospace; }
+  .sql-code { display:grid; grid-template-columns:3.4rem minmax(0,1fr); flex:1; min-height:0; min-width:0; }
+  .sql-stage { position:relative; min-width:0; min-height:0; overflow:hidden; background:#0b1016; }
+  .sql-caretline { position:absolute; left:0; right:0; background:rgba(30,58,95,.45); pointer-events:none; z-index:0; }
   .sql-editor-wrap.fs, .sql-results.fs { position:fixed; inset:0; z-index:42; width:100vw; height:100vh; max-height:none; max-width:100vw; min-height:0; min-width:0; resize:none; border:0; border-radius:0; background:#0b1016; overflow:hidden; }
-  .sql-gutter { background:#0e1620; color:#5b6b7e; font:12px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; text-align:right; padding:.75rem .45rem; user-select:none; overflow:hidden; white-space:pre; }
-  #wb-sql-ed.sql-ed { min-height:0; min-width:0; max-width:100%; height:100%; border:0; border-radius:0; resize:none; overflow:auto; padding:.75rem .9rem; font:13.5px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; background:#0b1016; outline:none; }
+  .sql-gutter { background:#0e1620; color:#5b6b7e; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; text-align:right; padding:.75rem .45rem 0; user-select:none; overflow:hidden; white-space:pre; }
+  .sql-gutter .ln { display:block; }
+  .sql-gutter .ln.on { color:#f8fafc; font-weight:700; }
+  .sql-hl { position:absolute; inset:0; margin:0; z-index:1; pointer-events:none; overflow:auto; white-space:pre; tab-size:2; padding:.75rem .9rem; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; color:#d6e4f0; background:transparent; font-variant-ligatures:none; }
+  .sql-kw { color:#569cd6; }
+  .sql-fn { color:#dcdcaa; }
+  .sql-str { color:#ce9178; }
+  .sql-num { color:#b5cea8; }
+  .sql-cmt { color:#6a9955; font-style:italic; }
+  .sql-id { color:#9cdcfe; }
+  .sql-ac { position:absolute; left:.55rem; bottom:.4rem; z-index:4; min-width:14rem; max-width:28rem; max-height:11rem; overflow:auto; background:#111827; border:1px solid #334155; border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,.45); }
+  .sql-ac[hidden] { display:none !important; }
+  .sql-ac button { display:block; width:100%; text-align:left; background:transparent; border:0; color:#e5e7eb; padding:.35rem .65rem; font:13px Consolas,ui-monospace,monospace; cursor:pointer; }
+  .sql-ac button.on, .sql-ac button:hover { background:#1e3a5f; }
+  #wb-sql-ed.sql-ed { position:absolute; inset:0; z-index:2; min-height:0; min-width:0; max-width:100%; width:100%; height:100%; border:0; border-radius:0; resize:none; overflow:auto; padding:.75rem .9rem; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; color:transparent; caret-color:#f8fafc; background:transparent; outline:none; white-space:pre; tab-size:2; font-variant-ligatures:none; }
+  #wb-sql-ed.sql-ed::selection { background:rgba(37,99,235,.55); color:transparent; }
   .sql-results { display:flex; flex-direction:column; min-height:0; min-width:0; max-width:100%; overflow:hidden; background:#101820; }
   .sql-statusbar { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:.4rem .75rem; background:#0e141c; border-bottom:1px solid var(--line); font:12px/1.4 Consolas,ui-monospace,monospace; color:var(--muted); }
   .sql-rowbar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.35rem .65rem; background:#121a24; border-bottom:1px solid var(--line); }
@@ -733,6 +759,7 @@ ${projectBarScript()}
   #wb-sql-grid tbody tr { cursor:pointer; }
   #wb-sql-grid tbody tr:hover td { background:#1a2533; }
   #wb-sql-grid tbody tr.on td { background:#1e3a5f; }
+${compareCss()}
 ${skillsCss()}
 ${extractCss()}
 ${projectBarCss()}
@@ -764,17 +791,29 @@ ${projectBarCss()}
   .fav-modal { position:fixed; inset:0; z-index:55; background:rgba(7,11,16,.72); display:flex; align-items:center; justify-content:center; padding:1.2rem; }
   .fav-modal[hidden] { display:none; }
   .fav-sheet { width:min(980px,100%); height:min(680px,90vh); background:#111827; border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; box-shadow:0 24px 80px rgba(0,0,0,.5); overflow:hidden; }
+  #wb-sql-fav-modal { padding:0; align-items:stretch; }
+  #wb-sql-fav-modal .fav-sheet { width:100%; height:100%; max-width:none; max-height:none; border-radius:0; }
   .fav-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; padding:1rem 1.15rem; border-bottom:1px solid var(--line); }
   .fav-head h3 { margin:.15rem 0 .25rem; font-size:1.15rem; }
   .fav-head .k { margin:0; }
-  .fav-body { display:grid; grid-template-columns:minmax(220px,300px) 1fr; min-height:0; flex:1; }
-  .fav-list { overflow:auto; border-right:1px solid var(--line); padding:.45rem; display:flex; flex-direction:column; gap:.35rem; }
+  .fav-tools { display:flex; gap:.55rem; align-items:center; padding:.45rem .75rem; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .fav-tools input { flex:1; background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.45rem .65rem; font:inherit; }
+  .fav-body { display:grid; grid-template-columns:minmax(240px,340px) minmax(0,1fr); min-height:0; flex:1; }
+  .fav-list { min-height:0; overflow-x:hidden; overflow-y:auto; border-right:1px solid var(--line); padding:.45rem; display:flex; flex-direction:column; gap:.35rem; scrollbar-width:thin; scrollbar-color:#5b6b7e #0e141c; }
+  .fav-list::-webkit-scrollbar { width:12px; }
+  .fav-list::-webkit-scrollbar-thumb { background:#3d5166; border-radius:8px; }
+  .fav-list::-webkit-scrollbar-track { background:#0e141c; }
   .fav-item { text-align:left; background:#0c1118; border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:.55rem .7rem; cursor:pointer; font:inherit; }
   .fav-item.on, .fav-item:hover { border-color:var(--acc); background:#1e3a5f; }
   .fav-item small { display:block; color:var(--muted); margin-top:.2rem; font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .fav-preview { display:flex; flex-direction:column; min-width:0; min-height:0; }
   .fav-preview-bar { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.55rem .75rem; border-bottom:1px solid var(--line); font-size:.82rem; }
   .fav-preview-sql { margin:0; padding:1rem 1.1rem; overflow:auto; flex:1; font:13px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; color:#e5e7eb; white-space:pre; background:#0b1016; }
+  .fav-read { display:grid; grid-template-columns:3.4rem minmax(0,1fr); flex:1; min-height:0; overflow:auto; background:#0b1016; scrollbar-width:thin; scrollbar-color:#5b6b7e #0e141c; }
+  .fav-read::-webkit-scrollbar { width:12px; height:12px; }
+  .fav-read::-webkit-scrollbar-thumb { background:#3d5166; border-radius:8px; }
+  .fav-read .sql-gutter { overflow:visible; min-height:100%; }
+  .fav-read .sql-hl { position:static; inset:auto; overflow:visible; height:auto; min-height:100%; }
   @media (max-width:760px) { .fav-body { grid-template-columns:1fr; } .fav-list { max-height:34vh; border-right:0; border-bottom:1px solid var(--line); } }
 </style>
 </head>
@@ -832,6 +871,7 @@ ${projectBarHtml()}
       <article id="datos-article" class="article" data-q="tablas procedimientos esquema sql mongo pa stored">${datosHtml}</article>
     </section>
 ${workbenchSections()}
+${compareSection()}
     <section data-view="notas" hidden>
       <div id="notes-list">
         <h2>Notas de trabajo</h2>
