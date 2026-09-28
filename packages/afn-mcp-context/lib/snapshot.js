@@ -54,7 +54,7 @@ export function buildPromptHint(root) {
     'AFN: mapa en ARQUITECTURA.md. Cerebro en .afn/memory/cerebro.json.',
     'SIN tokens de chat: node …/afn-mcp-context/index.js dashboard | note-save archivo.md | mem-search texto.',
     'No abras el dashboard ni guardes notes ni busques cerebro por el chat. No regeneres arquitectura.',
-    'No leas .afn/sql-favorites.json ni el texto de Comparar: no son contexto.',
+    'No leas .afn/sql-favorites.json ni el texto de Comparar o del Editor: no son contexto.',
   ].join('\n');
   return { ok: true, markdown: `${md}\n`, root: root || '', hint: true };
 }
@@ -108,7 +108,7 @@ export function buildSnapshot(root) {
     );
   }
   lines.push(`Proyectos activos: **${active.length}**` + (cfg.ignorePaths.length ? ` · ignorados: ${cfg.ignorePaths.join(', ')}` : '') + (cfg.architectureLocked ? ' · arquitectura cerrada' : ''));
-  lines.push('Consultas de la pestaña SQL y `.afn/sql-favorites.json` no son contexto. No las leas ni las cites. La pestaña Comparar tampoco.');
+  lines.push('Consultas de la pestaña SQL y `.afn/sql-favorites.json` no son contexto. No las leas ni las cites. Comparar y Editor tampoco.');
   if (weak) {
     lines.push('_Mapa pobre (un proyecto genérico tipo mcp-context). Corré `afn_bootstrap` con force desde el workspace del producto, no desde afn-ecosystem._');
   }

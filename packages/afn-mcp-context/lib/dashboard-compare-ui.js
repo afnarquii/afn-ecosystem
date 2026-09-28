@@ -1,5 +1,6 @@
 /** Pestaña Comparar: diff lado a lado en el navegador. El texto no sale de esta pestaña. */
 import { alignDiff, prettyJson } from './text-diff.js';
+import { textEditorHtml } from './dashboard-text-editor.js';
 
 export function compareSection() {
   return `
@@ -33,8 +34,8 @@ export function compareSection() {
       </div>
       <p class="cmp-note">Pegá texto o abrí un archivo. Se lee acá, en el navegador. No se guarda y no entra al contexto del agente.</p>
       <div class="cmp-editors" id="cmp-editors">
-        <textarea id="cmp-ed-l" spellcheck="false" wrap="off" placeholder="Pegá o escribí el texto de la izquierda. También podés abrir un archivo."></textarea>
-        <textarea id="cmp-ed-r" spellcheck="false" wrap="off" placeholder="Pegá o escribí el texto de la derecha. También podés abrir un archivo."></textarea>
+        ${textEditorHtml('cmp-l', 'Izquierda', 'Pegá el texto de la izquierda. Ctrl+F busca. Números de línea a la izquierda.')}
+        ${textEditorHtml('cmp-r', 'Derecha', 'Pegá el texto de la derecha. Ctrl+F busca. Números de línea a la izquierda.')}
       </div>
       <div class="cmp-scroll" id="cmp-scroll"></div>
     </section>`;
@@ -52,7 +53,7 @@ export function compareCss() {
   .cmp-find input { flex:1; min-width:8rem; background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.35rem .55rem; font:13px Consolas,ui-monospace,monospace; }
   .cmp-note { margin:0; padding:.28rem .7rem; font-size:.72rem; color:var(--muted); background:#101820; border-left:1px solid var(--line); border-right:1px solid var(--line); }
   .cmp-editors { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.45rem; }
-  .cmp-editors textarea { width:100%; height:100%; min-height:0; resize:none; border:1px solid var(--line); border-radius:12px; background:#0b1016; color:var(--ink); padding:.65rem .7rem; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; }
+  .cmp-editors .te-wrap { height:100%; min-height:0; }
   .cmp-ide.cmp-diffing .cmp-editors { display:none; }
   .cmp-ide:not(.cmp-diffing) .cmp-scroll { display:none; }
   .cmp-scroll { flex:1; min-height:0; overflow:auto; border:1px solid var(--line); border-radius:0 0 12px 12px; background:#0b1016; scrollbar-width:thin; scrollbar-color:#5b6b7e #0e141c; }
@@ -239,14 +240,18 @@ export function compareScript() {
       cmpSection()?.classList.toggle("cmp-diffing", !on);
     }
     function pullEditors() {
-      const l = document.getElementById("cmp-ed-l");
-      const r = document.getElementById("cmp-ed-r");
+      const l = document.getElementById("cmp-l-ed");
+      const r = document.getElementById("cmp-r-ed");
       if (l) l.value = cmp.left;
       if (r) r.value = cmp.right;
+      if (window.afnEditorPaint) {
+        window.afnEditorPaint("cmp-l-ed");
+        window.afnEditorPaint("cmp-r-ed");
+      }
     }
     function pushEditors() {
-      const l = document.getElementById("cmp-ed-l");
-      const r = document.getElementById("cmp-ed-r");
+      const l = document.getElementById("cmp-l-ed");
+      const r = document.getElementById("cmp-r-ed");
       if (l) cmp.left = l.value || "";
       if (r) cmp.right = r.value || "";
     }
@@ -310,18 +315,18 @@ export function compareScript() {
         compareNow();
       }
     }
-    document.getElementById("cmp-ed-l")?.addEventListener("input", () => markPasted("l"));
-    document.getElementById("cmp-ed-r")?.addEventListener("input", () => markPasted("r"));
-    document.getElementById("cmp-ed-l")?.addEventListener("keydown", onEditorKey);
-    document.getElementById("cmp-ed-r")?.addEventListener("keydown", onEditorKey);
+    document.getElementById("cmp-l-ed")?.addEventListener("input", () => markPasted("l"));
+    document.getElementById("cmp-r-ed")?.addEventListener("input", () => markPasted("r"));
+    document.getElementById("cmp-l-ed")?.addEventListener("keydown", onEditorKey);
+    document.getElementById("cmp-r-ed")?.addEventListener("keydown", onEditorKey);
     document.getElementById("cmp-run")?.addEventListener("click", compareNow);
     document.getElementById("cmp-edit")?.addEventListener("click", () => {
       pullEditors();
       showEditors(true);
-      document.getElementById("cmp-ed-l")?.focus();
+      document.getElementById("cmp-l-ed")?.focus();
     });
-    bindDrop(document.getElementById("cmp-ed-l"), "l");
-    bindDrop(document.getElementById("cmp-ed-r"), "r");
+    bindDrop(document.getElementById("cmp-l-ed"), "l");
+    bindDrop(document.getElementById("cmp-r-ed"), "r");
     document.getElementById("cmp-json")?.addEventListener("change", runDiff);
     document.getElementById("cmp-only")?.addEventListener("change", () => paintCmp("reset"));
     document.getElementById("cmp-mode")?.addEventListener("click", () => {

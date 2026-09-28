@@ -281,6 +281,7 @@ export function workbenchNavButtons() {
       <button type="button" data-go="esquema">Elegir tablas/PAs</button>
       <button type="button" data-go="sql">SQL</button>
       <button type="button" data-go="comparar">Comparar</button>
+      <button type="button" data-go="editor">Editor</button>
       <button type="button" data-go="scripts">Scripts</button>`;
 }
 

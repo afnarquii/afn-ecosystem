@@ -14,6 +14,7 @@ import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eM
 import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { compareCss, compareScript, compareSection } from './dashboard-compare-ui.js';
+import { textEditorCss, textEditorScript, textEditorSection } from './dashboard-text-editor.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
 import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
 import { projectBarHtml, projectBarScript, projectBarCss } from './dashboard-project-ui.js';
@@ -401,7 +402,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     document.querySelectorAll("[data-view]").forEach((sec) => {
       if (!q) return;
       const onView = document.querySelector("nav button.on")?.dataset.go;
-      if ((sec.getAttribute("data-view") === "sql" && onView === "sql") || (sec.getAttribute("data-view") === "comparar" && onView === "comparar")) {
+      if ((sec.getAttribute("data-view") === "sql" && onView === "sql") || (sec.getAttribute("data-view") === "comparar" && onView === "comparar") || (sec.getAttribute("data-view") === "editor" && onView === "editor")) {
         sec.hidden = false;
         return;
       }
@@ -420,7 +421,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.go === id));
     const sqlPreview = document.getElementById("wb-sql-inspect");
     if (id !== "sql" && sqlPreview) sqlPreview.classList.remove("fs");
-    const wide = id === "sql" || id === "comparar";
+    const wide = id === "sql" || id === "comparar" || id === "editor";
     const project = document.getElementById("afn-project");
     if (project) project.hidden = wide;
     document.querySelector("main")?.classList.toggle("sql-focus", wide);
@@ -616,8 +617,9 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const i = rest.indexOf("/");
     showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
   }
-  else showView(["inicio","readme","datos","origenes","esquema","sql","comparar","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "readme");
+  else showView(["inicio","readme","datos","origenes","esquema","sql","comparar","editor","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "readme");
 ${workbenchScript()}
+${textEditorScript()}
 ${compareScript()}
 ${skillsScript()}
 ${extractScript()}
@@ -773,6 +775,7 @@ ${projectBarScript()}
   #wb-sql-grid tbody tr:hover td { background:#1a2533; }
   #wb-sql-grid tbody tr.on td { background:#1e3a5f; }
 ${compareCss()}
+${textEditorCss()}
 ${skillsCss()}
 ${extractCss()}
 ${projectBarCss()}
@@ -890,6 +893,7 @@ ${projectBarHtml()}
     </section>
 ${workbenchSections()}
 ${compareSection()}
+${textEditorSection()}
     <section data-view="notas" hidden>
       <div id="notes-list">
         <h2>Notas de trabajo</h2>
