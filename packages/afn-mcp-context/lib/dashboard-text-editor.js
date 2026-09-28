@@ -53,6 +53,9 @@ export function textEditorCss() {
   .te-ed.sql-ed { position:absolute; inset:0; z-index:2; min-height:0; width:100%; height:100%; border:0; border-radius:0; resize:none; overflow:auto; padding:.75rem .9rem; font:13.5px/21px Consolas,"Cascadia Mono",ui-monospace,monospace; color:transparent; caret-color:#f8fafc; background:transparent; outline:none; white-space:pre; tab-size:2; font-variant-ligatures:none; }
   .te-ed.sql-ed::selection { background:rgba(37,99,235,.55); color:transparent; }
   .te-ed.sql-ed::placeholder { color:#64748b; }
+  .te-wrap .sql-gutter { position:relative; }
+  .te-ed.sql-ed.te-lite { color:#d6e4f0; }
+  .te-ed.sql-ed.te-lite::selection { background:rgba(37,99,235,.45); color:inherit; }
   `;
 }
 
@@ -71,44 +74,24 @@ export function textEditorScript() {
       cw = ctx.measureText("0000000000").width / 10;
       return cw || 8.1;
     }
-    function esc(s) {
-      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const LH = 21;
+    function lineStarts(text) {
+      const starts = [0];
+      for (let i = 0; i < text.length; i += 1) if (text[i] === "\\n") starts.push(i + 1);
+      return starts;
     }
-    function lineAt(text, pos) {
-      let n = 0;
-      const stop = Math.min(pos, text.length);
-      for (let i = 0; i < stop; i += 1) if (text[i] === "\\n") n += 1;
-      return n;
-    }
-    function colAt(text, pos) {
-      const cut = text.slice(0, pos);
-      const i = cut.lastIndexOf("\\n");
-      return pos - (i + 1);
-    }
-    function boxes(text, start, end, ta) {
-      const a = Math.max(0, Math.min(start, end));
-      const b = Math.min(text.length, Math.max(start, end));
-      if (b <= a) return [];
-      const cs = getComputedStyle(ta);
-      const padX = parseFloat(cs.paddingLeft) || 0;
-      const padY = parseFloat(cs.paddingTop) || 0;
-      const lh = 21;
-      const wch = charWidth();
-      const lines = text.split("\\n");
-      const lineA = lineAt(text, a);
-      const lineB = lineAt(text, b);
-      const out = [];
-      for (let line = lineA; line <= lineB; line += 1) {
-        const ca = line === lineA ? colAt(text, a) : 0;
-        const cb = line === lineB ? colAt(text, b) : (lines[line] || "").length;
-        out.push({
-          top: padY + line * lh - ta.scrollTop,
-          left: padX + ca * wch - ta.scrollLeft,
-          width: Math.max((cb - ca) * wch, 2),
-          height: lh,
-        });
+    function lineOf(starts, pos) {
+      let lo = 0;
+      let hi = starts.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (starts[mid] <= pos) lo = mid;
+        else hi = mid - 1;
       }
-      return out;
+      return lo;
+    }
+    function colOf(starts, pos) {
+      return pos - starts[lineOf(starts, pos)];
     }
     function bindAfnEditor(prefix) {
       const ta = document.getElementById(prefix + "-ed");
@@ -120,7 +103,11 @@ export function textEditorScript() {
       const bar = document.getElementById(prefix + "-findbar");
       const find = document.getElementById(prefix + "-find");
       if (!ta || !gutter || !hl) return;
-      const st = { at: 0, inSel: false, scope: null, matchCase: false, ranges: [], seed: "", lock: false, note: "" };
+      const st = { at: 0, inSel: false, scope: null, matchCase: false, ranges: [], seed: "", lock: false, note: "", rev: 0, hitKey: "", hitList: [], frame: 0 };
+      function schedule() {
+        if (st.frame) return;
+        st.frame = requestAnimationFrame(() => { st.frame = 0; paint(); });
+      }
       function caretInfo() {
         const v = String(ta.value || "");
         const at = ta.selectionStart || 0;
@@ -130,6 +117,9 @@ export function textEditorScript() {
       function hits() {
         const q = String(find?.value || "");
         if (!q) return [];
+        const scope = st.inSel && st.scope ? (st.scope.start + ":" + st.scope.end) : "";
+        const key = st.rev + "|" + q + "|" + (st.matchCase ? "1" : "0") + "|" + scope;
+        if (key === st.hitKey) return st.hitList;
         const text = ta.value || "";
         const hay = st.matchCase ? text : text.toLowerCase();
         const needle = st.matchCase ? q : q.toLowerCase();
@@ -137,49 +127,98 @@ export function textEditorScript() {
         const to = st.inSel && st.scope ? st.scope.end : text.length;
         const out = [];
         let at = hay.indexOf(needle, from);
-        while (at >= 0 && at < to) {
+        while (at >= 0 && at < to && out.length < 20000) {
           if (at + needle.length <= to) out.push(at);
           at = hay.indexOf(needle, at + Math.max(needle.length, 1));
-          if (out.length > 4000) break;
         }
+        st.hitKey = key;
+        st.hitList = out;
+        st.hitMore = at >= 0 && at < to;
         return out;
       }
       function paint() {
         const text = ta.value || "";
+        const starts = lineStarts(text);
         const info = caretInfo();
-        gutter.innerHTML = Array.from({ length: info.total }, (_, i) => "<span class=\\"ln" + (i + 1 === info.line ? " on" : "") + "\\">" + (i + 1) + "</span>").join("");
-        hl.textContent = text;
-        gutter.scrollTop = ta.scrollTop;
-        hl.scrollTop = ta.scrollTop;
-        hl.scrollLeft = ta.scrollLeft;
+        const total = starts.length;
+        const cs = getComputedStyle(ta);
+        const padX = parseFloat(cs.paddingLeft) || 0;
+        const padY = parseFloat(cs.paddingTop) || 0;
+        const first = Math.max(0, Math.floor(ta.scrollTop / LH) - 1);
+        const view = Math.ceil((ta.clientHeight || 400) / LH) + 4;
+        const last = Math.min(total, first + view);
+        let gHtml = "";
+        for (let i = first; i < last; i += 1) {
+          gHtml += "<span class=\\"ln" + (i + 1 === info.line ? " on" : "") + "\\" style=\\"position:absolute;left:0;right:.35rem;height:" + LH + "px;line-height:" + LH + "px;top:" + (padY + i * LH - ta.scrollTop) + "px\\">" + (i + 1) + "</span>";
+        }
+        gutter.innerHTML = gHtml;
+        const lite = total > 400 || text.length > 80000;
+        ta.classList.toggle("te-lite", lite);
+        if (lite) {
+          if (hl.textContent) hl.textContent = "";
+        } else if (hl.dataset.rev !== String(st.rev)) {
+          hl.textContent = text;
+          hl.dataset.rev = String(st.rev);
+        }
+        if (!lite) {
+          hl.scrollTop = ta.scrollTop;
+          hl.scrollLeft = ta.scrollLeft;
+        }
         if (caret) {
-          const pad = parseFloat(getComputedStyle(ta).paddingTop) || 0;
-          caret.style.height = "21px";
-          caret.style.top = ((info.line - 1) * 21 + pad - ta.scrollTop) + "px";
+          caret.style.height = LH + "px";
+          caret.style.top = ((info.line - 1) * LH + padY - ta.scrollTop) + "px";
         }
         if (pos) {
-          pos.textContent = "Línea " + info.line + ", col " + info.col + " · " + info.total + (info.total === 1 ? " línea" : " líneas") + (st.note ? " · " + st.note : "");
+          pos.textContent = "Línea " + info.line + ", col " + info.col + " · " + total + (total === 1 ? " línea" : " líneas") + (st.note ? " · " + st.note : "");
         }
         const q = String(find?.value || "");
         const list = bar && !bar.hidden ? hits() : [];
         const cur = list.length ? list[Math.min(st.at, list.length - 1)] : -1;
-        let html = "";
-        function add(ranges, cls) {
-          ranges.forEach((r) => {
-            html += "<i class=\\"sql-mark " + cls + "\\" style=\\"top:" + r.top + "px;left:" + r.left + "px;width:" + r.width + "px;height:" + r.height + "px\\"></i>";
-          });
+        const wch = charWidth();
+        const visLo = first;
+        const visHi = last;
+        function add(start, end, cls) {
+          const a = Math.max(0, Math.min(start, end));
+          const b = Math.min(text.length, Math.max(start, end));
+          if (b <= a) return;
+          let lineA = lineOf(starts, a);
+          let lineB = lineOf(starts, b - 1);
+          if (lineB < visLo || lineA > visHi) return;
+          if (lineA < visLo) lineA = visLo;
+          if (lineB > visHi) lineB = visHi;
+          for (let line = lineA; line <= lineB; line += 1) {
+            const ca = line === lineOf(starts, a) ? colOf(starts, a) : 0;
+            const lineEnd = line + 1 < starts.length ? starts[line + 1] - 1 : text.length;
+            const cb = line === lineOf(starts, b - 1) ? colOf(starts, b) : (lineEnd - starts[line]);
+            const top = padY + line * LH - ta.scrollTop;
+            const left = padX + ca * wch - ta.scrollLeft;
+            const width = Math.max((cb - ca) * wch, 2);
+            html += "<i class=\\"sql-mark " + cls + "\\" style=\\"top:" + top + "px;left:" + left + "px;width:" + width + "px;height:" + LH + "px\\"></i>";
+          }
         }
-        if (st.inSel && st.scope) add(boxes(text, st.scope.start, st.scope.end, ta), "scope");
-        list.forEach((at) => { if (at !== cur) add(boxes(text, at, at + q.length, ta), "hit"); });
+        let html = "";
+        if (st.inSel && st.scope) add(st.scope.start, st.scope.end, "scope");
+        let painted = 0;
+        for (let i = 0; i < list.length && painted < 40; i += 1) {
+          if (list[i] === cur) continue;
+          const line = lineOf(starts, list[i]);
+          if (line < visLo || line > visHi) continue;
+          add(list[i], list[i] + q.length, "hit");
+          painted += 1;
+        }
         const ss = ta.selectionStart || 0;
         const se = ta.selectionEnd || 0;
         const selIsHit = cur >= 0 && ss === cur && se === cur + q.length;
-        if (st.ranges.length) st.ranges.forEach((r) => add(boxes(text, r.start, r.end, ta), "sel"));
-        else if (ss !== se && !selIsHit) add(boxes(text, ss, se, ta), "sel");
-        if (cur >= 0) add(boxes(text, cur, cur + q.length, ta), "hit on");
+        if (st.ranges.length) st.ranges.forEach((r) => add(r.start, r.end, "sel"));
+        else if (ss !== se && !selIsHit) add(ss, se, "sel");
+        if (cur >= 0) add(cur, cur + q.length, "hit on");
         if (marks) marks.innerHTML = html;
         const nEl = document.getElementById(prefix + "-find-n");
-        if (nEl) nEl.textContent = !q || (bar && bar.hidden) ? "" : (list.length ? ((Math.min(st.at, list.length - 1) + 1) + " / " + list.length) : "Sin coincidencias");
+        if (nEl) {
+          if (!q || (bar && bar.hidden)) nEl.textContent = "";
+          else if (!list.length) nEl.textContent = "Sin coincidencias";
+          else nEl.textContent = (Math.min(st.at, list.length - 1) + 1) + " / " + list.length + (st.hitMore ? "+" : "");
+        }
         document.getElementById(prefix + "-find-case")?.classList.toggle("on", st.matchCase);
         document.getElementById(prefix + "-find-sel")?.classList.toggle("on", st.inSel);
       }
@@ -275,10 +314,9 @@ export function textEditorScript() {
         paint();
         setTimeout(() => { st.lock = false; }, 0);
       }
-      ta.addEventListener("input", () => { st.ranges = []; st.seed = ""; st.note = ""; paint(); });
-      ta.addEventListener("scroll", paint);
-      ta.addEventListener("keyup", paint);
-      ta.addEventListener("click", paint);
+      ta.addEventListener("input", () => { st.rev += 1; st.hitKey = ""; st.ranges = []; st.seed = ""; st.note = ""; schedule(); });
+      ta.addEventListener("scroll", schedule);
+      ta.addEventListener("click", schedule);
       ta.addEventListener("keydown", (e) => {
         if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d") {
           e.preventDefault();
@@ -319,7 +357,7 @@ export function textEditorScript() {
         ta.focus();
         paint();
       });
-      find?.addEventListener("input", () => { st.at = 0; paint(); });
+      find?.addEventListener("input", () => { st.at = 0; schedule(); });
       find?.addEventListener("keydown", (e) => {
         if (e.key === "Enter") { e.preventDefault(); jump(e.shiftKey ? "prev" : "next"); }
         if (e.key === "Escape") {
@@ -347,7 +385,7 @@ export function textEditorScript() {
       document.addEventListener("selectionchange", () => {
         if (document.activeElement !== ta) return;
         if (!st.lock) { st.ranges = []; st.seed = ""; if (!st.note || st.note.indexOf("seleccion") >= 0) st.note = ""; }
-        paint();
+        schedule();
       });
       paint();
     }
