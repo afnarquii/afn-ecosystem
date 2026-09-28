@@ -1104,8 +1104,10 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.46/);
-  assert.match(html, /data-afn-version="1\.4\.46"/);
+  assert.match(html, /v1\.4\.48/);
+  assert.match(html, /data-afn-version="1\.4\.48"/);
+  assert.match(html, /selectNextSame/);
+  assert.match(html, /id="wb-sql-split"/);
   assert.match(html, /wb-sql-marks/);
   assert.match(html, /wb-sql-find-sel/);
   assert.match(html, /data-go="comparar"/);
@@ -1191,7 +1193,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.46/);
+    assert.match(liveHtml, /v1\.4\.48/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

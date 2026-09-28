@@ -708,8 +708,12 @@ ${projectBarScript()}
   .sql-head .btn-run:hover { border-color:var(--acc); }
   .sql-head #wb-sql-driver { font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:16rem; }
   .sql-export { display:flex; gap:.3rem; margin-left:.15rem; }
-  .sql-ide-split { display:grid; grid-template-rows:auto minmax(0,1fr); flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b1016; }
-  .sql-editor-wrap { display:flex; flex-direction:column; height:28vh; min-height:150px; max-width:100%; min-width:0; resize:vertical; overflow:hidden; border-bottom:1px solid var(--line); }
+  .sql-ide-split { display:grid; grid-template-rows:minmax(140px,55fr) 8px minmax(120px,45fr); flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b1016; }
+  .sql-editor-wrap { display:flex; flex-direction:column; min-height:0; max-width:100%; min-width:0; overflow:hidden; }
+  .sql-split-grip { cursor:ns-resize; background:#1a2533; touch-action:none; position:relative; }
+  .sql-split-grip::after { content:""; position:absolute; left:50%; top:50%; width:2.6rem; height:3px; margin:-1.5px 0 0 -1.3rem; border-radius:2px; background:#64748b; }
+  .sql-split-grip:hover, .sql-split-grip.on { background:#1d4ed8; }
+  .sql-split-grip:hover::after, .sql-split-grip.on::after { background:#fff; }
   .sql-pane-bar { display:flex; align-items:center; gap:.35rem; padding:.28rem .55rem; background:#121a24; border-bottom:1px solid var(--line); font-size:.75rem; color:var(--muted); flex-shrink:0; }
   .sql-pos { color:#93c5fd; font:12px/1 Consolas,ui-monospace,monospace; }
   .sql-findbar { display:flex; gap:.35rem; align-items:center; padding:.3rem .5rem; background:#121a24; border-bottom:1px solid var(--line); flex-shrink:0; }

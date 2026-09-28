@@ -119,6 +119,7 @@ ORDER BY 1, 2;</textarea>
             </div>
           </div>
         </div>
+        <div class="sql-split-grip" id="wb-sql-split" role="separator" aria-orientation="horizontal" aria-label="Arrastra para cambiar el alto de la consulta y de los resultados. Doble clic vuelve a 55 y 45." title="Arrastra para ampliar la consulta o los resultados. Doble clic: 55% / 45%."></div>
         <div class="sql-results" id="wb-sql-results">
           <div class="sql-statusbar">
             <span id="wb-sql-msg">Listo. F5 ejecuta.</span>
@@ -690,6 +691,72 @@ export function workbenchScript() {
     }
     return hits;
   }
+  const sqlOcc = { ranges: [], seed: "" };
+  const favOcc = { ranges: [], seed: "" };
+  let multiLock = false;
+  function wordBounds(text, pos) {
+    let a = pos;
+    let b = pos;
+    const ok = (ch) => /[A-Za-z0-9_@#$.]/.test(ch || "");
+    while (a > 0 && ok(text[a - 1])) a -= 1;
+    while (b < text.length && ok(text[b])) b += 1;
+    if (a === b) return null;
+    return { start: a, end: b };
+  }
+  function nextSameAt(text, seed, ranges) {
+    if (!seed) return -1;
+    const taken = {};
+    ranges.forEach((r) => { taken[r.start] = true; });
+    let from = ranges.length ? ranges[ranges.length - 1].end : 0;
+    for (let pass = 0; pass < 2; pass += 1) {
+      let at = text.indexOf(seed, from);
+      while (at >= 0) {
+        if (!taken[at]) return at;
+        at = text.indexOf(seed, at + Math.max(seed.length, 1));
+      }
+      from = 0;
+    }
+    return -1;
+  }
+  function selectNextSame(ta, bag, paint) {
+    if (!ta) return;
+    const text = ta.value || "";
+    const had = bag.ranges.length > 0;
+    if (!had) {
+      let start = ta.selectionStart || 0;
+      let end = ta.selectionEnd || 0;
+      const empty = start === end;
+      if (empty) {
+        const w = wordBounds(text, start);
+        if (!w) return;
+        start = w.start;
+        end = w.end;
+      }
+      bag.seed = text.slice(start, end);
+      if (!bag.seed) return;
+      bag.ranges = [{ start: start, end: end }];
+      if (empty) {
+        multiLock = true;
+        ta.setSelectionRange(start, end);
+        paint();
+        setTimeout(() => { multiLock = false; }, 0);
+        setMsg("wb-sql-msg", "1 seleccionada. Ctrl+D agrega la siguiente igual.", true);
+        return;
+      }
+    }
+    const at = nextSameAt(text, bag.seed, bag.ranges);
+    if (at >= 0) bag.ranges.push({ start: at, end: at + bag.seed.length });
+    const last = bag.ranges[bag.ranges.length - 1];
+    multiLock = true;
+    ta.setSelectionRange(last.start, last.end);
+    const line = text.slice(0, last.start).split("\\n").length;
+    ta.scrollTop = Math.max(0, (line - 4) * 21);
+    paint();
+    setTimeout(() => { multiLock = false; }, 0);
+    setMsg("wb-sql-msg", at < 0
+      ? ("Ya están todas (" + bag.ranges.length + ")")
+      : (bag.ranges.length + " seleccionadas iguales. Ctrl+D suma la siguiente."), true);
+  }
   function paintMarks() {
     const ta = document.getElementById("wb-sql-ed");
     const box = document.getElementById("wb-sql-marks");
@@ -714,7 +781,8 @@ export function workbenchScript() {
     const ss = ta.selectionStart || 0;
     const se = ta.selectionEnd || 0;
     const selIsHit = cur >= 0 && ss === cur && se === cur + q.length;
-    if (ss !== se && !selIsHit) add(sqlBoxes(text, ss, se, ta), "sel");
+    if (sqlOcc.ranges.length) sqlOcc.ranges.forEach((r) => add(sqlBoxes(text, r.start, r.end, ta), "sel"));
+    else if (ss !== se && !selIsHit) add(sqlBoxes(text, ss, se, ta), "sel");
     if (cur >= 0) add(sqlBoxes(text, cur, cur + q.length, ta), "hit on");
     box.innerHTML = html;
   }
@@ -917,13 +985,16 @@ export function workbenchScript() {
   }
   document.getElementById("wb-sql-run")?.addEventListener("click", runSql);
   const sqlEd = document.getElementById("wb-sql-ed");
-  sqlEd?.addEventListener("input", () => { paintSqlEditor(); showAc(false); });
+  sqlEd?.addEventListener("input", () => { sqlOcc.ranges = []; sqlOcc.seed = ""; paintSqlEditor(); showAc(false); });
   sqlEd?.addEventListener("scroll", syncSqlScroll);
   sqlEd?.addEventListener("click", paintSqlEditor);
   sqlEd?.addEventListener("keyup", paintSqlEditor);
   document.addEventListener("selectionchange", () => {
-    if (document.activeElement && document.activeElement.id === "wb-sql-ed") paintSqlEditor();
-    if (document.activeElement && document.activeElement.id === "wb-sql-fav-ed") paintFavChrome();
+    const id = document.activeElement && document.activeElement.id;
+    if (!multiLock && id === "wb-sql-ed") { sqlOcc.ranges = []; sqlOcc.seed = ""; }
+    if (!multiLock && id === "wb-sql-fav-ed") { favOcc.ranges = []; favOcc.seed = ""; }
+    if (id === "wb-sql-ed") paintSqlEditor();
+    if (id === "wb-sql-fav-ed") paintFavChrome();
   });
   sqlEd?.addEventListener("keydown", (e) => {
     const acBox = document.getElementById("wb-sql-ac");
@@ -936,6 +1007,7 @@ export function workbenchScript() {
     }
     if (acOpen && (e.key === "Enter" || e.key === "Tab")) { e.preventDefault(); acceptAc(acIndex); return; }
     if (acOpen && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); hideAc(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d") { e.preventDefault(); e.stopPropagation(); selectNextSame(sqlEd, sqlOcc, paintSqlEditor); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); openSqlFind(); return; }
     if (e.altKey && e.key.toLowerCase() === "l") { e.preventDefault(); toggleFindSel(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === " " || e.code === "Space")) { e.preventDefault(); showAc(true); return; }
@@ -1187,6 +1259,41 @@ export function workbenchScript() {
     });
     syncGutter();
   }
+  function applySqlSplit(pct) {
+    const n = Math.max(18, Math.min(82, Number(pct) || 55));
+    const split = document.querySelector(".sql-ide-split");
+    if (!split) return n;
+    split.style.gridTemplateRows = "minmax(120px," + n + "fr) 8px minmax(90px," + (100 - n) + "fr)";
+    try { sessionStorage.setItem("afn-sql-split", String(Math.round(n))); } catch (err) {}
+    return n;
+  }
+  try { applySqlSplit(Number(sessionStorage.getItem("afn-sql-split")) || 55); } catch (err) { applySqlSplit(55); }
+  const sqlSplit = document.getElementById("wb-sql-split");
+  if (sqlSplit) {
+    sqlSplit.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      sqlSplit.classList.add("on");
+      sqlSplit.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const box = sqlSplit.parentElement;
+        if (!box) return;
+        const rect = box.getBoundingClientRect();
+        if (!rect.height) return;
+        applySqlSplit(((ev.clientY - rect.top) / rect.height) * 100);
+        syncGutter();
+      };
+      const up = () => {
+        sqlSplit.classList.remove("on");
+        sqlSplit.removeEventListener("pointermove", move);
+        sqlSplit.removeEventListener("pointerup", up);
+        sqlSplit.removeEventListener("pointercancel", up);
+      };
+      sqlSplit.addEventListener("pointermove", move);
+      sqlSplit.addEventListener("pointerup", up);
+      sqlSplit.addEventListener("pointercancel", up);
+    });
+    sqlSplit.addEventListener("dblclick", () => { applySqlSplit(55); syncGutter(); });
+  }
   document.getElementById("wb-sql-ed-max")?.addEventListener("click", () => setSqlPane("wb-sql-editor", true));
   document.getElementById("wb-sql-ed-min")?.addEventListener("click", () => setSqlPane("wb-sql-editor", false));
   document.getElementById("wb-sql-res-max")?.addEventListener("click", () => setSqlPane("wb-sql-results", true));
@@ -1258,7 +1365,8 @@ export function workbenchScript() {
     const ss = ta.selectionStart || 0;
     const se = ta.selectionEnd || 0;
     const selIsHit = cur >= 0 && ss === cur && se === cur + q.length;
-    if (ss !== se && !selIsHit) add(sqlBoxes(text, ss, se, ta), "sel");
+    if (favOcc.ranges.length) favOcc.ranges.forEach((r) => add(sqlBoxes(text, r.start, r.end, ta), "sel"));
+    else if (ss !== se && !selIsHit) add(sqlBoxes(text, ss, se, ta), "sel");
     if (cur >= 0) add(sqlBoxes(text, cur, cur + q.length, ta), "hit on");
     box.innerHTML = html;
   }
@@ -1461,6 +1569,7 @@ export function workbenchScript() {
   favEd?.addEventListener("scroll", paintFavChrome);
   favEd?.addEventListener("keyup", paintFavChrome);
   favEd?.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d") { e.preventDefault(); e.stopPropagation(); selectNextSame(favEd, favOcc, paintFavChrome); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); openFavFind(); return; }
     if (e.altKey && e.key.toLowerCase() === "l") { e.preventDefault(); toggleFavFindSel(); return; }
   });
@@ -1484,6 +1593,15 @@ export function workbenchScript() {
     jumpFavFind(e.shiftKey ? "prev" : "next");
   });
   window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d") {
+      const id = document.activeElement && document.activeElement.id;
+      if (id !== "wb-sql-ed" && id !== "wb-sql-fav-ed") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (id === "wb-sql-ed") selectNextSame(document.getElementById("wb-sql-ed"), sqlOcc, paintSqlEditor);
+      else selectNextSame(document.getElementById("wb-sql-fav-ed"), favOcc, paintFavChrome);
+      return;
+    }
     const modal = document.getElementById("wb-sql-fav-modal");
     if (!modal || modal.hidden) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
