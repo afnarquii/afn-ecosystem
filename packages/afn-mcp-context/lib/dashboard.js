@@ -712,6 +712,22 @@ ${projectBarScript()}
   .sql-head .btn-run:hover { border-color:var(--acc); }
   .sql-head #wb-sql-driver { font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:16rem; }
   .sql-export { display:flex; gap:.3rem; margin-left:.15rem; }
+  .sql-tabs { display:flex; gap:.35rem; align-items:center; flex-shrink:0; margin:0 0 .35rem; }
+  .sql-ide { position:relative; }
+  .sql-cross { position:absolute; inset:0; z-index:24; display:flex; flex-direction:column; background:#0b1016; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .sql-cross[hidden] { display:none !important; }
+  .sql-cross-bar, .sql-cross-links { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.4rem .55rem; background:#121a24; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .sql-cross-links { background:#0e141c; }
+  .sql-cross-links select { background:#0c1118; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.28rem .4rem; font:12px Consolas,ui-monospace,monospace; max-width:11rem; }
+  .sql-cross-grid { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); gap:.4rem; padding:.4rem; }
+  .sql-cross-card { display:flex; flex-direction:column; min-width:0; min-height:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#101820; }
+  .sql-cross-card.fs { position:fixed; inset:.4rem; z-index:70; }
+  .sql-cross-card header { display:flex; gap:.35rem; align-items:center; padding:.35rem .5rem; background:#15202c; border-bottom:1px solid var(--line); font-size:.78rem; }
+  .sql-cross-body { flex:1; min-height:0; overflow:auto; padding:.35rem; }
+  .sql-cross-rec { margin:0 0 .35rem; padding:.4rem .5rem; border-radius:8px; white-space:pre-wrap; font:12px/1.45 Consolas,ui-monospace,monospace; }
+  .sql-cross-rec.ok { background:#14301c; color:#bbf7d0; }
+  .sql-cross-rec.miss { background:#3f1d1d; color:#fecaca; }
+  .sql-cross-rec.info { background:#1e293b; color:#e2e8f0; }
   .sql-ide-split { display:grid; grid-template-rows:minmax(140px,55fr) 8px minmax(120px,45fr); flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b1016; }
   .sql-editor-wrap { display:flex; flex-direction:column; min-height:0; max-width:100%; min-width:0; overflow:hidden; }
   .sql-split-grip { cursor:ns-resize; background:#1a2533; touch-action:none; position:relative; }

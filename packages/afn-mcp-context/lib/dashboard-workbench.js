@@ -1,4 +1,5 @@
-/** UI del workbench Datos (orígenes, esquema, SQL). Sin dependencias. */
+/** UI del workbench Datos (orígenes, esquema, SQL). */
+import { crossSqlResults } from './sql-cross.js';
 
 export function workbenchSections() {
   return `
@@ -95,6 +96,12 @@ export function workbenchSections() {
         <span class="sql-inspect-spacer"></span>
         <span id="wb-sql-driver" class="muted">Driver: comprobando…</span>
       </header>
+      <div class="sql-tabs" id="wb-sql-tabs">
+        <button type="button" class="btn on" data-sql-tab="0">Consulta 1</button>
+        <button type="button" class="btn" data-sql-tab="1">Consulta 2</button>
+        <button type="button" class="btn" data-sql-tab="2">Consulta 3</button>
+        <button type="button" class="btn" id="wb-sql-cross-open">Cruzar</button>
+      </div>
       <div class="sql-ide-split">
         <div class="sql-editor-wrap" id="wb-sql-editor">
           <div class="sql-pane-bar">
@@ -175,6 +182,19 @@ ORDER BY 1, 2;</textarea>
             <pre id="wb-sql-inspect-body" class="sql-inspect-body"></pre>
           </div>
         </div>
+      </div>
+      <div id="wb-sql-cross" class="sql-cross" hidden>
+        <div class="sql-cross-bar">
+          <strong>Cruce</strong>
+          <span class="muted">Hasta 3 consultas. Cada pareja de campos tiene que coincidir. El JSON no sale de esta pestaña.</span>
+          <span class="sql-inspect-spacer"></span>
+          <button type="button" class="btn" id="wb-sql-cross-add">Agregar cruce</button>
+          <button type="button" class="btn btn-run" id="wb-sql-cross-run">Unir</button>
+          <button type="button" class="btn" id="wb-sql-cross-close">Cerrar</button>
+        </div>
+        <div id="wb-sql-cross-links" class="sql-cross-links"></div>
+        <p id="wb-sql-cross-msg" class="muted"></p>
+        <div class="sql-cross-grid" id="wb-sql-cross-grid"></div>
       </div>
       <div id="wb-sql-fav-modal" class="fav-modal" hidden>
         <div class="fav-sheet" role="dialog" aria-modal="true" aria-labelledby="wb-sql-fav-title">
@@ -287,6 +307,7 @@ export function workbenchNavButtons() {
 
 export function workbenchScript() {
   return `
+  ${crossSqlResults.toString()}
   const api = window.AFN_API;
   const verEl = document.getElementById("wb-ver");
   const ver = document.body.getAttribute("data-afn-version") || "";
@@ -1135,14 +1156,185 @@ export function workbenchScript() {
         limit: Number(document.getElementById("wb-sql-limit").value || 200),
       });
       renderGrid(j.columns, j.rows);
+      rememberSqlTab();
       const n = (j.rows || []).length;
       setMsg("wb-sql-msg", n + " filas" + (j.truncated ? " (recorte)" : "") + (j.kind === "exec" ? " · EXEC" : "") + (selectedSql ? " · selección" : ""), true);
     } catch (e) {
       renderGrid([], []);
+      rememberSqlTab();
       showRunError(e.message);
       setMsg("wb-sql-msg", "Error de la consulta", false);
     }
   }
+  const sqlTabs = [0, 1, 2].map((i) => ({ name: "Consulta " + (i + 1), sql: "", rows: [], cols: [] }));
+  let sqlTabIx = 0;
+  let crossLinks = [{ a: 0, b: 1, aField: "", bField: "" }];
+  let crossOut = null;
+  function rememberSqlTab() {
+    const ed = document.getElementById("wb-sql-ed");
+    const t = sqlTabs[sqlTabIx];
+    if (!t) return;
+    if (ed) t.sql = ed.value || "";
+    t.rows = lastRows || [];
+    t.cols = lastCols || [];
+    paintSqlTabButtons();
+  }
+  function paintSqlTabButtons() {
+    document.querySelectorAll("[data-sql-tab]").forEach((btn) => {
+      const i = Number(btn.getAttribute("data-sql-tab"));
+      const n = (sqlTabs[i] && sqlTabs[i].rows && sqlTabs[i].rows.length) || 0;
+      btn.classList.toggle("on", i === sqlTabIx);
+      btn.textContent = "Consulta " + (i + 1) + (n ? " (" + n + ")" : "");
+    });
+  }
+  function showSqlTab(i) {
+    if (i === sqlTabIx || i < 0 || i > 2) return;
+    rememberSqlTab();
+    sqlTabIx = i;
+    const t = sqlTabs[i];
+    const ed = document.getElementById("wb-sql-ed");
+    if (ed) ed.value = t.sql || "";
+    paintSqlEditor();
+    renderGrid(t.cols || [], t.rows || []);
+    paintSqlTabButtons();
+    setMsg("wb-sql-msg", t.name + (t.rows.length ? " · " + t.rows.length + " filas guardadas" : " · sin ejecutar"), true);
+  }
+  document.getElementById("wb-sql-tabs")?.addEventListener("click", (e) => {
+    const btn = e.target.closest && e.target.closest("[data-sql-tab]");
+    if (!btn) return;
+    showSqlTab(Number(btn.getAttribute("data-sql-tab")));
+  });
+  function crossFields(i) {
+    const cols = (sqlTabs[i] && sqlTabs[i].cols) || [];
+    if (!cols.length) return "<option value=\\"\\">sin columnas</option>";
+    return cols.map((c) => "<option value=\\"" + cellEsc(c) + "\\">" + cellEsc(c) + "</option>").join("");
+  }
+  function paintCrossLinks() {
+    const box = document.getElementById("wb-sql-cross-links");
+    if (!box) return;
+    box.innerHTML = crossLinks.map((l, i) => {
+      const tabOpts = [0, 1, 2].map((n) => "<option value=\\"" + n + "\\"" + (Number(l.a) === n ? " selected" : "") + ">Consulta " + (n + 1) + "</option>").join("");
+      const tabOptsB = [0, 1, 2].map((n) => "<option value=\\"" + n + "\\"" + (Number(l.b) === n ? " selected" : "") + ">Consulta " + (n + 1) + "</option>").join("");
+      return "<label>Consulta <select data-cross=\\"a\\" data-i=\\"" + i + "\\">" + tabOpts + "</select></label>"
+        + "<select data-cross=\\"aField\\" data-i=\\"" + i + "\\">" + crossFields(l.a) + "</select>"
+        + "<span class=muted>=</span>"
+        + "<label>Consulta <select data-cross=\\"b\\" data-i=\\"" + i + "\\">" + tabOptsB + "</select></label>"
+        + "<select data-cross=\\"bField\\" data-i=\\"" + i + "\\">" + crossFields(l.b) + "</select>"
+        + "<button type=button class=btn data-cross-del=\\"" + i + "\\">Quitar</button>";
+    }).join("");
+    box.querySelectorAll("select").forEach((sel) => {
+      const i = Number(sel.getAttribute("data-i"));
+      const key = sel.getAttribute("data-cross");
+      const link = crossLinks[i];
+      if (!link) return;
+      if (key === "aField" && link.aField) sel.value = link.aField;
+      if (key === "bField" && link.bField) sel.value = link.bField;
+      if ((key === "aField" || key === "bField") && !sel.value) link[key] = sel.value;
+    });
+  }
+  function crossJson(value) {
+    return JSON.stringify(value, null, 2);
+  }
+  function paintCrossCards() {
+    const grid = document.getElementById("wb-sql-cross-grid");
+    if (!grid || !crossOut) return;
+    const cards = [
+      { id: "general", title: "General", rows: crossOut.filas, kind: "general" },
+      { id: "c1", title: crossOut.nombres[0], rows: crossOut.panes[0], kind: "pane" },
+      { id: "c2", title: crossOut.nombres[1], rows: crossOut.panes[1], kind: "pane" },
+      { id: "c3", title: crossOut.nombres[2], rows: crossOut.panes[2], kind: "pane" },
+    ];
+    grid.innerHTML = cards.map((card) => {
+      const ok = card.rows.filter((r) => r && r.cruza).length;
+      const bad = card.rows.length - ok;
+      const shown = card.rows.slice(0, 400);
+      let body = "";
+      if (card.kind === "general") {
+        body += "<pre class=\\"sql-cross-rec info\\">" + cellEsc(crossJson({ campos: crossOut.campos, recortado: crossOut.recortado })) + "</pre>";
+      }
+      body += shown.map((r) => "<pre class=\\"sql-cross-rec " + (r.cruza ? "ok" : "miss") + "\\">" + cellEsc(crossJson(r)) + "</pre>").join("");
+      if (card.rows.length > shown.length) body += "<p class=muted>Mostrando 400 de " + card.rows.length + ". La descarga incluye todas.</p>";
+      if (!card.rows.length) body += "<p class=muted>Sin filas en esta consulta.</p>";
+      return "<article class=sql-cross-card data-cross-card=\\"" + card.id + "\\">"
+        + "<header><strong>" + cellEsc(card.title) + "</strong><span class=muted>" + ok + " cruzan · " + bad + " no</span><span class=sql-inspect-spacer></span>"
+        + "<button type=button class=btn data-cross-dl=\\"" + card.id + "\\">↓ JSON</button>"
+        + "<button type=button class=btn sql-ico data-cross-fs=\\"" + card.id + "\\" title=\\"Pantalla completa\\">⛶</button></header>"
+        + "<div class=sql-cross-body>" + body + "</div></article>";
+    }).join("");
+  }
+  function crossPayload(id) {
+    if (!crossOut) return null;
+    if (id === "general") return { campos: crossOut.campos, filas: crossOut.filas, recortado: crossOut.recortado };
+    const n = id === "c1" ? 0 : id === "c2" ? 1 : 2;
+    return crossOut.panes[n];
+  }
+  document.getElementById("wb-sql-cross-open")?.addEventListener("click", () => {
+    rememberSqlTab();
+    const box = document.getElementById("wb-sql-cross");
+    if (box) box.hidden = false;
+    paintCrossLinks();
+    setMsg("wb-sql-cross-msg", "Elegí qué campo de una consulta cruza con cuál de otra. Podés agregar varias parejas.", true);
+  });
+  document.getElementById("wb-sql-cross-close")?.addEventListener("click", () => {
+    const box = document.getElementById("wb-sql-cross");
+    if (box) box.hidden = true;
+  });
+  document.getElementById("wb-sql-cross-add")?.addEventListener("click", () => {
+    crossLinks.push({ a: 0, b: 1, aField: "", bField: "" });
+    paintCrossLinks();
+  });
+  document.getElementById("wb-sql-cross-links")?.addEventListener("change", (e) => {
+    const sel = e.target.closest && e.target.closest("select");
+    if (!sel) return;
+    const i = Number(sel.getAttribute("data-i"));
+    const key = sel.getAttribute("data-cross");
+    if (!crossLinks[i] || !key) return;
+    crossLinks[i][key] = key === "a" || key === "b" ? Number(sel.value) : sel.value;
+    if (key === "a" || key === "b") paintCrossLinks();
+  });
+  document.getElementById("wb-sql-cross-links")?.addEventListener("click", (e) => {
+    const btn = e.target.closest && e.target.closest("[data-cross-del]");
+    if (!btn) return;
+    const i = Number(btn.getAttribute("data-cross-del"));
+    crossLinks.splice(i, 1);
+    if (!crossLinks.length) crossLinks.push({ a: 0, b: 1, aField: "", bField: "" });
+    paintCrossLinks();
+  });
+  document.getElementById("wb-sql-cross-run")?.addEventListener("click", () => {
+    rememberSqlTab();
+    const ready = crossLinks.filter((l) => l.aField && l.bField && l.a !== l.b);
+    if (!ready.length) {
+      setMsg("wb-sql-cross-msg", "Elegí al menos un campo de cada lado.", false);
+      return;
+    }
+    const withRows = sqlTabs.filter((t) => t.rows && t.rows.length).length;
+    if (withRows < 2) {
+      setMsg("wb-sql-cross-msg", "Ejecutá al menos dos consultas antes de unir.", false);
+      return;
+    }
+    crossOut = crossSqlResults(sqlTabs, ready);
+    paintCrossCards();
+    const ok = crossOut.filas.filter((r) => r.cruza).length;
+    setMsg("wb-sql-cross-msg", ok + " filas cruzan · " + (crossOut.filas.length - ok) + " no. Verde cruza, rojo no.", true);
+  });
+  document.getElementById("wb-sql-cross-grid")?.addEventListener("click", (e) => {
+    const dl = e.target.closest && e.target.closest("[data-cross-dl]");
+    if (dl) {
+      const id = dl.getAttribute("data-cross-dl");
+      const data = crossPayload(id);
+      if (!data) return;
+      downloadBlob("cruce-" + id + ".json", "application/json", crossJson(data));
+      return;
+    }
+    const fs = e.target.closest && e.target.closest("[data-cross-fs]");
+    if (!fs) return;
+    const id = fs.getAttribute("data-cross-fs");
+    document.querySelectorAll(".sql-cross-card").forEach((card) => {
+      card.classList.toggle("fs", card.getAttribute("data-cross-card") === id && !card.classList.contains("fs"));
+    });
+  });
+  sqlTabs[0].sql = document.getElementById("wb-sql-ed")?.value || "";
+  paintSqlTabButtons();
   document.getElementById("wb-sql-run")?.addEventListener("click", runSql);
   const sqlEd = document.getElementById("wb-sql-ed");
   sqlEd?.addEventListener("input", () => { sqlOcc.ranges = []; sqlOcc.seed = ""; paintSqlEditor(); showAc(false); });
