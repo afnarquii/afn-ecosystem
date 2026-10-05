@@ -166,12 +166,18 @@ export function dashboardNotes(root) {
     status: n.status,
     updatedAt: n.updatedAt,
     rel: n.rel || '',
-    docs: (n.docs || []).map((d) => ({
-      name: d.name,
-      title: d.title,
-      markdown: d.markdown || '',
-      html: mdToHtml(d.markdown || ''),
-    })),
+    docs: (n.docs || []).map((d) => {
+      const kind = d.kind === 'html' ? 'html' : 'markdown';
+      const text = d.markdown || '';
+      return {
+        name: d.name,
+        title: d.title,
+        kind,
+        file: d.file || '',
+        markdown: text,
+        html: kind === 'html' ? '' : mdToHtml(text),
+      };
+    }),
   }));
 }
 
@@ -438,11 +444,97 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const reading = parseNoteHash(location.hash);
       applyNotes(j.notes);
       if (st) st.textContent = notes.length + (notes.length === 1 ? " nota en disco" : " notas en disco");
-      if (reading.slug && notesBy[reading.slug] && location.hash.startsWith("#n-")) showNote(reading.slug, reading.file);
+      if (reading.slug && notesBy[reading.slug] && location.hash.startsWith("#n-") && !noteDirty()) showNote(reading.slug, reading.file);
     }).catch(() => {
       if (st) st.textContent = "No pude releer las notas. Recargá la página.";
     }).finally(() => { notesLoading = null; });
     return notesLoading;
+  }
+  let noteSavedText = "";
+  let notePreviewTimer = 0;
+  let notePreviewSeq = 0;
+  function noteDirty() {
+    const ed = document.getElementById("note-ed");
+    if (!ed || document.getElementById("notes-reader")?.hidden) return false;
+    return ed.value !== noteSavedText;
+  }
+  function leaveNoteOk() {
+    if (!noteDirty()) return true;
+    return confirm("Hay cambios sin guardar. ¿Salir sin guardar?");
+  }
+  function setNoteMode(mode) {
+    const split = document.getElementById("note-split");
+    const next = mode === "edit" || mode === "view" ? mode : "both";
+    if (split) split.className = "note-split mode-" + next;
+    document.querySelectorAll("[data-note-mode]").forEach((b) => b.classList.toggle("on", b.dataset.noteMode === next));
+  }
+  function paintNotePreview() {
+    const kind = document.getElementById("note-kind")?.dataset.kind || "markdown";
+    const text = document.getElementById("note-ed")?.value || "";
+    const art = document.getElementById("note-article");
+    const frame = document.getElementById("note-frame");
+    if (kind === "html") {
+      if (art) art.hidden = true;
+      if (frame) { frame.hidden = false; frame.srcdoc = text; }
+      return;
+    }
+    if (frame) { frame.hidden = true; frame.srcdoc = ""; }
+    if (art) art.hidden = false;
+    if (!window.AFN_API || !window.AFN_API.token) return;
+    const seq = ++notePreviewSeq;
+    fetch((window.AFN_API.base || "") + "/api/notes/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-afn-token": window.AFN_API.token },
+      body: JSON.stringify({ text: text }),
+    }).then((r) => r.json()).then((j) => {
+      if (seq !== notePreviewSeq || !art || !j || !j.ok) return;
+      art.innerHTML = j.html || "<p class='muted'>Vacío.</p>";
+    }).catch(() => {});
+  }
+  function showNotePreview(doc) {
+    const kind = doc && doc.kind === "html" ? "html" : "markdown";
+    const art = document.getElementById("note-article");
+    const frame = document.getElementById("note-frame");
+    const text = document.getElementById("note-ed")?.value || "";
+    if (kind === "html") {
+      if (art) art.hidden = true;
+      if (frame) { frame.hidden = false; frame.srcdoc = text; }
+      return;
+    }
+    if (frame) { frame.hidden = true; frame.srcdoc = ""; }
+    if (art) { art.hidden = false; art.innerHTML = (doc && doc.html) || "<p class='muted'>Vacío.</p>"; }
+  }
+  function saveOpenNote() {
+    const msg = document.getElementById("note-msg");
+    const dl = document.getElementById("note-dl");
+    const ed = document.getElementById("note-ed");
+    const filePath = dl?.dataset.path || "";
+    const text = ed ? ed.value : "";
+    if (!window.AFN_API || !window.AFN_API.token) {
+      if (msg) msg.textContent = "Abrí el dashboard en 127.0.0.1 para guardar.";
+      return;
+    }
+    if (!filePath) return;
+    if (msg) msg.textContent = "Guardando…";
+    fetch((window.AFN_API.base || "") + "/api/notes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-afn-token": window.AFN_API.token },
+      body: JSON.stringify({ path: filePath, text: text }),
+    }).then((r) => r.json()).then((j) => {
+      if (!j || !j.ok) throw new Error((j && j.error) || "no se guardó");
+      noteSavedText = text;
+      const t = notesBy[dl.dataset.slug];
+      const doc = (t?.docs || []).find((d) => d.name === dl.dataset.file);
+      if (doc) {
+        doc.markdown = text;
+        if (j.kind !== "html" && j.html) doc.html = j.html;
+      }
+      const art = document.getElementById("note-article");
+      if (j.kind !== "html" && art && j.html) art.innerHTML = j.html;
+      if (msg) msg.textContent = "Guardado en " + (j.path || filePath);
+    }).catch((err) => {
+      if (msg) msg.textContent = String(err && err.message || err);
+    });
   }
   const flowMd = document.getElementById("flow-md")?.textContent || "";
   const stage = { s: 1, x: 0, y: 0, drag: false, px: 0, py: 0 };
@@ -553,6 +645,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (!t) {
       if (list) list.hidden = false;
       if (reader) reader.hidden = true;
+      document.querySelector("main")?.classList.remove("note-focus");
       if (location.hash !== "#notas") location.hash = "notas";
       return;
     }
@@ -570,13 +663,25 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
         return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(d.title || d.name) + "</button>";
       }).join("");
     }
-    const art = document.getElementById("note-article");
-    if (art) art.innerHTML = (doc && doc.html) || "<p class='muted'>Vacío.</p>";
+    const kind = doc && doc.kind === "html" ? "html" : "markdown";
+    const kindEl = document.getElementById("note-kind");
+    if (kindEl) {
+      kindEl.dataset.kind = kind;
+      kindEl.textContent = kind === "html" ? "HTML" : "Markdown";
+    }
+    const ed = document.getElementById("note-ed");
+    if (ed) ed.value = doc ? (doc.markdown || "") : "";
+    noteSavedText = ed ? ed.value : "";
+    showNotePreview(doc);
     const dl = document.getElementById("note-dl");
     if (dl) {
       dl.dataset.slug = t.slug;
       dl.dataset.file = doc ? doc.name : "nota.md";
+      dl.dataset.path = doc ? (doc.file || "") : "";
     }
+    const msg = document.getElementById("note-msg");
+    if (msg) msg.textContent = doc && doc.file ? doc.file : "";
+    document.querySelector("main")?.classList.add("note-focus");
     const hash = noteHash(t.slug, doc ? doc.name : "");
     const cur = parseNoteHash(location.hash);
     if (cur.slug !== t.slug || cur.file !== (doc ? doc.name : "")) location.hash = hash;
@@ -627,17 +732,36 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
 
   window.addEventListener("click", (e) => {
     const go = e.target.closest("[data-go]");
-    if (go) { e.preventDefault(); showView(go.dataset.go); location.hash = go.dataset.go; }
+    if (go) {
+      e.preventDefault();
+      if (!leaveNoteOk()) return;
+      showView(go.dataset.go);
+      location.hash = go.dataset.go;
+    }
     const noteBtn = e.target.closest("[data-note-task]");
-    if (noteBtn) { e.preventDefault(); showNote(noteBtn.dataset.noteTask, noteBtn.dataset.noteFile || ""); }
+    if (noteBtn) {
+      e.preventDefault();
+      const nextFile = noteBtn.dataset.noteFile || "";
+      const open = document.getElementById("note-dl");
+      const same = open && !document.getElementById("notes-reader")?.hidden && open.dataset.slug === noteBtn.dataset.noteTask && (open.dataset.file || "") === nextFile;
+      if (!same && !leaveNoteOk()) return;
+      showNote(noteBtn.dataset.noteTask, nextFile);
+    }
+    const modeBtn = e.target.closest("[data-note-mode]");
+    if (modeBtn) { e.preventDefault(); setNoteMode(modeBtn.dataset.noteMode); }
+    if (e.target.closest("#note-save")) { e.preventDefault(); saveOpenNote(); }
     if (e.target.closest("#notes-refresh")) { e.preventDefault(); refreshNotes(); }
-    if (e.target.closest("[data-note-back]")) { e.preventDefault(); showNote("", ""); }
+    if (e.target.closest("[data-note-back]")) {
+      e.preventDefault();
+      if (!leaveNoteOk()) return;
+      showNote("", "");
+    }
     if (e.target.closest("[data-dl-note]")) {
       e.preventDefault();
       const b = document.getElementById("note-dl");
-      const t = notesBy[b?.dataset.slug];
-      const doc = (t?.docs || []).find((d) => d.name === b?.dataset.file);
-      downloadText(b?.dataset.file || "nota.md", doc?.markdown || "");
+      const ed = document.getElementById("note-ed");
+      const name = String(b?.dataset.file || "nota.md").split("/").pop();
+      downloadText(name, ed ? ed.value : "");
     }
     const open = e.target.closest("[data-open]");
     if (open) { e.preventDefault(); openDiagram(open.dataset.open); }
@@ -666,11 +790,21 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   });
   window.addEventListener("input", (e) => {
     if (e.target && e.target.id === "q") applySearch();
+    if (e.target && e.target.id === "note-ed") {
+      const msg = document.getElementById("note-msg");
+      if (noteDirty() && msg) msg.textContent = "Sin guardar";
+      clearTimeout(notePreviewTimer);
+      notePreviewTimer = setTimeout(paintNotePreview, 180);
+    }
   });
   window.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target && e.target.id === "q" && typeof window.afnSqlFindNext === "function") {
       e.preventDefault();
       window.afnSqlFindNext(e.shiftKey ? "prev" : "next");
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && document.getElementById("notes-reader") && !document.getElementById("notes-reader").hidden) {
+      e.preventDefault();
+      saveOpenNote();
     }
     if (e.key === "Escape") closeOverlay();
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && document.activeElement?.tagName !== "TEXTAREA") {
@@ -795,6 +929,21 @@ ${mapPickerScript()}
   .article blockquote { margin:0 0 .9rem; padding:.15rem 0 .15rem .85rem; border-left:3px solid var(--acc); color:var(--muted); }
   .article pre.md-pre { background:#0b1016; border:1px solid var(--line); border-radius:10px; padding:.85rem 1rem; overflow:auto; margin:0 0 1rem; }
   .article pre.md-pre code { color:#e7eef6; font-size:.82rem; white-space:pre; }
+  section[data-view="notas"]:not([hidden]) { flex:1; min-height:0; display:flex; flex-direction:column; }
+  #notes-reader:not([hidden]) { flex:1; min-height:0; display:flex; flex-direction:column; }
+  main.note-focus { padding:.7rem 1rem 1rem; }
+  .note-split { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.7rem; min-height:0; flex:1; }
+  .note-split.mode-edit { grid-template-columns:minmax(0,1fr); }
+  .note-split.mode-edit .note-preview { display:none; }
+  .note-split.mode-view { grid-template-columns:minmax(0,1fr); }
+  .note-split.mode-view .note-edit { display:none; }
+  .note-edit, .note-preview { min-width:0; min-height:0; display:flex; flex-direction:column; }
+  #note-ed { flex:1; width:100%; min-height:320px; margin:0; padding:.9rem 1rem; border:1px solid var(--line); border-radius:12px; background:#0b1016; color:#e7eef6; font:13.5px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; resize:none; outline:none; white-space:pre; tab-size:2; }
+  #note-ed:focus { border-color:var(--acc); }
+  .note-preview { overflow:auto; }
+  .note-preview .article { max-width:none; min-height:320px; }
+  #note-frame { flex:1; width:100%; min-height:420px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+  @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }
   .canvas-wrap { background:#0b1016; border:1px solid var(--line); border-radius:12px; overflow:auto; min-height:420px; padding:1rem; }
@@ -1032,7 +1181,7 @@ ${textEditorSection()}
     <section data-view="notas" hidden>
       <div id="notes-list">
         <h2>Notas de trabajo</h2>
-        <p class="lead">Todo lo que hay en <code>.afn/notes/</code>, sobre todo <code>.afn/notes/tareas/&lt;carpeta&gt;/</code> y su README (aunque esté en una subcarpeta). Se lee como HTML. No es el documento de arquitectura.</p>
+        <p class="lead">Todo lo que hay en <code>.afn/notes/</code>. Un Markdown se abre en texto y en vista previa. Un HTML se reconoce y se ve como página. Podés editarlo y guardarlo en el mismo archivo.</p>
         <div class="toolbar">
           <button type="button" class="btn" id="notes-refresh">Actualizar</button>
           <span id="notes-sync" class="muted"></span>
@@ -1042,11 +1191,25 @@ ${textEditorSection()}
       <div id="notes-reader" hidden>
         <div class="toolbar">
           <button type="button" class="btn" data-note-back>← Volver a notas</button>
-          <button type="button" class="btn" id="note-dl" data-dl-note>Descargar .md</button>
+          <span id="note-kind" class="tag" data-kind="markdown">Markdown</span>
+          <button type="button" class="btn on" data-note-mode="both">Editar y vista</button>
+          <button type="button" class="btn" data-note-mode="edit">Solo texto</button>
+          <button type="button" class="btn" data-note-mode="view">Solo vista</button>
+          <button type="button" class="btn" id="note-save">Guardar</button>
+          <button type="button" class="btn" id="note-dl" data-dl-note>Descargar</button>
+          <span id="note-msg" class="muted"></span>
         </div>
         <p class="muted"><span id="note-crumb"></span> · <span id="note-status"></span></p>
         <div id="note-toc" class="toolbar"></div>
-        <article id="note-article" class="article"></article>
+        <div id="note-split" class="note-split mode-both">
+          <label class="note-edit">
+            <textarea id="note-ed" spellcheck="false" wrap="off" placeholder="El archivo aparece acá. Ctrl+S guarda."></textarea>
+          </label>
+          <div class="note-preview">
+            <article id="note-article" class="article"></article>
+            <iframe id="note-frame" title="Vista HTML" sandbox="allow-scripts" hidden></iframe>
+          </div>
+        </div>
       </div>
     </section>
     <section data-view="inicio" hidden>

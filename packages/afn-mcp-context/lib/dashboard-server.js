@@ -2,7 +2,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { collectDashboard, buildHtml, dashboardNotes } from './dashboard.js';
+import { collectDashboard, buildHtml, dashboardNotes, mdToHtml } from './dashboard.js';
 import { saveOriginsPack, saveOriginCredential, credentialLoginIndex, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
 import { createScriptRunner, listScriptRunners, removeScriptRunner, runScriptRunner, saveScriptRunner } from './script-runners.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
@@ -16,6 +16,7 @@ import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
 import { listMapFolders, saveMapSelection } from './map-selection.js';
 import { discoverWorkspace } from './discover.js';
+import { saveExistingNote } from './task-notes.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -111,6 +112,23 @@ async function handleApi(state, token, req, res, url) {
   }
   if (req.method === 'GET' && route === '/api/notes') {
     send(res, 200, { ok: true, notes: dashboardNotes(root) });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/notes/preview') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const text = String(raw.text ?? '').slice(0, 200_000);
+    send(res, 200, { ok: true, html: mdToHtml(text) });
+    return;
+  }
+  if (req.method === 'PUT' && route === '/api/notes') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const saved = saveExistingNote(root, raw.path || raw.rel, raw.text ?? raw.markdown);
+    if (!saved.ok) {
+      send(res, 400, saved);
+      return;
+    }
+    const text = String(raw.text ?? raw.markdown ?? '');
+    send(res, 200, { ...saved, html: saved.kind === 'html' ? '' : mdToHtml(text) });
     return;
   }
   if (req.method === 'GET' && route === '/api/map-folders') {

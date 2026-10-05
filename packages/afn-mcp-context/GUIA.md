@@ -181,7 +181,7 @@ afn_script  action: "run"  id: "informe"  params: { "desde": "2024-01-01", "clie
 | PDF, Excel o imagen a Markdown | `afn_extract_file` | `node …\index.js extract archivo.pdf` |
 | Salud de `.afn/` | `afn_doctor` | `node …\index.js doctor` |
 
-Las notas van a `.afn/notes/tareas/<carpeta>/`. El nombre de la carpeta puede llevar mayúsculas, espacios o `_`. Un `README.md` dentro de esa carpeta, o en una subcarpeta, aparece en el dashboard → **Notas**, leído como HTML. También entra el resto de `.afn/notes/`. No reemplazan `ARQUITECTURA.md`. Si acabás de guardar el archivo, en Notas usá **Actualizar**.
+Las notas van a `.afn/notes/tareas/<carpeta>/`. El nombre de la carpeta puede llevar mayúsculas, espacios o `_`. Un `README.md` (también en una subcarpeta) y un `.html` aparecen en el dashboard → **Notas**. Markdown se abre en texto y en vista previa. HTML se reconoce y se ve como página. **Guardar** (o Ctrl+S) escribe el mismo archivo. También entra el resto de `.afn/notes/`. No reemplazan `ARQUITECTURA.md`. Si acabás de crear el archivo, en Notas usá **Actualizar**.
 
 ## 8. Comandos de terminal
 

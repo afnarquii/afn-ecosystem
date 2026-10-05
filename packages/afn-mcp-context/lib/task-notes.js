@@ -60,8 +60,15 @@ const MAX_NOTE_DEPTH = 8;
 
 function isNoteFile(name) {
   if (!name || name.startsWith('.')) return false;
-  if (/\.(md|markdown)$/i.test(name)) return true;
+  if (/\.(md|markdown|html|htm)$/i.test(name)) return true;
   return /^readme$/i.test(name);
+}
+
+/** @param {string} name */
+export function noteKindFromName(name) {
+  const base = String(name || '').split('/').pop().split('\\').pop().toLowerCase();
+  if (/\.(html|htm)$/.test(base)) return 'html';
+  return 'markdown';
 }
 
 function entryKind(dir, ent) {
@@ -125,15 +132,33 @@ function readNoteFile(abs, rel) {
     text = '';
   }
   if (text.length > MAX_NOTE_READ) text = `${text.slice(0, MAX_NOTE_READ)}\n\n_(recortado)_\n`;
-  const first = text.split('\n').find((l) => l.startsWith('# ')) || '';
+  const kind = noteKindFromName(rel);
   const base = String(rel || '').split('/').pop() || 'nota';
+  let title = '';
+  if (kind === 'html') {
+    const fromTitle = text.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const fromH1 = text.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+    title = (fromTitle?.[1] || fromH1?.[1] || '').trim();
+  }
+  if (!title) {
+    const first = text.split('\n').find((l) => l.startsWith('# ')) || '';
+    title = first.replace(/^#\s+/, '').trim();
+  }
   return {
     name: rel,
-    title: first.replace(/^#\s+/, '').trim() || base.replace(/\.(md|markdown)$/i, ''),
+    kind,
+    title: title || base.replace(/\.(md|markdown|html|htm)$/i, ''),
     chars: text.length,
     mtime,
     text,
   };
+}
+
+function noteDiskPath(groupRel, name) {
+  const rel = String(groupRel || '').split('\\').join('/');
+  const base = rel.split('/').pop();
+  if (isNoteFile(base)) return rel;
+  return `${rel.replace(/\/$/, '')}/${name}`;
 }
 
 function finishGroup(dir, slug, rel, rawDocs, includeBody) {
@@ -150,7 +175,13 @@ function finishGroup(dir, slug, rel, rawDocs, includeBody) {
     updatedAt,
     rel,
     docs: rawDocs.map((d) => {
-      const item = { name: d.name, title: d.title, chars: d.chars };
+      const item = {
+        name: d.name,
+        title: d.title,
+        chars: d.chars,
+        kind: d.kind || noteKindFromName(d.name),
+        file: noteDiskPath(rel, d.name),
+      };
       if (includeBody) item.markdown = d.text;
       return item;
     }),
@@ -223,14 +254,14 @@ export function listTaskNotes(root, opts = {}) {
         const rel = `.afn/notes/tareas/${ch.name}`;
         if (childKind === 'dir') pushDir(childAbs, ch.name, rel);
         else if (childKind === 'file' && isNoteFile(ch.name)) {
-          pushFile(childAbs, ch.name.replace(/\.(md|markdown)$/i, ''), rel);
+          pushFile(childAbs, ch.name.replace(/\.(md|markdown|html|htm)$/i, ''), rel);
         }
       }
       continue;
     }
     if (kind === 'dir') pushDir(abs, ent.name, `.afn/notes/${ent.name}`);
     else if (kind === 'file' && isNoteFile(ent.name)) {
-      pushFile(abs, ent.name.replace(/\.(md|markdown)$/i, ''), `.afn/notes/${ent.name}`);
+      pushFile(abs, ent.name.replace(/\.(md|markdown|html|htm)$/i, ''), `.afn/notes/${ent.name}`);
     }
   }
   return groups.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)) || a.title.localeCompare(b.title));
@@ -314,4 +345,53 @@ export function setTaskNoteStatus(root, task, status) {
   const meta = { ...prev, status: next, updatedAt: new Date().toISOString() };
   writeMeta(dir, meta);
   return { ok: true, slug, status: next, title: meta.title };
+}
+
+function touchNoteMeta(notesRoot, startDir) {
+  let dir = startDir;
+  while (dir && dir !== notesRoot) {
+    const rel = path.relative(notesRoot, dir);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) break;
+    if (fs.existsSync(metaPath(dir))) {
+      const prev = readMeta(dir, path.basename(dir));
+      writeMeta(dir, { ...prev, updatedAt: new Date().toISOString() });
+      return;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+}
+
+/**
+ * Sobrescribe una nota que ya está en `.afn/notes/`. Markdown o HTML.
+ * @param {string} root
+ * @param {string} rel
+ * @param {string} text
+ */
+export function saveExistingNote(root, rel, text) {
+  const notesRoot = path.resolve(afnPath(root, 'notes'));
+  let raw = String(rel || '').trim().replace(/\\/g, '/');
+  if (raw.startsWith('./')) raw = raw.slice(2);
+  if (raw.toLowerCase().startsWith('.afn/notes/')) raw = raw.slice('.afn/notes/'.length);
+  if (!raw || raw.split('/').some((part) => !part || part === '.' || part === '..')) {
+    return { ok: false, error: 'ruta inválida' };
+  }
+  const abs = path.resolve(notesRoot, ...raw.split('/'));
+  const inside = path.relative(notesRoot, abs);
+  if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) return { ok: false, error: 'ruta inválida' };
+  if (!isNoteFile(path.basename(abs))) return { ok: false, error: 'solo markdown o html' };
+  let st;
+  try {
+    st = fs.statSync(abs);
+  } catch {
+    return { ok: false, error: 'no existe' };
+  }
+  if (!st.isFile()) return { ok: false, error: 'no existe' };
+  const body = String(text ?? '');
+  if (body.length > MAX_NOTE_READ) return { ok: false, error: 'demasiado largo' };
+  fs.writeFileSync(abs, body, 'utf8');
+  touchNoteMeta(notesRoot, path.dirname(abs));
+  const posix = inside.split(path.sep).join('/');
+  return { ok: true, path: `.afn/notes/${posix}`, kind: noteKindFromName(path.basename(abs)) };
 }

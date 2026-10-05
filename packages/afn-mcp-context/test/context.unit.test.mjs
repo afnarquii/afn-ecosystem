@@ -18,7 +18,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
-import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile } from '../lib/task-notes.js';
+import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, saveExistingNote } from '../lib/task-notes.js';
 import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
@@ -879,6 +879,34 @@ test('notas: carpeta con cualquier nombre y README anidado se ven en HTML', () =
   assert.match(html, /Fondos/);
 });
 
+test('una nota html se abre como html y se guarda en el mismo archivo', () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'notes', 'tareas', 'pagina');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>Hola</title><h1>Hola</h1>\n');
+  fs.writeFileSync(path.join(dir, 'readme.md'), '# Texto\n\nHola nota.\n');
+  const listed = listTaskNotes(root, { includeBody: true });
+  const page = listed[0].docs.find((d) => d.name === 'index.html');
+  const md = listed[0].docs.find((d) => d.name === 'readme.md');
+  assert.equal(page.kind, 'html');
+  assert.equal(page.title, 'Hola');
+  assert.equal(md.kind, 'markdown');
+  const saved = saveExistingNote(root, page.file, '<h1>Editado</h1>\n');
+  assert.equal(saved.ok, true);
+  assert.equal(saved.kind, 'html');
+  assert.match(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), /Editado/);
+  const mdSaved = saveExistingNote(root, md.file, '# Texto\n\nEditado en markdown.\n');
+  assert.equal(mdSaved.ok, true);
+  assert.equal(mdSaved.kind, 'markdown');
+  assert.equal(saveExistingNote(root, '.afn/notes/tareas/pagina/../../package.json', 'x').ok, false);
+  assert.equal(saveExistingNote(root, '.afn/notes/tareas/pagina/no-existe.html', '<p>x</p>').ok, false);
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /id="note-ed"/);
+  assert.match(html, /id="note-frame"/);
+  assert.match(html, /id="note-save"/);
+  assert.match(html, /data-note-mode="both"/);
+});
+
 test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
   const root = tmp();
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
@@ -1189,8 +1217,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.60/);
-  assert.match(html, /data-afn-version="1\.4\.60"/);
+  assert.match(html, /v1\.4\.61/);
+  assert.match(html, /data-afn-version="1\.4\.61"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1310,7 +1338,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.60/);
+    assert.match(liveHtml, /v1\.4\.61/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
