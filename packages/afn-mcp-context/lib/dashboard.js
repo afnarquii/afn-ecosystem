@@ -14,7 +14,7 @@ import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eM
 import { listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { compareCss, compareScript, compareSection } from './dashboard-compare-ui.js';
-import { textEditorCss, textEditorScript, textEditorSection } from './dashboard-text-editor.js';
+import { textEditorCss, textEditorHtml, textEditorScript, textEditorSection } from './dashboard-text-editor.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
 import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
 import { projectBarHtml, projectBarScript, projectBarCss, mapPickerHtml, mapPickerScript } from './dashboard-project-ui.js';
@@ -467,6 +467,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const next = mode === "edit" || mode === "view" ? mode : "both";
     if (split) split.className = "note-split mode-" + next;
     document.querySelectorAll("[data-note-mode]").forEach((b) => b.classList.toggle("on", b.dataset.noteMode === next));
+    requestAnimationFrame(() => { if (window.afnEditorPaint) window.afnEditorPaint("note-ed"); });
   }
   function paintNotePreview() {
     const kind = document.getElementById("note-kind")?.dataset.kind || "markdown";
@@ -672,6 +673,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const ed = document.getElementById("note-ed");
     if (ed) ed.value = doc ? (doc.markdown || "") : "";
     noteSavedText = ed ? ed.value : "";
+    if (window.afnEditorPaint) window.afnEditorPaint("note-ed");
     showNotePreview(doc);
     const dl = document.getElementById("note-dl");
     if (dl) {
@@ -938,10 +940,25 @@ ${mapPickerScript()}
   .note-split.mode-view { grid-template-columns:minmax(0,1fr); }
   .note-split.mode-view .note-edit { display:none; }
   .note-edit, .note-preview { min-width:0; min-height:0; display:flex; flex-direction:column; }
-  #note-ed { flex:1; width:100%; min-height:320px; margin:0; padding:.9rem 1rem; border:1px solid var(--line); border-radius:12px; background:#0b1016; color:#e7eef6; font:13.5px/1.55 Consolas,"Cascadia Mono",ui-monospace,monospace; resize:none; outline:none; white-space:pre; tab-size:2; }
-  #note-ed:focus { border-color:var(--acc); }
-  .note-preview { overflow:auto; }
-  .note-preview .article { max-width:none; min-height:320px; }
+  .note-edit .te-wrap { height:100%; min-height:360px; }
+  .note-edit .sql-code { min-height:320px; }
+  .sql-hl .md-h { color:#569cd6; }
+  .sql-hl .md-code { color:#ce9178; }
+  .sql-hl .md-bq { color:#6a9955; }
+  .sql-hl .md-b { color:#d7ba7d; font-weight:700; }
+  .note-preview { overflow:auto; background:#1e1e1e; border:1px solid #2d2d2d; border-radius:12px; }
+  .note-preview .vscode-md { background:#1e1e1e; color:#d4d4d4; border:0; border-radius:0; max-width:none; min-height:320px; font:14px/22px "Segoe UI", "Segoe WPC", system-ui, sans-serif; padding:1rem 1.5rem 2rem; }
+  .note-preview .vscode-md h1 { font-size:2em; font-weight:600; margin:.2rem 0 .7rem; padding-bottom:.3rem; border-bottom:1px solid rgba(255,255,255,.18); color:#e7e7e7; letter-spacing:0; text-transform:none; }
+  .note-preview .vscode-md h2 { font-size:1.5em; font-weight:600; margin:1.4rem 0 .55rem; padding-bottom:.3rem; border-bottom:1px solid rgba(255,255,255,.18); color:#e7e7e7; letter-spacing:0; text-transform:none; }
+  .note-preview .vscode-md h3 { font-size:1.25em; font-weight:600; color:#e7e7e7; letter-spacing:0; text-transform:none; }
+  .note-preview .vscode-md p { color:#d4d4d4; }
+  .note-preview .vscode-md a { color:#3794ff; }
+  .note-preview .vscode-md code { font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:.92em; background:rgba(255,255,255,.1); color:#ce9178; padding:.1em .35em; border-radius:4px; }
+  .note-preview .vscode-md pre.md-pre { background:#1a1a1a; border:1px solid rgba(255,255,255,.08); border-radius:6px; }
+  .note-preview .vscode-md pre.md-pre code { background:transparent; color:#d4d4d4; padding:0; }
+  .note-preview .vscode-md blockquote { border-left:4px solid rgba(255,255,255,.28); color:#9d9d9d; }
+  .note-preview .vscode-md .doc-table th, .note-preview .vscode-md .doc-table td { border:1px solid rgba(255,255,255,.14); }
+  .note-preview .vscode-md hr { border-top-color:rgba(255,255,255,.18); }
   #note-frame { flex:1; width:100%; min-height:420px; border:1px solid var(--line); border-radius:12px; background:#fff; }
   @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
@@ -1202,11 +1219,11 @@ ${textEditorSection()}
         <p class="muted"><span id="note-crumb"></span> · <span id="note-status"></span></p>
         <div id="note-toc" class="toolbar"></div>
         <div id="note-split" class="note-split mode-both">
-          <label class="note-edit">
-            <textarea id="note-ed" spellcheck="false" wrap="off" placeholder="El archivo aparece acá. Ctrl+S guarda."></textarea>
-          </label>
+          <div class="note-edit">
+            ${textEditorHtml('note', 'Editor', 'Seleccioná y Ctrl+D suma la siguiente igual. Ctrl+F busca. Ctrl+S guarda.')}
+          </div>
           <div class="note-preview">
-            <article id="note-article" class="article"></article>
+            <article id="note-article" class="article vscode-md"></article>
             <iframe id="note-frame" title="Vista HTML" sandbox="allow-scripts" hidden></iframe>
           </div>
         </div>

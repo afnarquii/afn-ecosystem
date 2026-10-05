@@ -136,8 +136,31 @@ export function textEditorScript() {
         st.hitMore = at >= 0 && at < to;
         return out;
       }
+      function escHtml(s) {
+        return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function highlightMd(text) {
+        const tick = String.fromCharCode(96);
+        const fence = tick + tick + tick;
+        return String(text || "").split("\\n").map((line) => {
+          const trimmed = line.trim();
+          if (/^#{1,6}( |$)/.test(trimmed)) return "<span class=\\"md-h\\">" + escHtml(line) + "</span>";
+          if (trimmed.indexOf(fence) === 0) return "<span class=\\"md-code\\">" + escHtml(line) + "</span>";
+          if (line.indexOf(">") === 0) return "<span class=\\"md-bq\\">" + escHtml(line) + "</span>";
+          let s = escHtml(line);
+          const codeRe = new RegExp(tick + "[^" + tick + "]+" + tick, "g");
+          s = s.replace(codeRe, (m) => "<span class=\\"md-code\\">" + m + "</span>");
+          s = s.replace(/\\*\\*[^*]+\\*\\*/g, (m) => "<span class=\\"md-b\\">" + m + "</span>");
+          return s;
+        }).join("\\n");
+      }
       function paint() {
         const text = ta.value || "";
+        if (st.seen !== text) {
+          st.seen = text;
+          st.rev += 1;
+          st.hitKey = "";
+        }
         const starts = lineStarts(text);
         const info = caretInfo();
         const total = starts.length;
@@ -154,11 +177,17 @@ export function textEditorScript() {
         gutter.innerHTML = gHtml;
         const lite = total > 400 || text.length > 80000;
         ta.classList.toggle("te-lite", lite);
+        const mdOn = prefix === "note" && document.getElementById("note-kind")?.dataset.kind !== "html";
+        const mode = lite ? "lite" : (mdOn ? "md" : "plain");
         if (lite) {
           if (hl.textContent) hl.textContent = "";
-        } else if (hl.dataset.rev !== String(st.rev)) {
-          hl.textContent = text;
+          hl.dataset.rev = "";
+          hl.dataset.mode = "lite";
+        } else if (hl.dataset.rev !== String(st.rev) || hl.dataset.mode !== mode) {
+          if (mdOn) hl.innerHTML = highlightMd(text);
+          else hl.textContent = text;
           hl.dataset.rev = String(st.rev);
+          hl.dataset.mode = mode;
         }
         if (!lite) {
           hl.scrollTop = ta.scrollTop;
@@ -390,6 +419,7 @@ export function textEditorScript() {
       paint();
     }
     bindAfnEditor("te");
+    bindAfnEditor("note");
     bindAfnEditor("cmp-l");
     bindAfnEditor("cmp-r");
     document.getElementById("te-open")?.addEventListener("click", () => document.getElementById("te-file")?.click());
