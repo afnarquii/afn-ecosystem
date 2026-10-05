@@ -4,7 +4,7 @@ Al abrir un proyecto en **AFN IDE**, se crea `.afn/skills/process-<nombre>/` con
 
 Luego en el chat:
 
-- `/skills-procesos` — generar/actualizar
+- `/skills-procesos` — popover: generar las que falten, o marcar **Forzar refresco**
 - `/caja` o «usa la skill caja y crea…»
 - `/temas` — componentes/estilos de ese proceso
 

@@ -68,6 +68,15 @@ async function main() {
     return;
   }
 
+  if (cmd === 'discover') {
+    const { discoverWorkspace } = await import('./lib/discover.js');
+    const paths = argv.slice(1).filter((a) => !String(a).startsWith('-'));
+    const r = await discoverWorkspace(root, paths);
+    process.stdout.write(`${JSON.stringify({ ok: r.ok, projects: r.projects, skills: r.skills, slashes: r.slashes, error: r.error || '' }, null, 2)}\n`);
+    process.exit(r.ok ? 0 : 1);
+    return;
+  }
+
   if (cmd === 'bootstrap') {
     const force = argv.includes('--force');
     const refresh = argv.includes('--refresh');
@@ -100,9 +109,9 @@ async function main() {
       process.exit(r.ok ? 0 : 1);
       return;
     }
-    const VIEWS = new Set(['inicio', 'readme', 'datos', 'origenes', 'esquema', 'sql', 'mapa', 'diagramas', 'capas', 'howto', 'cerebro', 'reglas', 'notas', 'skills', 'extract']);
+    const VIEWS = new Set(['carpetas', 'inicio', 'readme', 'datos', 'origenes', 'esquema', 'sql', 'mapa', 'diagramas', 'capas', 'howto', 'cerebro', 'reglas', 'notas', 'skills', 'extract']);
     const extra = argv.slice(1).find((a) => !String(a).startsWith('-')) || '';
-    const hash = VIEWS.has(extra) ? extra : extra ? `d-${extra}` : 'readme';
+    const hash = VIEWS.has(extra) ? extra : extra ? `d-${extra}` : 'carpetas';
     const keep = !argv.includes('--once');
     const r = compactDashboard(await openDashboard(root, { open: true, hash: `#${hash}`, browser: !argv.includes('--no-browser') }));
     process.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
@@ -184,7 +193,7 @@ async function main() {
   }
 
   process.stderr.write(
-    'Uso: node index.js [mcp|prompt-gate|snapshot [--hint]|dashboard [sql|cerebro|notas|skills|extract]|extract archivo.pdf|note-save archivo.md|mem-search texto|mem-context|bootstrap|architecture [--recreate]|architecture-status|doctor|session-start|setup kiro|cursor|claude|generic]\n',
+    'Uso: node index.js [mcp|prompt-gate|snapshot [--hint]|dashboard [sql|cerebro|notas|skills|extract]|extract archivo.pdf|note-save archivo.md|mem-search texto|mem-context|bootstrap|discover [rutas]|architecture [--recreate]|architecture-status|doctor|session-start|setup kiro|cursor|claude|generic]\n',
   );
   process.exit(2);
 }

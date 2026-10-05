@@ -41,7 +41,6 @@ $owner.Show() | Out-Null
 [AfnFore]::Lift($owner.Handle)
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
 $dlg.Description = 'Elegi la carpeta del proyecto'
-$dlg.AutoUpgradeEnabled = $true
 $ok = $dlg.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK
 $owner.Dispose()
 if ($ok) { Write-Output $dlg.SelectedPath }

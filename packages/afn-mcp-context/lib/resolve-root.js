@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { hasLayoutSignal } from './project-layout.js';
 
 const SELF_PKG = '@afn-ecosystem/mcp-context';
 
@@ -244,22 +245,9 @@ const SKIP = new Set([
 export function hasProjectSignal(dir) {
   try {
     if (fs.existsSync(path.join(dir, '.git'))) return true;
-    const names = [
-      'package.json',
-      'go.mod',
-      'pyproject.toml',
-      'requirements.txt',
-      'Cargo.toml',
-      'angular.json',
-      'pom.xml',
-      'pubspec.yaml',
-      'docker-compose.yml',
-      'docker-compose.yaml',
-      'serverless.yml',
-      'serverless.yaml',
-    ];
-    if (names.some((f) => fs.existsSync(path.join(dir, f)))) return true;
-    return fs.readdirSync(dir).some((n) => n.endsWith('.csproj') || n.endsWith('.sln'));
+    if (hasLayoutSignal(dir)) return true;
+    return fs.existsSync(path.join(dir, 'docker-compose.yml'))
+      || fs.existsSync(path.join(dir, 'docker-compose.yaml'));
   } catch {
     return false;
   }

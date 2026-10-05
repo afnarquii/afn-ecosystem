@@ -87,7 +87,7 @@ export function bootstrapAfn(root, opts = {}) {
     };
   }
 
-  if (existingCount && !force && !weakExisting && !richer) {
+  if (existingCount && !force && (locked || (!weakExisting && !richer))) {
     const cfg = normalizeProjectsConfig({ ...existingNorm, architectureLocked: locked });
     const extra = enrichAfn(base, cfg, { recreateDiagram });
     const origin = ensureDbOriginFile(base, cfg.projects);

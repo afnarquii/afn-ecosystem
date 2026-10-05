@@ -234,14 +234,22 @@ node …/index.js setup generic
 ## CLI (hooks)
 
 ```bash
-node index.js snapshot     # stdout markdown
-node index.js bootstrap [--force|--refresh]
+node index.js snapshot [--hint]
+node index.js discover [./web ./api]
+node index.js bootstrap [--force|--refresh|--lock|--unlock]
 node index.js architecture [--recreate]
+node index.js architecture-status
 node index.js session-start
-node index.js dashboard [--no-open]
+node index.js dashboard [mapa|sql|skills] [--no-open]
 node index.js diagram [--recreate]
 node index.js doctor
+node index.js mem-context
+node index.js mem-search texto
+node index.js note-save archivo.md
+node index.js extract archivo.pdf
 ```
+
+`discover` no corre al abrir el dashboard. Guía completa: [`packages/afn-mcp-context/GUIA.md`](../../packages/afn-mcp-context/GUIA.md).
 
 `AFN_PROJECT_ROOT` = raíz de **ese** producto (`.kiro/settings/mcp.json` del workspace). Otro repo → otro `setup kiro`.
 

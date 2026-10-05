@@ -6,6 +6,7 @@ description: >-
   (caja, temas, inventario…). Usar cuando el usuario pide asociar skills, generar
   skills de proceso, /skills-procesos, /caja, o «usa la skill temas».
 user-invocable: true
+argument-hint: '[--force]'
 tags: [process, skills, afn, project-open]
 ---
 
@@ -17,7 +18,7 @@ Esta skill **no** desarrolla una pantalla. Enseña a **descubrir** los procesos 
 
 1. Leer el proyecto (componentes, notas `.afn/notes`, rutas).
 2. Crear `.afn/skills/process-<proceso>/SKILL.md` (ej. `process-caja`, `process-temas`).
-3. Cada skill dice **qué puede** y **qué no puede** tocar.
+3. Cada skill dice **qué puede** y **qué no puede** tocar, **la ruta de la pantalla**, **qué hace** cada ancla y **cómo entra/sale la data**.
 4. El usuario dice «usa la skill caja» o `/caja` y la IA trabaja **solo** ese proceso.
 
 ## En AFN IDE (notions)
@@ -30,8 +31,7 @@ Al abrir el proyecto:
 
 Comandos:
 
-- `/skills-procesos` — generar o refrescar (no pisa skills sin `managed: true`).
-- `/skills-procesos --force` — reescribe las `managed: true`.
+- `/skills-procesos` — popover: generar las que falten, o marcar **Forzar refresco** (`--force`) para reescribir las `managed: true`.
 
 ## Generador (este repo)
 

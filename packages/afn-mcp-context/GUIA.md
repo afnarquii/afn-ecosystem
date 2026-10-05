@@ -61,7 +61,22 @@ Si el agente no lee `.mcp.json`, se pega ese `command`, `args` y `env` en su arc
 
 Los hooks de Kiro (abrir el dashboard al decir «abre dashboard AFN») no existen en los otros agentes. Ahí se pide la tool o se usa el comando de la terminal.
 
-## 2. Init (el mapa, como afn-init)
+## 2. Mapa y Descubrir
+
+El dashboard **no** descubre al abrirse. En la pestaña **Mapa** se marcan las carpetas que entran (JavaScript, TypeScript, Python, Go, .NET, Gradle). **Guardar mapa** deja solo esas. **Descubrir** hace las dos cosas, en local y sin modelo:
+
+1. Arma el mapa con las carpetas marcadas (`bootstrap` sobre esa lista, no sobre todo el disco).
+2. Escribe `.afn/skills/process-*/SKILL.md` leyendo el árbol de esas carpetas. Las rutas son del repo, no de la PC.
+
+```bash
+cd PRODUCTO
+node AFN\packages\afn-mcp-context\index.js discover
+node AFN\packages\afn-mcp-context\index.js discover ./web ./api
+```
+
+Sin rutas usa las carpetas ya marcadas. Si no hay ninguna, no escribe nada.
+
+## 3. Init (el mapa, como afn-init)
 
 En AFN IDE el slash es `/afn-init`. Acá el equivalente es el bootstrap: detecta repos hermanos, `packages/` y `apps/`, arma el inventario y el catálogo de orígenes **sin contraseñas**. No pisa el cerebro ni un origen que ya estaba guardado.
 
@@ -90,7 +105,7 @@ Regenerar la arquitectura solo si se pide: tool `afn_diagram_generate` con `recr
 node AFN\packages\afn-mcp-context\index.js architecture --recreate
 ```
 
-## 3. Dashboard
+## 4. Dashboard
 
 http://127.0.0.1:5847
 
@@ -98,17 +113,18 @@ http://127.0.0.1:5847
 cd PRODUCTO
 node AFN\packages\afn-mcp-context\index.js dashboard
 node AFN\packages\afn-mcp-context\index.js dashboard sql
+node AFN\packages\afn-mcp-context\index.js dashboard mapa
 ```
 
 La ventana queda abierta. En Kiro también vale «abre dashboard AFN»: el hook lo abre antes del modelo.
 
-Pestañas útiles: Orígenes, SQL, Scripts, Skills, Notas. En SQL la pantalla es la consulta y los resultados. El encabezado tiene origen, límite, ejecutar, favoritos y descargas (Excel, JSON, TXT, CSV).
+Pestañas: Mapa, Orígenes, SQL, Scripts, Skills, Notas. En **Mapa** están las casillas, **Guardar mapa** y **Descubrir** (ese botón no se aprieta solo). En SQL la pantalla es la consulta y los resultados. El encabezado tiene origen, límite, ejecutar, favoritos y descargas (Excel, JSON, TXT, CSV).
 
 No abrir `.afn/_tmp/dashboard.html`. La URL es la del servidor local. Tras un `git pull`, cerrar esa ventana y volver a abrirla. La versión se lee en el encabezado.
 
 La tool del agente es `afn_dashboard` (abre el navegador y devuelve `url`).
 
-## 4. Consultar la base
+## 5. Consultar la base
 
 Credenciales, una vez, en `.afn/credentials/data-agent.json` (no va a git):
 
@@ -131,7 +147,7 @@ Solo lectura: `SELECT`, `WITH` o `EXEC`/`CALL` de un procedimiento. Están bloqu
 
 En el dashboard, F5 o Ctrl+Enter ejecutan. Resultados: **Columnas**, **TXT** o el ojito **JSON** (una sola vista, no partida). Descargas: **↓ JSON**, **↓ Texto**, **↓ Excel**, **↓ CSV** (archivo `.csv`). Los nombres de columna salen como vienen de la base.
 
-## 5. Ejecutar un Python o un Node
+## 6. Ejecutar un Python o un Node
 
 El script puede vivir fuera del repo, con tokens adentro. AFN guarda solo la ruta en `.afn/script-runners.json`. El agente no recibe la ruta ni el código.
 
@@ -150,7 +166,7 @@ afn_script  action: "run"  id: "informe"  params: { "desde": "2024-01-01", "clie
 
 `list` no ejecuta nada y no trae la ruta. `run` sin `args` ni `params` no inventa parámetros. El campo `error` es el mensaje del proceso; `rows` son las filas si hubo JSON.
 
-## 6. Memoria, notas y archivos
+## 7. Memoria, notas y archivos
 
 | Pedido | Tool | CLI |
 |---|---|---|
@@ -165,9 +181,64 @@ afn_script  action: "run"  id: "informe"  params: { "desde": "2024-01-01", "clie
 | PDF, Excel o imagen a Markdown | `afn_extract_file` | `node …\index.js extract archivo.pdf` |
 | Salud de `.afn/` | `afn_doctor` | `node …\index.js doctor` |
 
-Las notas van a `.afn/notes/tareas/`. No reemplazan `ARQUITECTURA.md`.
+Las notas van a `.afn/notes/tareas/<carpeta>/`. El nombre de la carpeta puede llevar mayúsculas, espacios o `_`. Un `README.md` dentro de esa carpeta, o en una subcarpeta, aparece en el dashboard → **Notas**, leído como HTML. También entra el resto de `.afn/notes/`. No reemplazan `ARQUITECTURA.md`. Si acabás de guardar el archivo, en Notas usá **Actualizar**.
 
-## 7. Qué no hace
+## 8. Comandos de terminal
+
+Se corren desde `PRODUCTO`. `AFN` es la carpeta del clon.
+
+| Comando | Para qué |
+|---|---|
+| `setup kiro` \| `cursor` \| `claude` \| `generic` | Engancha el MCP a ese agente. Una vez por producto, y de nuevo tras un `git pull` del clon. |
+| `discover` | Mapa + skills de proceso de las carpetas ya marcadas. No corre solo. |
+| `discover ./web ./api` | Igual, pero solo esas rutas. |
+| `bootstrap` | Crea `.afn/` si falta. Si el mapa ya está cerrado, no lo pisa. |
+| `bootstrap --force` | Vuelve a detectar carpetas. |
+| `bootstrap --refresh` | Regenera el diagrama sin abrir un mapa cerrado. |
+| `bootstrap --lock` \| `--unlock` | Cierra el mapa o lo vuelve a dejar abierto. |
+| `dashboard` | Abre http://127.0.0.1:5847 y deja la ventana abierta. |
+| `dashboard mapa` | Igual, en esa pestaña. También: `sql`, `cerebro`, `notas`, `skills`, `extract`, `origenes`, `esquema`, `diagramas`, `capas`, `howto`, `reglas`, `datos`, `inicio`, `readme`. |
+| `dashboard --no-open` | Escribe el HTML y no abre el navegador. |
+| `dashboard --no-browser` | Sirve la URL sin lanzar el browser. |
+| `dashboard --once` | Cierra el proceso al terminar de abrir. |
+| `snapshot` | Mapa corto en Markdown (lo que lee el agente). |
+| `snapshot --hint` | Pista mínima. También `--mini`. |
+| `architecture --recreate` | Regenera `ARQUITECTURA.md` desde el disco. Alias: `diagram --recreate`. |
+| `architecture-status` | Dice si el mapa está verificado. |
+| `doctor` | Comprueba que `.afn/` esté sano. |
+| `session-start objetivo` | Abre una sesión de trabajo con ese texto. |
+| `mem-context` | Qué se trabajó (sesiones y hechos). |
+| `mem-search texto` | Busca en el cerebro. Alias: `cerebro texto`. |
+| `note-save archivo.md` | Copia un Markdown a `.afn/notes/tareas/`. |
+| `extract archivo.pdf` | PDF, Excel o imagen a `.afn/extract/*.md`. |
+| `prompt-gate` | Lo usa el hook de Kiro. No hace falta correrlo a mano. |
+| `mcp` | Lo arranca el agente por stdio. Sin argumentos hace lo mismo. |
+
+En el chat, con el MCP conectado, el equivalente es una tool (no hace falta el comando):
+
+| Tool | Equivale a |
+|---|---|
+| `afn_bootstrap` | `bootstrap` |
+| `afn_dashboard` | `dashboard` |
+| `afn_context_snapshot` | `snapshot` |
+| `afn_projects_flow` | Cómo se conectan los proyectos activos |
+| `afn_diagram_generate` | `architecture` (`recreate` para rehacer) |
+| `afn_architecture_evidence` | Archivos del disco para verificar el mapa |
+| `afn_architecture_commit` | Guarda solo lo que está en esos archivos |
+| `afn_project_ignore` | Saca una carpeta del mapa |
+| `afn_mem_context` | `mem-context` |
+| `afn_mem_search` / `afn_mem_save` | `mem-search` / guardar un hecho |
+| `afn_session_start` / `afn_session_summary` | `session-start` / cerrar la sesión |
+| `afn_note_save` / `afn_note_list` / `afn_note_set_status` | `note-save` / listar / draft, listo o aprobado |
+| `afn_data_sources` | Orígenes de la base, sin contraseña |
+| `afn_sql` | Consulta de solo lectura |
+| `afn_schema_commit` | Guarda el esquema vivo que se eligió |
+| `afn_script` | Corre un script ya guardado en el dashboard |
+| `afn_extract_file` | `extract` |
+| `afn_agent_assets` | Reglas y skills asociadas al mapa |
+| `afn_doctor` | `doctor` |
+
+## 9. Qué no hace
 
 - No borra filas, tablas ni bases por `afn_sql`.
 - No le muestra al agente el fuente ni la ruta de un script.

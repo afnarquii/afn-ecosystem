@@ -2,7 +2,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { collectDashboard, buildHtml } from './dashboard.js';
+import { collectDashboard, buildHtml, dashboardNotes } from './dashboard.js';
 import { saveOriginsPack, saveOriginCredential, credentialLoginIndex, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
 import { createScriptRunner, listScriptRunners, removeScriptRunner, runScriptRunner, saveScriptRunner } from './script-runners.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
@@ -14,6 +14,8 @@ import { isAfnEcosystemCatalog } from './resolve-root.js';
 import { aggregateCatalogMemory, registerKnownProject } from './catalog-registry.js';
 import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
+import { listMapFolders, saveMapSelection } from './map-selection.js';
+import { discoverWorkspace } from './discover.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -105,6 +107,26 @@ async function handleApi(state, token, req, res, url) {
   }
   if (req.method === 'GET' && route === '/api/health') {
     send(res, 200, { ok: true, driver: sqlDriverStatus(root) });
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/notes') {
+    send(res, 200, { ok: true, notes: dashboardNotes(root) });
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/map-folders') {
+    send(res, 200, listMapFolders(root));
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/discover') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = await discoverWorkspace(root, raw.paths || []);
+    send(res, r.ok ? 200 : 400, r);
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/map-folders') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = saveMapSelection(root, raw.paths || []);
+    send(res, r.ok ? 200 : 400, r);
     return;
   }
   if (req.method === 'POST' && route === '/api/bootstrap') {
@@ -404,7 +426,7 @@ export function stopDashboardServer(root) {
   live.delete(String(root || ''));
 }
 
-export function dashboardPublicUrl(info, hash = '#readme') {
+export function dashboardPublicUrl(info, hash = '#carpetas') {
   const h = hash.startsWith('#') ? hash : `#${hash}`;
   return `${String(info?.url || '')}${h}`;
 }

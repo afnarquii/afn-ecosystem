@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { findPortEvidence } from './port-evidence.js';
 import { scanDataDesign, listRouteSourceFiles } from './schema-scan.js';
+import { hasDotnetProjectOneLevelDown, hasSolutionFile } from './project-layout.js';
 
 const MAX_READ = 48_000;
 
@@ -118,8 +119,16 @@ export function inferFramework(dir, pkg) {
     readText(path.join(dir, 'pyproject.toml'), 8_000),
     readText(path.join(dir, 'requirements.txt'), 8_000),
     readText(path.join(dir, 'requirements-dev.txt'), 4_000),
+    readText(path.join(dir, 'setup.py'), 8_000),
+    readText(path.join(dir, 'Pipfile'), 8_000),
   ].join(' ').toLowerCase();
-  if (exists(dir, 'pyproject.toml') || exists(dir, 'requirements.txt') || /\bfastapi\b|\bflask\b|\bdjango\b|\buvicorn\b/.test(pyBlob)) {
+  if (
+    exists(dir, 'pyproject.toml')
+    || exists(dir, 'requirements.txt')
+    || exists(dir, 'setup.py')
+    || exists(dir, 'Pipfile')
+    || /\bfastapi\b|\bflask\b|\bdjango\b|\buvicorn\b/.test(pyBlob)
+  ) {
     if (/\bfastapi\b/.test(pyBlob)) return 'fastapi';
     if (/\bflask\b/.test(pyBlob)) return 'flask';
     if (/\bdjango\b/.test(pyBlob)) return 'django';
@@ -128,8 +137,10 @@ export function inferFramework(dir, pkg) {
   }
   if (exists(dir, 'serverless.yml') || exists(dir, 'serverless.yaml')) return 'serverless';
   if (exists(dir, 'Cargo.toml')) return 'rust';
-  if (listNames(dir).some((n) => n.endsWith('.csproj'))) return 'dotnet';
-  if (exists(dir, 'pom.xml') || exists(dir, 'build.gradle')) return 'jvm';
+  if (hasSolutionFile(dir) || listNames(dir).some((n) => /\.(csproj|fsproj|vbproj)$/i.test(n)) || hasDotnetProjectOneLevelDown(dir)) {
+    return 'dotnet';
+  }
+  if (exists(dir, 'pom.xml') || exists(dir, 'build.gradle') || exists(dir, 'build.gradle.kts')) return 'jvm';
   if (exists(dir, 'pubspec.yaml')) return 'flutter';
   return '';
 }
@@ -369,6 +380,40 @@ function inferEnvLinks(env) {
  * @param {string} abs
  * @param {{ name?: string, type?: string, pkg?: object }} [hint]
  */
+/**
+ * Manifiesto de una carpeta, sin recorrer el árbol.
+ * Sirve cuando el código está en `./src` y el package.json vive en la raíz.
+ * @param {string} abs
+ * @param {{ type?: string }} [hint]
+ */
+export function scanManifestOnly(abs, hint = {}) {
+  const pkg = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(abs, 'package.json'), 'utf8'));
+    } catch {
+      return null;
+    }
+  })();
+  const type = hint.type || '';
+  const framework = inferFramework(abs, pkg);
+  const env = envExample(abs);
+  const portEv = findPortEvidence(abs, pkg);
+  const cmds = inferCommands(pkg, abs);
+  return {
+    framework,
+    role: inferRole(type, framework),
+    port: portEv.port,
+    portSource: portEv.portSource || '',
+    portFile: portEv.portFile || '',
+    proxies: inferProxyTargets(abs),
+    technologies: inferTechnologies(abs, pkg, framework, ''),
+    layer: inferLayer(type, framework, false),
+    devCommand: cmds.devCommand,
+    testCommand: cmds.testCommand,
+    envLinks: inferEnvLinks(env),
+  };
+}
+
 export function scanProjectSignals(abs, hint = {}) {
   const pkg = hint.pkg && typeof hint.pkg === 'object' ? hint.pkg : (() => {
     try {

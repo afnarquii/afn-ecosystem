@@ -41,6 +41,112 @@ export function projectBarCss() {
   `;
 }
 
+export function mapPickerHtml() {
+  return `
+    <div id="afn-map-pick" class="article" style="margin:0 0 1rem">
+      <h3 style="margin:0 0 .35rem">Carpetas del mapa</h3>
+      <p class="muted" style="margin:0 0 .6rem">Se reconocen JavaScript, TypeScript, Python, Go, .NET y Gradle. Marcá las que entran. Al guardar, el resto queda fuera.</p>
+      <div id="afn-map-list"></div>
+      <p class="muted" style="margin:0 0 .6rem">Descubrir no corre al abrir. Si lo pedís, deja en ARQUITECTURA.md lo que el modelo lee de punta a punta: contexto, contenedores, quién llama a quién, flujo, rutas, datos y cómo se prueba. También escribe los skills de proceso de esas carpetas. Sin modelo y sin inventar flechas.</p>
+      <p id="afn-map-msg" class="muted" style="margin:.5rem 0"></p>
+      <div class="toolbar">
+        <button type="button" class="btn" id="afn-map-save">Guardar mapa</button>
+        <button type="button" class="btn" id="afn-discover">Descubrir</button>
+      </div>
+    </div>`;
+}
+
+export function mapPickerScript() {
+  return `
+  (function () {
+    const list = document.getElementById("afn-map-list");
+    const msg = document.getElementById("afn-map-msg");
+    const save = document.getElementById("afn-map-save");
+    const discover = document.getElementById("afn-discover");
+    if (!list || !save) return;
+    const api = window.AFN_API;
+    function say(t, ok) {
+      if (!msg) return;
+      msg.textContent = t || "";
+      msg.style.color = ok === false ? "#fca5a5" : ok === true ? "#34d399" : "";
+    }
+    function esc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    async function call(method, path, body) {
+      if (!api) throw new Error("Abrí el dashboard en 127.0.0.1, no el HTML suelto.");
+      const r = await fetch(api.base + path, {
+        method,
+        headers: { "Content-Type": "application/json", "x-afn-token": api.token },
+        body: body == null ? undefined : JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || r.statusText);
+      return j;
+    }
+    function row(f) {
+      const stack = [f.framework, f.type].filter(Boolean).join(" · ");
+      return '<label style="display:flex;gap:.6rem;align-items:flex-start;margin:.35rem 0">'
+        + '<input type="checkbox" data-map-path="' + esc(f.path) + '"' + (f.selected ? ' checked' : '') + '/>'
+        + '<span><strong>' + esc(f.name) + '</strong> <code>' + esc(f.path) + '</code>'
+        + (stack ? '<br><span class="muted">' + esc(stack) + '</span>' : '')
+        + '</span></label>';
+    }
+    async function paint() {
+      try {
+        const j = await call("GET", "/api/map-folders");
+        const folders = j.folders || [];
+        list.innerHTML = folders.length ? folders.map(row).join("") : '<p class="muted">No apareció ninguna carpeta con manifiesto.</p>';
+      } catch (e) {
+        say(String(e.message || e), false);
+      }
+    }
+    save.addEventListener("click", async () => {
+      const paths = [...list.querySelectorAll("input[data-map-path]:checked")].map((el) => el.getAttribute("data-map-path"));
+      if (!paths.length) {
+        say("Marcá al menos una carpeta.", false);
+        return;
+      }
+      save.disabled = true;
+      say("Guardando…");
+      try {
+        const j = await call("POST", "/api/map-folders", { paths });
+        const n = (j.projects || []).length;
+        say("Mapa guardado con " + n + " carpeta" + (n === 1 ? "" : "s") + ".", true);
+        location.reload();
+      } catch (e) {
+        const map = { empty: "Marcá al menos una carpeta.", unknown: "Esas rutas no están entre las carpetas reconocidas." };
+        say(map[String(e.message || "")] || String(e.message || e), false);
+        save.disabled = false;
+      }
+    });
+    discover?.addEventListener("click", async () => {
+      const paths = [...list.querySelectorAll("input[data-map-path]:checked")].map((el) => el.getAttribute("data-map-path"));
+      if (!paths.length) {
+        say("Marcá al menos una carpeta.", false);
+        return;
+      }
+      discover.disabled = true;
+      if (save) save.disabled = true;
+      say("Descubriendo mapa y skills de proceso…");
+      try {
+        const j = await call("POST", "/api/discover", { paths });
+        const n = (j.projects || []).length;
+        const skills = Number(j.skills || 0);
+        say("Listo: " + n + " carpeta" + (n === 1 ? "" : "s") + ", ARQUITECTURA.md y " + skills + " skill" + (skills === 1 ? "" : "s") + " de proceso.", true);
+        location.reload();
+      } catch (e) {
+        const map = { empty: "Marcá al menos una carpeta.", unknown: "Esas rutas no están entre las carpetas reconocidas.", "sin-carpetas": "Marcá al menos una carpeta." };
+        say(map[String(e.message || "")] || String(e.message || e), false);
+        discover.disabled = false;
+        if (save) save.disabled = false;
+      }
+    });
+    paint();
+  })();
+`;
+}
+
 export function projectBarScript() {
   return `
   (function () {
@@ -61,7 +167,11 @@ export function projectBarScript() {
         body: body == null ? undefined : JSON.stringify(body),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || r.statusText);
+      if (!r.ok) {
+        const err = new Error(j.error || r.statusText);
+        err.detail = j.detail || "";
+        throw err;
+      }
       return j;
     }
     function esc(s) {
@@ -141,8 +251,9 @@ export function projectBarScript() {
         setPicked(j.path, j.name);
         say("Carpeta lista: " + (j.name || j.path), true);
       } catch (e) {
-        const map = { cancelled: "No elegiste carpeta.", unsupported: "En esta PC no pude abrir el selector de carpetas." };
-        say(map[String(e.message || "")] || String(e.message || e), false);
+        const map = { cancelled: "No elegiste carpeta.", unsupported: "No pude abrir el selector de carpetas." };
+        const known = map[String(e.message || "")];
+        say(known ? (e.detail ? known + " " + e.detail : known) : String(e.message || e), false);
       } finally {
         if (browse) browse.disabled = false;
       }

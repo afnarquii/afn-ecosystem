@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { applyIgnorePath, activeProjects, activeRelationships, normalizeProjectsConfig } from '../lib/projects-policy.js';
 import { detectProjects, inferProjectType, inferPort } from '../lib/detect-projects.js';
+import { listMapFolders, saveMapSelection } from '../lib/map-selection.js';
 import { bootstrapAfn } from '../lib/bootstrap.js';
 import { saveFact, searchFacts, loadFacts } from '../lib/memory.js';
 import { buildSnapshot, buildPromptHint, doctorAfn } from '../lib/snapshot.js';
@@ -350,16 +351,22 @@ test('dashboard HTML lista proyectos y no abre el browser en test', () => {
   assert.match(html, /data-zoom/);
   assert.match(html, /id="ov-stage"/);
   assert.match(html, /data-canvas=/);
-  assert.match(html, /\|\| "readme"/);
-  assert.match(d.url, /#readme/);
+  assert.match(html, /data-go="carpetas"/);
+  assert.match(html, /id="afn-discover"/);
+  assert.match(html, /\|\| "carpetas"/);
+  assert.match(d.url, /#carpetas/);
 });
 
-test('mdToHtml convierte README en tablas y títulos', () => {
-  const h = mdToHtml('# Arquitectura\n\n## Contenedores\n\n| Nombre | Rol |\n| --- | --- |\n| web | UI |\n');
+test('mdToHtml convierte README en tablas, código y enlaces', () => {
+  const h = mdToHtml('# Arquitectura\n\n## Contenedores\n\n| Nombre | Rol |\n| --- | --- |\n| web | UI |\n\n```js\nconst a = 1;\n```\n\n> cita\n\nVer [docs](https://example.com/doc)\n');
   assert.match(h, /<h1>/);
   assert.match(h, /<h2>/);
   assert.match(h, /doc-table/);
   assert.match(h, /web/);
+  assert.match(h, /md-pre/);
+  assert.match(h, /const a = 1/);
+  assert.match(h, /blockquote/);
+  assert.match(h, /https:\/\/example.com\/doc/);
 });
 
 test('dashboard embebe ARQUITECTURA.md de la raíz y abre en README', () => {
@@ -643,6 +650,59 @@ test('puertos solo con evidencia: python, serverless, docker, env', () => {
   assert.equal(findPortEvidence(compose).port, 8088);
 });
 
+test('detectProjects ve solución .NET, setup.py, Pipfile y Gradle', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'Shop.Api'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'Shop.sln'), 'Microsoft Visual Studio Solution File\n');
+  fs.writeFileSync(path.join(root, 'Shop.Api', 'Shop.Api.csproj'), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n');
+  fs.mkdirSync(path.join(root, 'worker'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'worker', 'setup.py'), 'from setuptools import setup\nsetup(name="worker")\n');
+  fs.mkdirSync(path.join(root, 'jobs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'jobs', 'Pipfile'), '[packages]\nflask = "*"\n');
+  fs.mkdirSync(path.join(root, 'android-app'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'android-app', 'build.gradle'), 'plugins { id "java" }\n');
+
+  const d = detectProjects(root);
+  const byPath = Object.fromEntries(d.projects.map((p) => [p.path, p]));
+  assert.ok(byPath['.']);
+  assert.equal(byPath['.'].framework, 'dotnet');
+  assert.equal(byPath['./Shop.Api'], undefined);
+  assert.equal(byPath['./worker'].framework, 'python');
+  assert.equal(byPath['./jobs'].framework, 'flask');
+  assert.equal(byPath['./android-app'].framework, 'jvm');
+});
+
+test('el mapa guarda solo las carpetas marcadas y el bootstrap no las revive', () => {
+  const root = tmp();
+  writePkg(path.join(root, 'web'), 'web', { dependencies: { react: '18' } });
+  writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
+  fs.mkdirSync(path.join(root, 'worker'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'worker', 'setup.py'), 'from setuptools import setup\nsetup(name="worker")\n');
+
+  const listed = listMapFolders(root);
+  const paths = listed.folders.map((f) => f.path).sort();
+  assert.deepEqual(paths, ['./api', './web', './worker']);
+  assert.equal(listed.folders.every((f) => f.selected), true);
+
+  const saved = saveMapSelection(root, ['./web', './worker']);
+  assert.equal(saved.ok, true);
+  assert.equal(saved.locked, true);
+  assert.deepEqual(saved.projects.map((p) => p.path).sort(), ['./web', './worker']);
+
+  const again = listMapFolders(root);
+  const api = again.folders.find((f) => f.path === './api');
+  assert.equal(api.selected, false);
+  assert.equal(again.folders.find((f) => f.path === './web').selected, true);
+
+  fs.mkdirSync(path.join(root, 'extra'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'extra', 'go.mod'), 'module example.com/extra\n\ngo 1.22\n');
+  const boot = bootstrapAfn(root);
+  assert.equal(boot.skipped, true);
+  const names = boot.config.projects.filter((p) => p.enabled !== false && p.status !== 'ignored').map((p) => p.path);
+  assert.equal(names.includes('./extra'), false);
+  assert.equal(names.includes('./api'), false);
+});
+
 test('detectProjects python fastapi + no inventa puerto', () => {
   const root = tmp();
   fs.mkdirSync(path.join(root, 'api'), { recursive: true });
@@ -794,6 +854,29 @@ test('wiki de tareas: varios md, status y dashboard; no pisa ARQUITECTURA.md', (
   assert.match(html, /data-note-back/);
   const arch = fs.readFileSync(path.join(root, 'ARQUITECTURA.md'), 'utf8');
   assert.equal(arch.includes('Login OAuth'), false);
+});
+
+test('notas: carpeta con cualquier nombre y README anidado se ven en HTML', () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'notes', 'tareas', 'HU_102030 Fondos');
+  fs.mkdirSync(path.join(dir, 'entrega'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'entrega', 'README.md'), '# Fondos\n\nDetalle de la HU.\n\n```txt\nhola\n```\n');
+  fs.writeFileSync(path.join(dir, 'notas.MD'), '# Extra\n');
+  fs.mkdirSync(path.join(root, '.afn', 'notes', 'ideas'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.afn', 'notes', 'ideas', 'README'), '# Idea suelta\n');
+  const listed = listTaskNotes(root, { includeBody: true });
+  const fondos = listed.find((n) => n.slug === 'HU_102030 Fondos');
+  assert.ok(fondos);
+  assert.equal(fondos.docs.length, 2);
+  assert.equal(fondos.docs[0].name, 'entrega/README.md');
+  assert.match(fondos.docs[0].markdown, /Detalle de la HU/);
+  assert.ok(listed.some((n) => n.slug === 'ideas' && n.docs.some((d) => /Idea suelta/.test(d.markdown || d.title))));
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /HU_102030 Fondos/);
+  assert.match(html, /entrega\/README\.md/);
+  assert.match(html, /id="notes-grid"/);
+  assert.match(html, /id="notes-refresh"/);
+  assert.match(html, /Fondos/);
 });
 
 test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
@@ -1106,8 +1189,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.54/);
-  assert.match(html, /data-afn-version="1\.4\.54"/);
+  assert.match(html, /v1\.4\.60/);
+  assert.match(html, /data-afn-version="1\.4\.60"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1227,7 +1310,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.54/);
+    assert.match(liveHtml, /v1\.4\.60/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

@@ -53,52 +53,187 @@ function writeMeta(dir, meta) {
   fs.writeFileSync(metaPath(dir), `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
 }
 
-function listMdFiles(dir) {
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git']);
+const MAX_NOTE_READ = 200_000;
+const MAX_NOTE_FILES = 400;
+const MAX_NOTE_DEPTH = 8;
+
+function isNoteFile(name) {
+  if (!name || name.startsWith('.')) return false;
+  if (/\.(md|markdown)$/i.test(name)) return true;
+  return /^readme$/i.test(name);
+}
+
+function entryKind(dir, ent) {
+  if (ent.isSymbolicLink()) return 'link';
+  if (ent.isDirectory()) return 'dir';
+  if (ent.isFile()) return 'file';
   try {
-    return fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith('.md') && !f.startsWith('.'))
-      .sort();
+    const st = fs.statSync(path.join(dir, ent.name));
+    if (st.isDirectory()) return 'dir';
+    if (st.isFile()) return 'file';
   } catch {
-    return [];
+    /* */
+  }
+  return 'other';
+}
+
+/** Markdown y README (con o sin extensión) dentro de una carpeta, también en subcarpetas. */
+function walkNoteFiles(dir, rel, depth, acc) {
+  if (depth > MAX_NOTE_DEPTH || acc.length >= MAX_NOTE_FILES) return;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const dirs = [];
+  const files = [];
+  for (const ent of entries) {
+    if (!ent.name || ent.name.startsWith('.') || SKIP_DIRS.has(ent.name)) continue;
+    const kind = entryKind(dir, ent);
+    if (kind === 'dir') dirs.push(ent);
+    else if (kind === 'file' && isNoteFile(ent.name)) files.push(ent);
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  for (const ent of files) {
+    if (acc.length >= MAX_NOTE_FILES) return;
+    const relPosix = (rel ? `${rel}/${ent.name}` : ent.name).split('\\').join('/');
+    acc.push({ abs: path.join(dir, ent.name), rel: relPosix });
+  }
+  dirs.sort((a, b) => a.name.localeCompare(b.name));
+  for (const ent of dirs) {
+    walkNoteFiles(path.join(dir, ent.name), rel ? `${rel}/${ent.name}` : ent.name, depth + 1, acc);
   }
 }
 
+function docRank(rel) {
+  const base = String(rel || '').split('/').pop().toLowerCase();
+  if (base === 'readme.md' || base === 'readme' || base === 'readme.markdown') return 0;
+  if (base.startsWith('readme')) return 1;
+  return 2;
+}
+
+function readNoteFile(abs, rel) {
+  let text = '';
+  let mtime = '';
+  try {
+    const st = fs.statSync(abs);
+    mtime = st.mtime.toISOString();
+    text = fs.readFileSync(abs, 'utf8');
+  } catch {
+    text = '';
+  }
+  if (text.length > MAX_NOTE_READ) text = `${text.slice(0, MAX_NOTE_READ)}\n\n_(recortado)_\n`;
+  const first = text.split('\n').find((l) => l.startsWith('# ')) || '';
+  const base = String(rel || '').split('/').pop() || 'nota';
+  return {
+    name: rel,
+    title: first.replace(/^#\s+/, '').trim() || base.replace(/\.(md|markdown)$/i, ''),
+    chars: text.length,
+    mtime,
+    text,
+  };
+}
+
+function finishGroup(dir, slug, rel, rawDocs, includeBody) {
+  if (!rawDocs.length) return null;
+  const meta = readMeta(dir, slug);
+  const hasMeta = fs.existsSync(metaPath(dir));
+  const newest = rawDocs.map((d) => d.mtime).filter(Boolean).sort().pop() || '';
+  const updatedAt = [meta.updatedAt, newest].filter(Boolean).sort().pop() || '';
+  return {
+    slug,
+    title: hasMeta ? meta.title : slug,
+    status: meta.status,
+    createdAt: meta.createdAt || newest,
+    updatedAt,
+    rel,
+    docs: rawDocs.map((d) => {
+      const item = { name: d.name, title: d.title, chars: d.chars };
+      if (includeBody) item.markdown = d.text;
+      return item;
+    }),
+  };
+}
+
+function groupFromDir(dir, slug, rel, includeBody) {
+  const found = [];
+  walkNoteFiles(dir, '', 0, found);
+  const raw = found
+    .map((f) => readNoteFile(f.abs, f.rel))
+    .sort((a, b) => docRank(a.name) - docRank(b.name) || a.name.localeCompare(b.name));
+  return finishGroup(dir, slug, rel, raw, includeBody);
+}
+
 /**
+ * Toda nota bajo `.afn/notes/`: carpetas de tareas con cualquier nombre,
+ * README anidado y markdown suelto. No exige slug en minúsculas.
  * @param {string} root
  * @param {{ includeBody?: boolean }} [opts]
  */
 export function listTaskNotes(root, opts = {}) {
-  const base = taskNotesDir(root);
-  let slugs = [];
+  const includeBody = opts.includeBody === true;
+  const notesRoot = afnPath(root, 'notes');
+  let top = [];
   try {
-    slugs = fs
-      .readdirSync(base, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .filter((n) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(n));
+    top = fs.readdirSync(notesRoot, { withFileTypes: true });
   } catch {
     return [];
   }
-  const includeBody = opts.includeBody === true;
-  return slugs
-    .map((slug) => {
-      const dir = path.join(base, slug);
-      const meta = readMeta(dir, slug);
-      const docs = listMdFiles(dir).map((name) => {
-        const text = fs.readFileSync(path.join(dir, name), 'utf8');
-        const first = text.split('\n').find((l) => l.startsWith('# ')) || '';
-        const item = {
-          name,
-          title: first.replace(/^#\s+/, '').trim() || name.replace(/\.md$/, ''),
-          chars: text.length,
-        };
-        if (includeBody) item.markdown = text;
-        return item;
-      });
-      return { ...meta, docs };
-    })
-    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const used = new Set();
+  const groups = [];
+  const takeSlug = (raw) => {
+    const base = String(raw || 'nota').slice(0, 160) || 'nota';
+    if (!used.has(base)) {
+      used.add(base);
+      return base;
+    }
+    let i = 2;
+    while (used.has(`${base}-${i}`)) i += 1;
+    const next = `${base}-${i}`;
+    used.add(next);
+    return next;
+  };
+  const pushDir = (dir, slugHint, rel) => {
+    const group = groupFromDir(dir, takeSlug(slugHint), rel, includeBody);
+    if (group) groups.push(group);
+  };
+  const pushFile = (abs, slugHint, rel) => {
+    const raw = [readNoteFile(abs, path.posix.basename(rel))];
+    const group = finishGroup(path.dirname(abs), takeSlug(slugHint), rel, raw, includeBody);
+    if (group) groups.push(group);
+  };
+
+  for (const ent of top) {
+    if (!ent.name || ent.name.startsWith('.')) continue;
+    const abs = path.join(notesRoot, ent.name);
+    const kind = entryKind(notesRoot, ent);
+    if (kind === 'dir' && ent.name.toLowerCase() === 'tareas') {
+      let children = [];
+      try {
+        children = fs.readdirSync(abs, { withFileTypes: true });
+      } catch {
+        children = [];
+      }
+      for (const ch of children) {
+        if (!ch.name || ch.name.startsWith('.')) continue;
+        const childAbs = path.join(abs, ch.name);
+        const childKind = entryKind(abs, ch);
+        const rel = `.afn/notes/tareas/${ch.name}`;
+        if (childKind === 'dir') pushDir(childAbs, ch.name, rel);
+        else if (childKind === 'file' && isNoteFile(ch.name)) {
+          pushFile(childAbs, ch.name.replace(/\.(md|markdown)$/i, ''), rel);
+        }
+      }
+      continue;
+    }
+    if (kind === 'dir') pushDir(abs, ent.name, `.afn/notes/${ent.name}`);
+    else if (kind === 'file' && isNoteFile(ent.name)) {
+      pushFile(abs, ent.name.replace(/\.(md|markdown)$/i, ''), `.afn/notes/${ent.name}`);
+    }
+  }
+  return groups.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)) || a.title.localeCompare(b.title));
 }
 
 /**

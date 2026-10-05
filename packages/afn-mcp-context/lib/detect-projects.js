@@ -4,6 +4,14 @@ import { MAX_PROJECTS, pathKeyOf, slugify } from './paths.js';
 import { isIgnoredPath } from './projects-policy.js';
 import { hasProjectSignal } from './resolve-root.js';
 import { scanProjectSignals } from './stack-signals.js';
+import {
+  hasGradleLayout,
+  hasLayoutSignal,
+  hasPythonLayout,
+  hasSolutionFile,
+  isDotnetChildOfSolution,
+  workspaceRootIsProject,
+} from './project-layout.js';
 
 export const DEFAULT_SKIP_DIRS = Object.freeze([
   'node_modules',
@@ -26,26 +34,8 @@ export const DEFAULT_SKIP_DIRS = Object.freeze([
 
 const NEST_WORKSPACES = new Set(['packages', 'apps', 'services']);
 
-const MANIFEST_FILES = Object.freeze([
-  'package.json',
-  'go.mod',
-  'pyproject.toml',
-  'requirements.txt',
-  'Cargo.toml',
-  'pubspec.yaml',
-  'pom.xml',
-  'angular.json',
-  'serverless.yml',
-  'serverless.yaml',
-]);
-
 function hasManifest(dir) {
-  try {
-    return MANIFEST_FILES.some((f) => fs.existsSync(path.join(dir, f)))
-      || fs.readdirSync(dir).some((n) => n.endsWith('.csproj'));
-  } catch {
-    return false;
-  }
+  return hasLayoutSignal(dir);
 }
 
 function readJsonSafe(file) {
@@ -80,9 +70,7 @@ function refineType(abs, initial, folderName, pkg) {
   if (initial && initial !== 'unknown') return initial;
   if (fs.existsSync(path.join(abs, 'angular.json'))) return 'frontend';
   if (fs.existsSync(path.join(abs, 'go.mod'))) return 'backend';
-  if (fs.existsSync(path.join(abs, 'pyproject.toml')) || fs.existsSync(path.join(abs, 'requirements.txt'))) {
-    return 'backend';
-  }
+  if (hasPythonLayout(abs) || hasGradleLayout(abs) || hasSolutionFile(abs)) return 'backend';
   return inferProjectType(folderName, pkg);
 }
 
@@ -184,6 +172,7 @@ export function detectProjects(root, opts = {}) {
       if (skip.has(ent.name.toLowerCase())) continue;
       const abs = path.join(dir, ent.name);
       const rel = relPrefix ? `${relPrefix}/${ent.name}` : `./${ent.name}`;
+      if (hasSolutionFile(dir) && isDotnetChildOfSolution(abs)) continue;
       if (NEST_WORKSPACES.has(ent.name.toLowerCase())) {
         let inner = [];
         try {
@@ -204,7 +193,9 @@ export function detectProjects(root, opts = {}) {
 
   scanLevel(base, '');
 
-  if (!projects.length && hasManifest(base) && !isWeakSoloName(path.basename(base))) {
+  const rootIsProject = workspaceRootIsProject(base)
+    || (!projects.length && hasManifest(base));
+  if (rootIsProject && !isWeakSoloName(path.basename(base)) && !seen.has(pathKeyOf('.'))) {
     pushDir(base, '.', path.basename(base));
   }
 

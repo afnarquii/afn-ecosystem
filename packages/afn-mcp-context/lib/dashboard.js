@@ -17,7 +17,7 @@ import { compareCss, compareScript, compareSection } from './dashboard-compare-u
 import { textEditorCss, textEditorScript, textEditorSection } from './dashboard-text-editor.js';
 import { skillsCss, skillsNavButton, skillsScript, skillsSection } from './dashboard-skills-ui.js';
 import { extractCss, extractNavButton, extractScript, extractSection } from './dashboard-extract-ui.js';
-import { projectBarHtml, projectBarScript, projectBarCss } from './dashboard-project-ui.js';
+import { projectBarHtml, projectBarScript, projectBarCss, mapPickerHtml, mapPickerScript } from './dashboard-project-ui.js';
 import { FLOW_GENERATOR_VERSION } from './version.js';
 
 function readJson(file) {
@@ -46,6 +46,11 @@ function esc(s) {
 
 function inlineMd(s) {
   return esc(s)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (full, label, href) => {
+      if (/^(https?:|javascript:|data:)/i.test(href)) return full;
+      return `<a href="${href}">${label}</a>`;
+    })
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code>$1</code>');
 }
@@ -71,6 +76,31 @@ export function mdToHtml(md) {
       i += 1;
       continue;
     }
+    if (/^```/.test(line)) {
+      const buf = [];
+      i += 1;
+      while (i < lines.length && !/^```/.test(lines[i])) {
+        buf.push(esc(lines[i]));
+        i += 1;
+      }
+      if (i < lines.length) i += 1;
+      out.push(`<pre class="md-pre"><code>${buf.join('\n')}</code></pre>`);
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const bits = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        bits.push(inlineMd(lines[i].replace(/^>\s?/, '')));
+        i += 1;
+      }
+      out.push(`<blockquote><p>${bits.join('<br>')}</p></blockquote>`);
+      continue;
+    }
+    if (/^(-{3,}|\*{3,})$/.test(line.trim())) {
+      out.push('<hr>');
+      i += 1;
+      continue;
+    }
     if (/^\s*\|/.test(line) && lines[i + 1] && /[-|]{3,}/.test(lines[i + 1])) {
       const rows = [];
       while (i < lines.length && /^\s*\|/.test(lines[i])) {
@@ -78,6 +108,11 @@ export function mdToHtml(md) {
         i += 1;
       }
       out.push(tableHtml(rows));
+      continue;
+    }
+    if (/^#### /.test(line)) {
+      out.push(`<h3>${inlineMd(line.slice(5))}</h3>`);
+      i += 1;
       continue;
     }
     if (/^### /.test(line)) {
@@ -121,6 +156,23 @@ export function mdToHtml(md) {
     i += 1;
   }
   return out.join('\n') || '<p class="muted">Todavía no hay README. Pedí regenerar la arquitectura.</p>';
+}
+
+/** Notas listas para la pestaña: markdown + HTML, cualquier carpeta bajo `.afn/notes`. */
+export function dashboardNotes(root) {
+  return listTaskNotes(root, { includeBody: true }).map((n) => ({
+    slug: n.slug,
+    title: n.title,
+    status: n.status,
+    updatedAt: n.updatedAt,
+    rel: n.rel || '',
+    docs: (n.docs || []).map((d) => ({
+      name: d.name,
+      title: d.title,
+      markdown: d.markdown || '',
+      html: mdToHtml(d.markdown || ''),
+    })),
+  }));
 }
 
 function flowMermaid(projects, rels, flow) {
@@ -176,7 +228,7 @@ function collectDashboard(root) {
           project: String(c.project || '').slice(0, 80),
         }));
     })(),
-    notes: listTaskNotes(root, { includeBody: true }),
+    notes: dashboardNotes(root),
   };
 }
 
@@ -214,20 +266,7 @@ function buildHtml(data, opts = {}) {
       edges: d.edges,
     })),
   );
-  const notesPayload = JSON.stringify(
-    notes.map((n) => ({
-      slug: n.slug,
-      title: n.title,
-      status: n.status,
-      updatedAt: n.updatedAt,
-      docs: (n.docs || []).map((d) => ({
-        name: d.name,
-        title: d.title,
-        markdown: d.markdown || '',
-        html: mdToHtml(d.markdown || ''),
-      })),
-    })),
-  );
+  const notesPayload = JSON.stringify(notes);
   const statusLabel = (s) => ({ draft: 'Borrador', listo: 'Listo', aprobado: 'Aprobado' }[s] || s);
   const listed = flow?.projects || projects;
   const portRows = listed
@@ -265,15 +304,16 @@ function buildHtml(data, opts = {}) {
     ? notes
         .map(
           (n) =>
-            `<button type="button" class="tile" data-note-task="${esc(n.slug)}" data-q="${esc([n.title, n.slug, n.status, ...(n.docs || []).map((d) => d.title)].join(' '))}">
+            `<button type="button" class="tile" data-note-task="${esc(n.slug)}" data-q="${esc([n.title, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
               <span class="k">${esc(statusLabel(n.status))}</span>
               <strong>${esc(n.title)}</strong>
-              <span class="muted">${(n.docs || []).length} documentos · ${esc(n.slug)}</span>
-              <span class="cta">Abrir tarea →</span>
+              <span class="muted">${(n.docs || []).length} documentos</span>
+              <code>${esc(n.rel || n.slug)}</code>
+              <span class="cta">Abrir README →</span>
             </button>`,
         )
         .join('')
-    : `<div class="empty">Todavía no hay entregas. En Kiro pedí <strong>guardá el README de esta tarea</strong>. Quedan en <code>.afn/notes/tareas/</code>, no en ARQUITECTURA.md.</div>`;
+    : `<div class="empty">No hay notas en <code>.afn/notes/</code>. Creá una carpeta en <code>.afn/notes/tareas/</code> y un <code>README.md</code> adentro (también en una subcarpeta). Esta pestaña las muestra en HTML.</div>`;
 
   const assetRows = assets.length
     ? assets
@@ -336,8 +376,74 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   });
   const diagrams = JSON.parse(document.getElementById("diagrams-data").textContent);
   const bySlug = Object.fromEntries(diagrams.map((d) => [d.slug, d]));
-  const notes = JSON.parse(document.getElementById("notes-data")?.textContent || "[]");
+  let notes = JSON.parse(document.getElementById("notes-data")?.textContent || "[]");
   const notesBy = Object.fromEntries(notes.map((n) => [n.slug, n]));
+  function noteEsc(s) {
+    return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function noteDec(s) {
+    try { return decodeURIComponent(s); } catch (err) { return s; }
+  }
+  function parseNoteHash(h) {
+    const raw = String(h || "").replace(/^#/, "");
+    if (!raw.startsWith("n-")) return { slug: "", file: "" };
+    const rest = raw.slice(2);
+    const i = rest.indexOf("/");
+    return {
+      slug: noteDec(i < 0 ? rest : rest.slice(0, i)),
+      file: i < 0 ? "" : rest.slice(i + 1).split("/").map(noteDec).join("/"),
+    };
+  }
+  function noteHash(slug, file) {
+    const head = "n-" + encodeURIComponent(slug || "");
+    if (!file) return head;
+    return head + "/" + String(file).split("/").map(encodeURIComponent).join("/");
+  }
+  function noteStatus(s) {
+    return s === "aprobado" ? "Aprobado" : s === "listo" ? "Listo" : "Borrador";
+  }
+  function renderNoteCards() {
+    const grid = document.getElementById("notes-grid");
+    const btn = document.querySelector("nav button[data-go='notas']");
+    if (btn) btn.textContent = "Notas (" + notes.length + ")";
+    if (!grid) return;
+    if (!notes.length) {
+      grid.innerHTML = '<div class="empty">No hay notas en <code>.afn/notes/</code>. Creá una carpeta en <code>.afn/notes/tareas/</code> y un README.md adentro.</div>';
+      return;
+    }
+    grid.innerHTML = notes.map((n) => {
+      const q = [n.title, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
+      return '<button type="button" class="tile" data-note-task="' + noteEsc(n.slug) + '" data-q="' + noteEsc(q) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + (n.docs || []).length + ' documentos</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir README →</span></button>';
+    }).join("");
+  }
+  function applyNotes(list) {
+    notes = Array.isArray(list) ? list : [];
+    Object.keys(notesBy).forEach((k) => { delete notesBy[k]; });
+    notes.forEach((n) => { notesBy[n.slug] = n; });
+    renderNoteCards();
+  }
+  let notesLoading = null;
+  function refreshNotes() {
+    const st = document.getElementById("notes-sync");
+    if (!window.AFN_API || !window.AFN_API.token) {
+      if (st) st.textContent = "";
+      return Promise.resolve();
+    }
+    if (notesLoading) return notesLoading;
+    if (st) st.textContent = "Leyendo .afn/notes…";
+    notesLoading = fetch((window.AFN_API.base || "") + "/api/notes", {
+      headers: { "x-afn-token": window.AFN_API.token },
+    }).then((r) => r.json()).then((j) => {
+      if (!j || !j.ok || !Array.isArray(j.notes)) throw new Error((j && j.error) || "notes");
+      const reading = parseNoteHash(location.hash);
+      applyNotes(j.notes);
+      if (st) st.textContent = notes.length + (notes.length === 1 ? " nota en disco" : " notas en disco");
+      if (reading.slug && notesBy[reading.slug] && location.hash.startsWith("#n-")) showNote(reading.slug, reading.file);
+    }).catch(() => {
+      if (st) st.textContent = "No pude releer las notas. Recargá la página.";
+    }).finally(() => { notesLoading = null; });
+    return notesLoading;
+  }
   const flowMd = document.getElementById("flow-md")?.textContent || "";
   const stage = { s: 1, x: 0, y: 0, drag: false, px: 0, py: 0 };
 
@@ -435,6 +541,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const reader = document.getElementById("notes-reader");
       if (list) list.hidden = false;
       if (reader) reader.hidden = true;
+      refreshNotes();
     }
   }
 
@@ -454,13 +561,13 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const doc = (t.docs || []).find((d) => d.name === file) || t.docs[0];
     const crumb = document.getElementById("note-crumb");
     const st = document.getElementById("note-status");
-    if (crumb) crumb.textContent = t.title;
-    if (st) st.textContent = t.status === "aprobado" ? "Aprobado" : t.status === "listo" ? "Listo" : "Borrador";
+    if (crumb) crumb.textContent = t.rel ? (t.title + " · " + t.rel) : t.title;
+    if (st) st.textContent = noteStatus(t.status);
     const toc = document.getElementById("note-toc");
     if (toc) {
       toc.innerHTML = (t.docs || []).map((d) => {
         const on = doc && d.name === doc.name ? " on" : "";
-        return '<button type="button" class="btn' + on + '" data-note-task="' + t.slug + '" data-note-file="' + d.name.replace(/"/g, "") + '">' + (d.title || d.name) + "</button>";
+        return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(d.title || d.name) + "</button>";
       }).join("");
     }
     const art = document.getElementById("note-article");
@@ -470,8 +577,9 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       dl.dataset.slug = t.slug;
       dl.dataset.file = doc ? doc.name : "nota.md";
     }
-    const hash = "n-" + t.slug + (doc ? "/" + doc.name : "");
-    if (location.hash.replace("#", "") !== hash) location.hash = hash;
+    const hash = noteHash(t.slug, doc ? doc.name : "");
+    const cur = parseNoteHash(location.hash);
+    if (cur.slug !== t.slug || cur.file !== (doc ? doc.name : "")) location.hash = hash;
   }
 
   async function openCanvas(title, src, file) {
@@ -522,6 +630,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (go) { e.preventDefault(); showView(go.dataset.go); location.hash = go.dataset.go; }
     const noteBtn = e.target.closest("[data-note-task]");
     if (noteBtn) { e.preventDefault(); showNote(noteBtn.dataset.noteTask, noteBtn.dataset.noteFile || ""); }
+    if (e.target.closest("#notes-refresh")) { e.preventDefault(); refreshNotes(); }
     if (e.target.closest("[data-note-back]")) { e.preventDefault(); showNote("", ""); }
     if (e.target.closest("[data-dl-note]")) {
       e.preventDefault();
@@ -604,26 +713,25 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const h = location.hash.replace("#", "");
     if (h.startsWith("d-")) openDiagram(h.slice(2));
     else if (h.startsWith("n-")) {
-      const rest = h.slice(2);
-      const i = rest.indexOf("/");
-      showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
+      const parsed = parseNoteHash(h);
+      showNote(parsed.slug, parsed.file);
     }
     else if (h) showView(h);
   });
-  const boot = location.hash.replace("#", "") || "readme";
+  const boot = location.hash.replace("#", "") || "carpetas";
   if (boot.startsWith("d-")) openDiagram(boot.slice(2));
   else if (boot.startsWith("n-")) {
-    const rest = boot.slice(2);
-    const i = rest.indexOf("/");
-    showNote(i < 0 ? rest : rest.slice(0, i), i < 0 ? "" : rest.slice(i + 1));
+    const parsed = parseNoteHash(boot);
+    showNote(parsed.slug, parsed.file);
   }
-  else showView(["inicio","readme","datos","origenes","esquema","sql","comparar","editor","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "readme");
+  else showView(["carpetas","inicio","readme","datos","origenes","esquema","sql","comparar","editor","mapa","diagramas","capas","howto","cerebro","reglas","notas","skills","extract"].includes(boot) ? boot : "carpetas");
 ${workbenchScript()}
 ${textEditorScript()}
 ${compareScript()}
 ${skillsScript()}
 ${extractScript()}
 ${projectBarScript()}
+${mapPickerScript()}
 </script>
 <style>
   :root {
@@ -682,6 +790,11 @@ ${projectBarScript()}
   .article h2 { font-size:1.08rem; margin:1.4rem 0 .5rem; color:var(--acc); text-transform:none; letter-spacing:0; }
   .article h3 { font-size:.95rem; margin:1rem 0 .4rem; color:var(--acc2); text-transform:none; letter-spacing:0; }
   .article p { margin:0 0 .7rem; color:#d7e0ea; }
+  .article a { color:var(--acc2); }
+  .article hr { border:0; border-top:1px solid var(--line); margin:1rem 0; }
+  .article blockquote { margin:0 0 .9rem; padding:.15rem 0 .15rem .85rem; border-left:3px solid var(--acc); color:var(--muted); }
+  .article pre.md-pre { background:#0b1016; border:1px solid var(--line); border-radius:10px; padding:.85rem 1rem; overflow:auto; margin:0 0 1rem; }
+  .article pre.md-pre code { color:#e7eef6; font-size:.82rem; white-space:pre; }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }
   .canvas-wrap { background:#0b1016; border:1px solid var(--line); border-radius:12px; overflow:auto; min-height:420px; padding:1rem; }
@@ -870,11 +983,12 @@ ${projectBarCss()}
     <p id="q-count" class="muted"></p>
     <p id="q-empty" hidden>Sin coincidencias. Probá otro término.</p>
     <nav>
-      <button type="button" data-go="readme">README</button>
+      <button type="button" data-go="carpetas">Carpetas</button>
+      <button type="button" data-go="readme">Inicio</button>
       <button type="button" data-go="datos">Datos${hasDatos ? ' (listo)' : ''}</button>
 ${workbenchNavButtons()}
       <button type="button" data-go="notas">Notas (${notes.length})</button>
-      <button type="button" data-go="inicio">Inicio</button>
+      <button type="button" data-go="inicio">Resumen</button>
       <button type="button" data-go="mapa">Mapa (${projects.length})</button>
       <button type="button" data-go="diagramas">Diagramas (${diagrams.length})</button>
       <button type="button" data-go="capas">Capas y E2E</button>
@@ -889,13 +1003,18 @@ ${extractNavButton()}
   <div>
     <div class="top">
       <span class="badge ${verified ? 'ok' : 'warn'}">${verified ? 'Arquitectura verificada' : 'Pendiente de evidencia LLM'}</span>
-      <span class="muted">v${esc(FLOW_GENERATOR_VERSION)} · ${projects.length} proyectos · ${rels.length} conexiones · ${hasReadme ? 'README listo' : 'sin README'}</span>
+      <span class="muted">v${esc(FLOW_GENERATOR_VERSION)} · ${projects.length} proyectos · ${rels.length} conexiones · ${hasReadme ? 'documento listo' : 'sin documento'}</span>
     </div>
     <main>
 ${projectBarHtml()}
-    <section data-view="readme">
-      <h2>Arquitectura (README)</h2>
-      <p class="lead">Esto es lo que el LLM lee: contexto, contenedores, comunicación, flujo E2E, rutas y esquemas. Archivo: <code>ARQUITECTURA.md</code>.</p>
+    <section data-view="carpetas">
+      <h2>Carpetas del mapa</h2>
+      <p class="lead">Marcá qué carpetas entran. Descubrir solo corre si lo pedís.</p>
+      ${mapPickerHtml()}
+    </section>
+    <section data-view="readme" hidden>
+      <h2>Inicio</h2>
+      <p class="lead">Documento de arquitectura del producto: contexto, contenedores, comunicación, flujo, rutas y esquemas. Archivo: <code>ARQUITECTURA.md</code>.</p>
       <div class="toolbar">
         <button type="button" class="btn" data-dl-flow>Descargar ARQUITECTURA.md</button>
       </div>
@@ -913,8 +1032,12 @@ ${textEditorSection()}
     <section data-view="notas" hidden>
       <div id="notes-list">
         <h2>Notas de trabajo</h2>
-        <p class="lead">Wiki de entregas por tarea (<code>.afn/notes/tareas/</code>). Distinto del README de arquitectura. Para guardar: en Kiro, «dejá el README de esta tarea». Para marcar terminado o aprobar: «marcala como listo/aprobado» (el dashboard no escribe a disco).</p>
-        <div class="grid">${noteCards}</div>
+        <p class="lead">Todo lo que hay en <code>.afn/notes/</code>, sobre todo <code>.afn/notes/tareas/&lt;carpeta&gt;/</code> y su README (aunque esté en una subcarpeta). Se lee como HTML. No es el documento de arquitectura.</p>
+        <div class="toolbar">
+          <button type="button" class="btn" id="notes-refresh">Actualizar</button>
+          <span id="notes-sync" class="muted"></span>
+        </div>
+        <div id="notes-grid" class="grid">${noteCards}</div>
       </div>
       <div id="notes-reader" hidden>
         <div class="toolbar">
@@ -927,10 +1050,10 @@ ${textEditorSection()}
       </div>
     </section>
     <section data-view="inicio" hidden>
-      <h2>Qué hay en este workspace</h2>
-      <p class="lead">El README es la fuente. Los diagramas se abren a pantalla completa, con zoom y arrastre.</p>
+      <h2>Resumen</h2>
+      <p class="lead">Accesos a cada parte del workspace y los puertos que hay en disco.</p>
       <div class="hero">
-        <button type="button" data-go="readme" data-q="arquitectura readme rutas endpoints flujo nombres"><span class="k">README</span><strong>Arquitectura</strong><span class="muted">${hasReadme ? 'Abrir documento' : 'Todavía vacío'}</span></button>
+        <button type="button" data-go="readme" data-q="arquitectura readme rutas endpoints flujo nombres"><span class="k">Inicio</span><strong>Arquitectura</strong><span class="muted">${hasReadme ? 'Abrir documento' : 'Todavía vacío'}</span></button>
         <button type="button" data-go="datos" data-q="tablas procedimientos esquema sql mongo datos pa"><span class="k">BD</span><strong>Tablas y PAs</strong><span class="muted">${hasDatos ? 'Esquema vivo' : 'Listar desde Kiro'}</span></button>
         <button type="button" data-go="origenes" data-q="origenes db-connections json conexiones"><span class="k">Orígenes</span><strong>Editar conexiones</strong><span class="muted">db-connections.json</span></button>
         <button type="button" data-go="esquema" data-q="elegir tablas procedimientos pa tables-config"><span class="k">Elegir</span><strong>Tablas / PAs</strong><span class="muted">Solo lo del flujo</span></button>
@@ -953,7 +1076,7 @@ ${textEditorSection()}
     </section>
     <section data-view="mapa" hidden>
       <h2>Cómo se conectan</h2>
-      <p class="lead">Contenedores del workspace. Ampliar abre el diagrama a pantalla completa (zoom con rueda, arrastrar para mover).</p>
+      <p class="lead">Contenedores del workspace. Las carpetas se eligen en el primer ítem del menú. Ampliar abre el diagrama a pantalla completa (zoom con rueda, arrastrar para mover).</p>
       <div class="toolbar">
         <button type="button" class="btn" data-canvas="flow-src" data-title="Cómo se conectan">Ampliar diagrama</button>
         <button type="button" class="btn" data-dl-flow>Descargar ARQUITECTURA.md</button>
@@ -1104,7 +1227,7 @@ export function writeDashboard(root, opts = {}) {
   fs.mkdirSync(outDir, { recursive: true });
   const file = path.join(outDir, 'dashboard.html');
   fs.writeFileSync(file, html, 'utf8');
-  const hash = opts.slug ? `#d-${opts.slug}` : '#readme';
+  const hash = opts.slug ? `#d-${opts.slug}` : '#carpetas';
   const shouldOpen = opts.open !== false;
   let opened = false;
   let url = `${pathToFileURL(file).href}${hash}`;
@@ -1134,7 +1257,7 @@ export async function openDashboard(root, opts = {}) {
   const written = writeDashboard(root, { open: false, slug: opts.slug });
   if (opts.open === false) return written;
   const { startDashboardServer, dashboardPublicUrl } = await import('./dashboard-server.js');
-  let hash = '#readme';
+  let hash = '#carpetas';
   if (opts.hash) hash = String(opts.hash).startsWith('#') ? String(opts.hash) : `#${opts.hash}`;
   else if (opts.slug) hash = `#d-${opts.slug}`;
   const info = await startDashboardServer(root, { port: opts.port });

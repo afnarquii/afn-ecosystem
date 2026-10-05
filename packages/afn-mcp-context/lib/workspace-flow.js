@@ -3,7 +3,8 @@ import path from 'node:path';
 import { afnPath, slugify } from './paths.js';
 import { FLOW_GENERATOR_VERSION } from './version.js';
 import { activeProjects, activeRelationships, normalizeProjectsConfig } from './projects-policy.js';
-import { scanProjectSignals, scanComposeServices } from './stack-signals.js';
+import { scanProjectSignals, scanComposeServices, scanManifestOnly } from './stack-signals.js';
+import { hasNamedManifest } from './project-layout.js';
 import { irToMermaid, mermaidId, mermaidLabel } from './diagram-ir.js';
 import { workspaceFlowMarkdown, writeArchitectureReadmeFiles } from './architecture-readme.js';
 
@@ -32,7 +33,25 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
   const assets = Array.isArray(opts.assets?.assets) ? opts.assets.assets : [];
   const projects = [];
   for (const p of activeProjects(config)) {
-    const sig = scanProjectSignals(absOf(root, p.path), { name: p.name, type: p.type });
+    const abs = absOf(root, p.path);
+    let sig = scanProjectSignals(abs, { name: p.name, type: p.type });
+    if (!hasNamedManifest(abs) && path.resolve(abs) !== path.resolve(root)) {
+      const borrowed = scanManifestOnly(root, { type: p.type });
+      sig = {
+        ...sig,
+        framework: sig.framework || borrowed.framework,
+        role: sig.role || borrowed.role,
+        port: sig.port || borrowed.port,
+        portSource: sig.portSource || borrowed.portSource,
+        portFile: sig.portFile || borrowed.portFile,
+        proxies: sig.proxies?.length ? sig.proxies : borrowed.proxies,
+        technologies: sig.technologies?.length ? sig.technologies : borrowed.technologies,
+        layer: sig.layer || borrowed.layer,
+        devCommand: sig.devCommand || borrowed.devCommand,
+        testCommand: sig.testCommand || borrowed.testCommand,
+        envLinks: sig.envLinks?.length ? sig.envLinks : borrowed.envLinks,
+      };
+    }
     const skills = assets
       .filter((a) => String(a.project || '').toLowerCase() === p.name.toLowerCase())
       .map((a) => a.title)
@@ -141,6 +160,10 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
       const cloud = projects.find((o) => o.type === 'cloud' && o.path === p.path);
       if (cloud) pushRel(p.name, cloud.name, 'lambda', p.lambdas.slice(0, 3).join(', '), 'lambda', 'serverless');
     }
+    for (const port of localhostPortsIn(absOf(root, p.path))) {
+      const target = projects.find((o) => o.name !== p.name && o.port && Number(o.port) === port);
+      if (target) pushRel(p.name, target.name, 'api-communication', `http://localhost:${port}`, 'localhost', 'http');
+    }
   }
 
   const layers = {
@@ -166,6 +189,45 @@ export function buildWorkspaceFlow(root, cfg, opts = {}) {
     how,
     llmReviewed: opts.llmReviewed === true,
   };
+}
+
+const CODE_EXT = /\.(jsx?|tsx?|mjs|cjs|vue|py|cs|go|java)$/i;
+const WALK_SKIP = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', 'vendor', '.next', 'bin', 'obj']);
+
+function localhostPortsIn(abs) {
+  const ports = new Set();
+  let seen = 0;
+  function walk(dir, depth) {
+    if (seen >= 120 || depth > 6) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (seen >= 120) return;
+      if (ent.name.startsWith('.') || WALK_SKIP.has(ent.name.toLowerCase())) continue;
+      const child = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        walk(child, depth + 1);
+        continue;
+      }
+      if (!ent.isFile() || !CODE_EXT.test(ent.name)) continue;
+      seen += 1;
+      let text = '';
+      try {
+        text = fs.readFileSync(child, 'utf8').slice(0, 80_000);
+      } catch {
+        continue;
+      }
+      const re = /https?:\/\/(?:localhost|127\.0\.0\.1):(\d{2,5})/g;
+      let m;
+      while ((m = re.exec(text))) ports.add(Number(m[1]));
+    }
+  }
+  walk(abs, 0);
+  return ports;
 }
 
 function buildE2e(projects, relationships) {
