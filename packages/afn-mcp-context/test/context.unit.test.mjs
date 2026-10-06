@@ -908,6 +908,13 @@ test('una nota html se abre como html y se guarda en el mismo archivo', () => {
   assert.match(html, /id="note-frame"/);
   assert.match(html, /id="note-save"/);
   assert.match(html, /data-note-mode="both"/);
+  assert.match(html, /class="note-foot"/);
+  assert.match(html, /class="note-filebar"/);
+  assert.ok(html.indexOf('id="note-toc"') < html.indexOf('id="note-split"'));
+  assert.ok(html.indexOf('id="note-split"') < html.indexOf('class="note-foot"'));
+  assert.match(html, /main\.notes-on > #afn-project/);
+  assert.match(html, /body\.notes-on \.app \{ height:100vh/);
+  assert.match(html, /grid-template-rows:minmax\(0,1fr\)/);
 });
 
 test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
@@ -1220,8 +1227,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.62/);
-  assert.match(html, /data-afn-version="1\.4\.62"/);
+  assert.match(html, /v1\.4\.63/);
+  assert.match(html, /data-afn-version="1\.4\.63"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1341,7 +1348,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.62/);
+    assert.match(liveHtml, /v1\.4\.63/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

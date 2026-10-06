@@ -621,9 +621,18 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const sqlPreview = document.getElementById("wb-sql-inspect");
     if (id !== "sql" && sqlPreview) sqlPreview.classList.remove("fs");
     const wide = id === "sql" || id === "comparar" || id === "editor";
+    const notesOn = id === "notas";
     const project = document.getElementById("afn-project");
     if (project) project.hidden = wide;
-    document.querySelector("main")?.classList.toggle("sql-focus", wide);
+    const shell = document.querySelector("main");
+    if (shell) {
+      shell.classList.toggle("sql-focus", wide);
+      shell.classList.toggle("notes-on", notesOn);
+      if (!notesOn) shell.classList.remove("note-focus");
+    }
+    const top = document.querySelector(".top");
+    if (top) top.hidden = notesOn;
+    document.body.classList.toggle("notes-on", notesOn);
     if (id === "mapa") render(document.getElementById("flow-mermaid"), document.getElementById("flow-src").textContent);
     if (id === "capas") render(document.getElementById("layers-mermaid"), document.getElementById("layers-src").textContent);
     if (id === "howto") render(document.getElementById("e2e-mermaid"), document.getElementById("e2e-src").textContent);
@@ -634,6 +643,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const reader = document.getElementById("notes-reader");
       if (list) list.hidden = false;
       if (reader) reader.hidden = true;
+      document.querySelector("main")?.classList.remove("note-focus");
       refreshNotes();
     }
   }
@@ -878,7 +888,11 @@ ${mapPickerScript()}
   * { box-sizing:border-box; }
   [hidden] { display:none !important; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  body.notes-on { overflow:hidden; }
   .app { display:grid; grid-template-columns:240px minmax(0,1fr); min-height:100%; height:100%; }
+  body.notes-on .app { height:100vh; max-height:100vh; overflow:hidden; grid-template-rows:minmax(0,1fr); }
+  body.notes-on .app > div, body.notes-on aside { min-height:0; max-height:100%; overflow:hidden; }
+  body.notes-on aside { overflow:auto; }
   .app > div { min-width:0; height:100%; display:flex; flex-direction:column; overflow:hidden; }
   aside { background:var(--bar); border-right:1px solid var(--line); padding:0; display:flex; flex-direction:column; }
   .brand { padding:1.15rem 1.1rem .9rem; border-bottom:1px solid var(--line); }
@@ -931,23 +945,54 @@ ${mapPickerScript()}
   .article blockquote { margin:0 0 .9rem; padding:.15rem 0 .15rem .85rem; border-left:3px solid var(--acc); color:var(--muted); }
   .article pre.md-pre { background:#0b1016; border:1px solid var(--line); border-radius:10px; padding:.85rem 1rem; overflow:auto; margin:0 0 1rem; }
   .article pre.md-pre code { color:#e7eef6; font-size:.82rem; white-space:pre; }
-  section[data-view="notas"]:not([hidden]) { flex:1; min-height:0; display:flex; flex-direction:column; }
-  #notes-reader:not([hidden]) { flex:1; min-height:0; display:flex; flex-direction:column; }
-  main.note-focus { padding:.7rem 1rem 1rem; }
-  .note-split { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.7rem; min-height:0; flex:1; }
+  section[data-view="notas"]:not([hidden]) { flex:1 1 0; min-height:0; max-height:100%; overflow:hidden; display:flex; flex-direction:column; }
+  main.notes-on { padding:0; overflow:hidden; flex:1 1 0; min-height:0; max-height:100%; }
+  main.notes-on > #afn-project {
+    order:8; margin:0; max-width:none; flex-shrink:0;
+    display:flex; flex-wrap:wrap; align-items:center; gap:.35rem .55rem;
+    padding:.4rem .7rem; border-radius:0; border-left:0; border-right:0; border-bottom:0;
+  }
+  main.notes-on #afn-project > p.muted:first-child,
+  main.notes-on #afn-port-lead,
+  main.notes-on .afn-pick-ico,
+  main.notes-on .afn-pick-copy p,
+  main.notes-on #afn-catalog { display:none !important; }
+  main.notes-on #afn-project-root,
+  main.notes-on #afn-project-msg {
+    margin:0; flex:1 1 10rem; min-width:0; font-size:.75rem;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  main.notes-on #afn-project > .toolbar { margin:0; }
+  main.notes-on .afn-pick { flex:1 1 auto; margin:0; padding:0; border:0; background:transparent; gap:.4rem; border-radius:0; }
+  main.notes-on .afn-pick-copy { min-width:0; flex:0 1 auto; }
+  main.notes-on .afn-pick-copy strong { font-size:.82rem; max-width:14rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  main.notes-on .btn { padding:.32rem .65rem; }
+  #notes-list { flex:1; min-height:0; overflow:auto; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; }
+  .notes-head { display:flex; align-items:center; gap:.6rem; margin:0 0 .75rem; flex-shrink:0; }
+  .notes-head h2 { margin:0; font-size:1.05rem; }
+  .notes-head .muted { margin-left:auto; }
+  #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+  main.note-focus { padding:0; }
+  .note-filebar { display:flex; gap:.35rem; flex-wrap:nowrap; overflow-x:auto; align-items:flex-end; padding:.45rem .65rem 0; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
+  .note-filebar .btn { white-space:nowrap; border-radius:8px 8px 0 0; border-bottom-color:transparent; }
+  .note-filebar .btn.on { background:#1e1e1e; border-color:var(--acc); color:var(--ink); }
+  .note-foot { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; padding:.4rem .65rem; border-top:1px solid var(--line); background:#0e141c; flex-shrink:0; }
+  .note-foot .muted { margin:0; }
+  #note-msg { flex:1 1 8rem; min-width:6rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .note-split { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:minmax(0,1fr); gap:.7rem; min-height:0; flex:1 1 0; padding:.45rem .55rem; overflow:hidden; }
   .note-split.mode-edit { grid-template-columns:minmax(0,1fr); }
   .note-split.mode-edit .note-preview { display:none; }
   .note-split.mode-view { grid-template-columns:minmax(0,1fr); }
   .note-split.mode-view .note-edit { display:none; }
-  .note-edit, .note-preview { min-width:0; min-height:0; display:flex; flex-direction:column; }
-  .note-edit .te-wrap { height:100%; min-height:360px; }
-  .note-edit .sql-code { min-height:320px; }
+  .note-edit, .note-preview { min-width:0; min-height:0; height:100%; overflow:hidden; display:flex; flex-direction:column; }
+  .note-edit .te-wrap { height:100%; min-height:0; }
+  .note-edit .sql-code { min-height:0; }
   .sql-hl .md-h { color:#569cd6; }
   .sql-hl .md-code { color:#ce9178; }
   .sql-hl .md-bq { color:#6a9955; }
   .sql-hl .md-b { color:#d7ba7d; font-weight:700; }
   .note-preview { overflow:auto; background:#1e1e1e; border:1px solid #2d2d2d; border-radius:12px; }
-  .note-preview .vscode-md { background:#1e1e1e; color:#d4d4d4; border:0; border-radius:0; max-width:none; min-height:320px; font:14px/22px "Segoe UI", "Segoe WPC", system-ui, sans-serif; padding:1rem 1.5rem 2rem; }
+  .note-preview .vscode-md { background:#1e1e1e; color:#d4d4d4; border:0; border-radius:0; max-width:none; min-height:0; font:14px/22px "Segoe UI", "Segoe WPC", system-ui, sans-serif; padding:1rem 1.5rem 2rem; }
   .note-preview .vscode-md h1 { font-size:2em; font-weight:600; margin:.2rem 0 .7rem; padding-bottom:.3rem; border-bottom:1px solid rgba(255,255,255,.18); color:#e7e7e7; letter-spacing:0; text-transform:none; }
   .note-preview .vscode-md h2 { font-size:1.5em; font-weight:600; margin:1.4rem 0 .55rem; padding-bottom:.3rem; border-bottom:1px solid rgba(255,255,255,.18); color:#e7e7e7; letter-spacing:0; text-transform:none; }
   .note-preview .vscode-md h3 { font-size:1.25em; font-weight:600; color:#e7e7e7; letter-spacing:0; text-transform:none; }
@@ -959,7 +1004,7 @@ ${mapPickerScript()}
   .note-preview .vscode-md blockquote { border-left:4px solid rgba(255,255,255,.28); color:#9d9d9d; }
   .note-preview .vscode-md .doc-table th, .note-preview .vscode-md .doc-table td { border:1px solid rgba(255,255,255,.14); }
   .note-preview .vscode-md hr { border-top-color:rgba(255,255,255,.18); }
-  #note-frame { flex:1; width:100%; min-height:420px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+  #note-frame { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#fff; }
   @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }
@@ -1197,27 +1242,15 @@ ${compareSection()}
 ${textEditorSection()}
     <section data-view="notas" hidden>
       <div id="notes-list">
-        <h2>Notas de trabajo</h2>
-        <p class="lead">Todo lo que hay en <code>.afn/notes/</code>. Un Markdown se abre en texto y en vista previa. Un HTML se reconoce y se ve como página. Podés editarlo y guardarlo en el mismo archivo.</p>
-        <div class="toolbar">
+        <div class="notes-head">
+          <h2>Notas</h2>
           <button type="button" class="btn" id="notes-refresh">Actualizar</button>
           <span id="notes-sync" class="muted"></span>
         </div>
         <div id="notes-grid" class="grid">${noteCards}</div>
       </div>
       <div id="notes-reader" hidden>
-        <div class="toolbar">
-          <button type="button" class="btn" data-note-back>← Volver a notas</button>
-          <span id="note-kind" class="tag" data-kind="markdown">Markdown</span>
-          <button type="button" class="btn on" data-note-mode="both">Editar y vista</button>
-          <button type="button" class="btn" data-note-mode="edit">Solo texto</button>
-          <button type="button" class="btn" data-note-mode="view">Solo vista</button>
-          <button type="button" class="btn" id="note-save">Guardar</button>
-          <button type="button" class="btn" id="note-dl" data-dl-note>Descargar</button>
-          <span id="note-msg" class="muted"></span>
-        </div>
-        <p class="muted"><span id="note-crumb"></span> · <span id="note-status"></span></p>
-        <div id="note-toc" class="toolbar"></div>
+        <div id="note-toc" class="note-filebar"></div>
         <div id="note-split" class="note-split mode-both">
           <div class="note-edit">
             ${textEditorHtml('note', 'Editor', 'Seleccioná y Ctrl+D suma la siguiente igual. Ctrl+F busca. Ctrl+S guarda.')}
@@ -1226,6 +1259,18 @@ ${textEditorSection()}
             <article id="note-article" class="article vscode-md"></article>
             <iframe id="note-frame" title="Vista HTML" sandbox="allow-scripts" hidden></iframe>
           </div>
+        </div>
+        <div class="note-foot">
+          <button type="button" class="btn" data-note-back>← Volver</button>
+          <span id="note-kind" class="tag" data-kind="markdown">Markdown</span>
+          <button type="button" class="btn on" data-note-mode="both">Editar y vista</button>
+          <button type="button" class="btn" data-note-mode="edit">Solo texto</button>
+          <button type="button" class="btn" data-note-mode="view">Solo vista</button>
+          <button type="button" class="btn" id="note-save">Guardar</button>
+          <button type="button" class="btn" id="note-dl" data-dl-note>Descargar</button>
+          <span id="note-crumb" class="muted"></span>
+          <span id="note-status" class="muted"></span>
+          <span id="note-msg" class="muted"></span>
         </div>
       </div>
     </section>
