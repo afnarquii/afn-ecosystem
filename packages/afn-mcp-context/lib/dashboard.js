@@ -167,15 +167,15 @@ export function dashboardNotes(root) {
     updatedAt: n.updatedAt,
     rel: n.rel || '',
     docs: (n.docs || []).map((d) => {
-      const kind = d.kind === 'html' ? 'html' : 'markdown';
-      const text = d.markdown || '';
+      const kind = d.kind === 'html' || d.kind === 'pdf' || d.kind === 'file' ? d.kind : 'markdown';
+      const text = kind === 'html' || kind === 'markdown' ? (d.markdown || '') : '';
       return {
         name: d.name,
         title: d.title,
         kind,
         file: d.file || '',
         markdown: text,
-        html: kind === 'html' ? '' : mdToHtml(text),
+        html: kind === 'markdown' ? mdToHtml(text) : '',
       };
     }),
   }));
@@ -407,6 +407,17 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   }
   function noteStatus(s) {
     return s === "aprobado" ? "Aprobado" : s === "listo" ? "Listo" : "Borrador";
+  }
+  function noteKindLabel(kind) {
+    if (kind === "html") return "HTML";
+    if (kind === "pdf") return "PDF";
+    if (kind === "file") return "Archivo";
+    return "Markdown";
+  }
+  let noteBlobUrl = "";
+  function clearNoteBlob() {
+    if (noteBlobUrl) URL.revokeObjectURL(noteBlobUrl);
+    noteBlobUrl = "";
   }
   function renderNoteCards() {
     const grid = document.getElementById("notes-grid");
@@ -674,17 +685,35 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
         return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(d.title || d.name) + "</button>";
       }).join("");
     }
-    const kind = doc && doc.kind === "html" ? "html" : "markdown";
+    const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file") ? doc.kind : "markdown";
+    const binary = kind === "pdf" || kind === "file";
     const kindEl = document.getElementById("note-kind");
     if (kindEl) {
       kindEl.dataset.kind = kind;
-      kindEl.textContent = kind === "html" ? "HTML" : "Markdown";
+      kindEl.textContent = noteKindLabel(kind);
     }
+    if (reader) reader.classList.toggle("binary", binary);
+    document.querySelectorAll("[data-note-mode], #note-save").forEach((el) => { el.hidden = binary; });
     const ed = document.getElementById("note-ed");
-    if (ed) ed.value = doc ? (doc.markdown || "") : "";
+    if (ed) ed.value = binary ? "" : (doc ? (doc.markdown || "") : "");
     noteSavedText = ed ? ed.value : "";
-    if (window.afnEditorPaint) window.afnEditorPaint("note-ed");
-    showNotePreview(doc);
+    if (!binary && window.afnEditorPaint) window.afnEditorPaint("note-ed");
+    if (!binary) showNotePreview(doc);
+    const bin = document.getElementById("note-binary");
+    const pdf = document.getElementById("note-pdf");
+    clearNoteBlob();
+    if (bin) bin.hidden = !binary;
+    if (pdf) { pdf.hidden = true; pdf.removeAttribute("src"); }
+    const binName = document.getElementById("note-binary-name");
+    if (binName) binName.textContent = doc ? (doc.name || doc.title || "") : "";
+    if (binary && kind === "pdf" && doc && doc.file && window.AFN_API && window.AFN_API.token) {
+      fetch((window.AFN_API.base || "") + "/api/notes/file?path=" + encodeURIComponent(doc.file), {
+        headers: { "x-afn-token": window.AFN_API.token },
+      }).then((r) => { if (!r.ok) throw new Error("pdf"); return r.blob(); }).then((blob) => {
+        noteBlobUrl = URL.createObjectURL(blob);
+        if (pdf) { pdf.hidden = false; pdf.src = noteBlobUrl; }
+      }).catch(() => {});
+    }
     const dl = document.getElementById("note-dl");
     if (dl) {
       dl.dataset.slug = t.slug;
@@ -773,7 +802,32 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const b = document.getElementById("note-dl");
       const ed = document.getElementById("note-ed");
       const name = String(b?.dataset.file || "nota.md").split("/").pop();
-      downloadText(name, ed ? ed.value : "");
+      const kind = document.getElementById("note-kind")?.dataset.kind || "markdown";
+      const filePath = b?.dataset.path || "";
+      const binary = kind === "pdf" || kind === "file";
+      if (!binary && ed) {
+        const mime = kind === "html" ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8";
+        const blob = new Blob([ed.value], { type: mime });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+        return;
+      }
+      if (!window.AFN_API || !window.AFN_API.token || !filePath) return;
+      fetch((window.AFN_API.base || "") + "/api/notes/file?path=" + encodeURIComponent(filePath), {
+        headers: { "x-afn-token": window.AFN_API.token },
+      }).then((r) => { if (!r.ok) throw new Error("descarga"); return r.blob(); }).then((blob) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      }).catch(() => {
+        const msg = document.getElementById("note-msg");
+        if (msg) msg.textContent = "No pude descargar el archivo.";
+      });
     }
     const open = e.target.closest("[data-open]");
     if (open) { e.preventDefault(); openDiagram(open.dataset.open); }
@@ -991,20 +1045,38 @@ ${mapPickerScript()}
   .sql-hl .md-code { color:#ce9178; }
   .sql-hl .md-bq { color:#6a9955; }
   .sql-hl .md-b { color:#d7ba7d; font-weight:700; }
-  .note-preview { overflow:auto; background:#1e1e1e; border:1px solid #2d2d2d; border-radius:12px; }
-  .note-preview .vscode-md { background:#1e1e1e; color:#d4d4d4; border:0; border-radius:0; max-width:none; min-height:0; font:14px/22px "Segoe UI", "Segoe WPC", system-ui, sans-serif; padding:1rem 1.5rem 2rem; }
-  .note-preview .vscode-md h1 { font-size:2em; font-weight:600; margin:.2rem 0 .7rem; padding-bottom:.3rem; border-bottom:1px solid rgba(255,255,255,.18); color:#e7e7e7; letter-spacing:0; text-transform:none; }
-  .note-preview .vscode-md h2 { font-size:1.5em; font-weight:600; margin:1.4rem 0 .55rem; padding-bottom:.3rem; border-bottom:1px solid rgba(255,255,255,.18); color:#e7e7e7; letter-spacing:0; text-transform:none; }
-  .note-preview .vscode-md h3 { font-size:1.25em; font-weight:600; color:#e7e7e7; letter-spacing:0; text-transform:none; }
-  .note-preview .vscode-md p { color:#d4d4d4; }
-  .note-preview .vscode-md a { color:#3794ff; }
-  .note-preview .vscode-md code { font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:.92em; background:rgba(255,255,255,.1); color:#ce9178; padding:.1em .35em; border-radius:4px; }
-  .note-preview .vscode-md pre.md-pre { background:#1a1a1a; border:1px solid rgba(255,255,255,.08); border-radius:6px; }
-  .note-preview .vscode-md pre.md-pre code { background:transparent; color:#d4d4d4; padding:0; }
-  .note-preview .vscode-md blockquote { border-left:4px solid rgba(255,255,255,.28); color:#9d9d9d; }
-  .note-preview .vscode-md .doc-table th, .note-preview .vscode-md .doc-table td { border:1px solid rgba(255,255,255,.14); }
-  .note-preview .vscode-md hr { border-top-color:rgba(255,255,255,.18); }
+  .note-preview { overflow:auto; background:#1f1f1f; border:1px solid #313131; border-radius:12px; }
+  .note-preview .vscode-md { background:#1f1f1f; color:#cccccc; border:0; border-radius:0; max-width:none; min-height:0; font:14px/22px "Segoe WPC", "Segoe UI", system-ui, sans-serif; padding:1em 26px 2rem; }
+  .note-preview .vscode-md h1,
+  .note-preview .vscode-md h2,
+  .note-preview .vscode-md h3,
+  .note-preview .vscode-md h4,
+  .note-preview .vscode-md p,
+  .note-preview .vscode-md li,
+  .note-preview .vscode-md blockquote { color:#cccccc; letter-spacing:0; text-transform:none; }
+  .note-preview .vscode-md h1,
+  .note-preview .vscode-md h2,
+  .note-preview .vscode-md h3,
+  .note-preview .vscode-md h4 { font-weight:600; line-height:1.25; margin-top:24px; margin-bottom:16px; }
+  .note-preview .vscode-md h1 { font-size:2em; margin-top:0; padding-bottom:.3em; border-bottom:1px solid rgba(255,255,255,.18); }
+  .note-preview .vscode-md h2 { font-size:1.5em; padding-bottom:.3em; border-bottom:1px solid rgba(255,255,255,.18); }
+  .note-preview .vscode-md h3 { font-size:1.25em; border:0; }
+  .note-preview .vscode-md h4 { font-size:1em; border:0; }
+  .note-preview .vscode-md p { margin:0 0 16px; }
+  .note-preview .vscode-md a { color:#4daafc; text-decoration:none; }
+  .note-preview .vscode-md a:hover { text-decoration:underline; }
+  .note-preview .vscode-md code { font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:1em; line-height:1.357em; color:#d0d0d0; background:#3c3c3c; padding:0 .2em; border-radius:0; }
+  .note-preview .vscode-md pre.md-pre { background:#2b2b2b; border:1px solid #313131; border-radius:3px; padding:16px; margin:0 0 16px; }
+  .note-preview .vscode-md pre.md-pre code { background:none; color:#cccccc; padding:0; }
+  .note-preview .vscode-md blockquote { margin:0 0 16px; padding:0 16px 0 10px; border-left:5px solid #616161; background:#2b2b2b; border-radius:2px; }
+  .note-preview .vscode-md .doc-table th { border-bottom:1px solid rgba(255,255,255,.69); }
+  .note-preview .vscode-md .doc-table td { border-top:1px solid rgba(255,255,255,.18); }
+  .note-preview .vscode-md hr { border:0; height:1px; border-bottom:1px solid rgba(255,255,255,.18); }
   #note-frame { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#fff; }
+  #notes-reader.binary .note-split { display:none; }
+  #note-binary { flex:1; min-height:0; display:flex; flex-direction:column; gap:.6rem; padding:.7rem .8rem; }
+  #note-binary[hidden] { display:none !important; }
+  #note-pdf { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#111; }
   @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }
@@ -1259,6 +1331,11 @@ ${textEditorSection()}
             <article id="note-article" class="article vscode-md"></article>
             <iframe id="note-frame" title="Vista HTML" sandbox="allow-scripts" hidden></iframe>
           </div>
+        </div>
+        <div id="note-binary" hidden>
+          <p id="note-binary-name" style="margin:0"></p>
+          <p class="muted" style="margin:0">Este archivo se descarga tal cual está en la carpeta. Usá Descargar.</p>
+          <iframe id="note-pdf" title="PDF" hidden></iframe>
         </div>
         <div class="note-foot">
           <button type="button" class="btn" data-note-back>← Volver</button>

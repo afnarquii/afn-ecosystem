@@ -16,7 +16,7 @@ import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
 import { listMapFolders, saveMapSelection } from './map-selection.js';
 import { discoverWorkspace } from './discover.js';
-import { saveExistingNote } from './task-notes.js';
+import { resolveNoteFile, saveExistingNote } from './task-notes.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -112,6 +112,30 @@ async function handleApi(state, token, req, res, url) {
   }
   if (req.method === 'GET' && route === '/api/notes') {
     send(res, 200, { ok: true, notes: dashboardNotes(root) });
+    return;
+  }
+  if (req.method === 'GET' && route === '/api/notes/file') {
+    const file = resolveNoteFile(root, url.searchParams.get('path') || '');
+    if (!file.ok) {
+      send(res, 400, file);
+      return;
+    }
+    const buf = fs.readFileSync(file.abs);
+    const mime = file.kind === 'pdf'
+      ? 'application/pdf'
+      : file.kind === 'html'
+        ? 'text/html; charset=utf-8'
+        : file.kind === 'markdown'
+          ? 'text/markdown; charset=utf-8'
+          : 'application/octet-stream';
+    const filename = String(file.name || 'archivo').replace(/["\r\n]/g, '');
+    res.writeHead(200, {
+      'Content-Type': mime,
+      'Content-Length': buf.length,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    });
+    res.end(buf);
     return;
   }
   if (req.method === 'POST' && route === '/api/notes/preview') {

@@ -18,7 +18,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
-import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, saveExistingNote } from '../lib/task-notes.js';
+import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile } from '../lib/task-notes.js';
 import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
@@ -905,6 +905,9 @@ test('una nota html se abre como html y se guarda en el mismo archivo', () => {
   assert.match(html, /id="note-gutter"/);
   assert.match(html, /id="note-pos"/);
   assert.match(html, /vscode-md/);
+  assert.match(html, /background:#1f1f1f/);
+  assert.match(html, /color:#4daafc/);
+  assert.match(html, /background:#2b2b2b/);
   assert.match(html, /id="note-frame"/);
   assert.match(html, /id="note-save"/);
   assert.match(html, /data-note-mode="both"/);
@@ -915,6 +918,30 @@ test('una nota html se abre como html y se guarda en el mismo archivo', () => {
   assert.match(html, /main\.notes-on > #afn-project/);
   assert.match(html, /body\.notes-on \.app \{ height:100vh/);
   assert.match(html, /grid-template-rows:minmax\(0,1fr\)/);
+  assert.match(html, /id="note-binary"/);
+  assert.match(html, /\/api\/notes\/file/);
+});
+
+test('notas: un pdf se lista y se puede resolver para descargarlo', () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'notes', 'tareas', 'entrega');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'readme.md'), '# Entrega\n');
+  fs.writeFileSync(path.join(dir, 'informe.pdf'), Buffer.from('%PDF-1.4 demo'));
+  fs.writeFileSync(path.join(dir, 'meta.json'), '{"title":"Entrega"}\n');
+  const listed = listTaskNotes(root, { includeBody: true });
+  const note = listed.find((n) => n.slug === 'entrega');
+  assert.ok(note);
+  const pdf = note.docs.find((d) => d.name === 'informe.pdf');
+  assert.equal(pdf.kind, 'pdf');
+  assert.equal(pdf.markdown || '', '');
+  assert.equal(note.docs.some((d) => d.name === 'meta.json'), false);
+  const file = resolveNoteFile(root, pdf.file);
+  assert.equal(file.ok, true);
+  assert.equal(file.kind, 'pdf');
+  assert.equal(fs.readFileSync(file.abs).toString(), '%PDF-1.4 demo');
+  assert.equal(resolveNoteFile(root, '.afn/notes/tareas/entrega/../../package.json').ok, false);
+  assert.equal(saveExistingNote(root, pdf.file, 'x').ok, false);
 });
 
 test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
@@ -1227,8 +1254,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.63/);
-  assert.match(html, /data-afn-version="1\.4\.63"/);
+  assert.match(html, /v1\.4\.65/);
+  assert.match(html, /data-afn-version="1\.4\.65"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1348,7 +1375,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.63/);
+    assert.match(liveHtml, /v1\.4\.65/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
