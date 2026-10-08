@@ -22,7 +22,7 @@ import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, s
 import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
-import { startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
+import { dashboardReuseOk, startDashboardServer, stopDashboardServer } from '../lib/dashboard-server.js';
 import { compactDashboard } from '../lib/compact-result.js';
 import { saveOriginsPack, saveOriginCredential, credentialLoginIndex, normalizeOriginsInput, inspectCredentialsFile, loadSqlFavorites, saveSqlFavorites } from '../lib/dashboard-query.js';
 import { findInstalledDriver, loadSqlDriver, resetSqlDriverCache, resolvePackDriver } from '../lib/sql-driver.js';
@@ -1319,8 +1319,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.69/);
-  assert.match(html, /data-afn-version="1\.4\.69"/);
+  assert.match(html, /v1\.4\.70/);
+  assert.match(html, /data-afn-version="1\.4\.70"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1358,6 +1358,15 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Nueva skill/);
   assert.match(html, /data-go="skills"/);
   assert.match(html, /\[hidden\] \{ display:none !important; \}/);
+});
+
+test('un dashboard de otra versión no se reutiliza', () => {
+  const root = tmp();
+  const abs = path.resolve(root);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.65' }, root, '1.4.70'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs }, root, '1.4.70'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.70' }, root, '1.4.70'), true);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: path.resolve(tmp()), version: '1.4.70' }, root, '1.4.70'), false);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1433,6 +1442,9 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     const pack2 = JSON.parse(fs.readFileSync(path.join(root, '.afn', 'db-connections.json'), 'utf8'));
     assert.equal(JSON.stringify(pack2).includes('ClaveNueva99'), false);
     assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
+    const whoRes = await fetch(`http://127.0.0.1:${info.port}/api/who`);
+    const who = await whoRes.json();
+    assert.equal(who.version, '1.4.70');
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
@@ -1440,7 +1452,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.69/);
+    assert.match(liveHtml, /v1\.4\.70/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

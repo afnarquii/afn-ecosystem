@@ -11,6 +11,7 @@ import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWork
 import { deleteExtractMarkdown, keepExtractInContext, listExtractMarkdown, readExtractMarkdown, saveExtractMarkdown } from './extract-text.js';
 import { bootstrapAfn } from './bootstrap.js';
 import { isAfnEcosystemCatalog } from './resolve-root.js';
+import { FLOW_GENERATOR_VERSION } from './version.js';
 import { aggregateCatalogMemory, registerKnownProject } from './catalog-registry.js';
 import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
@@ -98,6 +99,7 @@ async function handleApi(state, token, req, res, url) {
       root: abs,
       name: path.basename(abs),
       mode: isAfnEcosystemCatalog(abs) ? 'catalog' : 'project',
+      version: FLOW_GENERATOR_VERSION,
       initialized: fs.existsSync(afnPath(abs, 'projects.json')),
     });
     return;
@@ -366,6 +368,24 @@ function persistDashboardPointer(root, info) {
   );
 }
 
+/** El proceso viejo sigue en el puerto después de un git pull. Solo se reutiliza si es esta misma versión. */
+export function dashboardReuseOk(who, root, version = FLOW_GENERATOR_VERSION) {
+  if (!who || !who.mode) return false;
+  const same = String(who.root || '').toLowerCase() === path.resolve(String(root || '')).toLowerCase();
+  if (!same) return false;
+  return String(who.version || '') === String(version || '');
+}
+
+function stopStaleDashboard(saved) {
+  const pid = Number(saved?.pid);
+  if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return;
+  try {
+    process.kill(pid);
+  } catch {
+    /* el proceso viejo ya no está */
+  }
+}
+
 function preferredPort(opts = {}) {
   if (opts.port === 0) return 0;
   if (opts.port != null && Number(opts.port) > 0) return Number(opts.port);
@@ -403,8 +423,11 @@ export function startDashboardServer(root, opts = {}) {
           try {
             const r = await fetch(`http://127.0.0.1:${saved.port}/api/who`, { signal: ac.signal });
             const who = await r.json().catch(() => ({}));
-            const same = String(who.root || '').toLowerCase() === abs.toLowerCase();
-            if (r.ok && who.mode && same) return reused;
+            if (r.ok && dashboardReuseOk(who, abs)) return reused;
+            if (r.ok && who.mode) {
+              stopStaleDashboard(saved);
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            }
           } catch {
             /* arrancar de nuevo */
           } finally {
