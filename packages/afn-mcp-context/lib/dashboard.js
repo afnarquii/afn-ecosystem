@@ -311,7 +311,7 @@ function collectDashboard(root) {
 }
 
 function noteFilesLabel(n) {
-  const names = (n.docs || []).map((d) => String(d.name || d.title || '').split('/').pop()).filter(Boolean);
+  const names = (n.docs || []).map((d) => String(d.name || d.title || '')).filter(Boolean);
   if (!names.length) return 'Sin archivos';
   const shown = names.slice(0, 4);
   const more = names.length > shown.length ? ` · +${names.length - shown.length}` : '';
@@ -501,7 +501,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     return String(name || "").split("/").pop() || "archivo";
   }
   function noteFilesLine(n) {
-    const names = (n.docs || []).map((d) => noteBaseName(d.name || d.title));
+    const names = (n.docs || []).map((d) => String(d.name || noteBaseName(d.title)));
     if (!names.length) return "Sin archivos";
     const shown = names.slice(0, 4);
     const more = names.length > shown.length ? " · +" + (names.length - shown.length) : "";
@@ -555,6 +555,18 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       fetchNoteUrl(path, notePreviewBlobs).then((url) => { if (url) img.src = url; });
     });
   }
+  function paintNoteTree(note, current) {
+    const box = document.getElementById("note-tree");
+    if (!box) return;
+    const docs = note && note.docs ? note.docs : [];
+    const head = '<p class="note-tree-h">' + docs.length + (docs.length === 1 ? " archivo" : " archivos") + "</p>";
+    box.innerHTML = head + docs.map((d) => {
+      const rel = String(d.name || "");
+      const depth = Math.max(0, rel.split("/").length - 1);
+      const on = rel && rel === current ? " on" : "";
+      return '<button type="button" class="note-tree-item' + on + '" style="padding-left:' + (10 + depth * 14) + 'px" data-note-task="' + noteEsc(note.slug) + '" data-note-file="' + noteEsc(rel) + '"><span class="k">' + noteEsc(noteKindLabel(d.kind)) + "</span> " + noteEsc(rel) + "</button>";
+    }).join("");
+  }
   function paintGallery(note) {
     const box = document.getElementById("note-gallery");
     if (!box) return;
@@ -562,7 +574,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (docs.length < 2) { box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
     box.innerHTML = docs.map((d) => {
-      const base = noteBaseName(d.name || d.title);
+      const base = String(d.name || noteBaseName(d.title));
       const open = ' data-note-task="' + noteEsc(note.slug) + '" data-note-file="' + noteEsc(d.name) + '"';
       if (d.kind === "image" && d.file) {
         return '<button type="button" class="note-thumb"' + open + '><img alt="" data-note-blob="' + noteEsc(d.file) + '"><span>' + noteEsc(base) + "</span></button>";
@@ -864,10 +876,11 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (toc) {
       toc.innerHTML = (t.docs || []).map((d) => {
         const on = doc && d.name === doc.name ? " on" : "";
-        return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(noteBaseName(d.name || d.title)) + "</button>";
+        return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(d.name || noteBaseName(d.title)) + "</button>";
       }).join("");
     }
     paintGallery(t);
+    paintNoteTree(t, doc ? doc.name : "");
     const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file" || doc.kind === "image" || doc.kind === "text" || doc.kind === "script") ? doc.kind : "markdown";
     const binary = kind === "pdf" || kind === "file" || kind === "image";
     const kindEl = document.getElementById("note-kind");
@@ -1255,7 +1268,17 @@ ${mapPickerScript()}
   .notes-head { display:flex; align-items:center; gap:.6rem; margin:0 0 .75rem; flex-shrink:0; }
   .notes-head h2 { margin:0; font-size:1.05rem; }
   .notes-head .muted { margin-left:auto; }
-  #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+  #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:row; overflow:hidden; }
+  .note-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+  .note-tree { width:280px; flex:0 0 280px; overflow:auto; border-right:1px solid var(--line); background:#10161e; }
+  .note-tree-h { margin:0; padding:.55rem .7rem .3rem; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .note-tree-item { display:block; width:100%; text-align:left; background:transparent; border:0; border-left:2px solid transparent; color:var(--ink); padding:.32rem .55rem; cursor:pointer; font:12px/1.35 Consolas,ui-monospace,monospace; }
+  .note-tree-item.on { background:#1e1e1e; border-left-color:var(--acc); }
+  .note-tree-item .k { font-size:.62rem; margin-right:.25rem; }
+  @media (max-width:900px) {
+    #notes-reader:not([hidden]) { flex-direction:column; }
+    .note-tree { width:auto; flex:0 0 auto; max-height:34vh; border-right:0; border-bottom:1px solid var(--line); }
+  }
   main.note-focus { padding:0; }
   .note-filebar { display:flex; gap:.35rem; flex-wrap:nowrap; overflow-x:auto; align-items:flex-end; padding:.45rem .65rem 0; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
   .note-filebar .btn { white-space:nowrap; border-radius:8px 8px 0 0; border-bottom-color:transparent; }
@@ -1566,6 +1589,8 @@ ${textEditorSection()}
         <div id="notes-grid" class="grid">${noteCards}</div>
       </div>
       <div id="notes-reader" hidden>
+        <div id="note-tree" class="note-tree"></div>
+        <div class="note-main">
         <div id="note-toc" class="note-filebar"></div>
         <div id="note-gallery" class="note-gallery" hidden></div>
         <div id="note-split" class="note-split mode-both">
@@ -1595,6 +1620,7 @@ ${textEditorSection()}
           <span id="note-crumb" class="muted"></span>
           <span id="note-status" class="muted"></span>
           <span id="note-msg" class="muted"></span>
+        </div>
         </div>
       </div>
     </section>

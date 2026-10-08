@@ -56,7 +56,7 @@ function writeMeta(dir, meta) {
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git']);
 const MAX_NOTE_READ = 200_000;
 const MAX_NOTE_FILES = 400;
-const MAX_NOTE_DEPTH = 8;
+const MAX_NOTE_DEPTH = 16;
 
 function isNoteFile(name) {
   if (!name || name.startsWith('.')) return false;
@@ -116,32 +116,54 @@ function entryKind(dir, ent) {
   return 'other';
 }
 
-/** Markdown y README (con o sin extensión) dentro de una carpeta, también en subcarpetas. */
-function walkNoteFiles(dir, rel, depth, acc) {
-  if (depth > MAX_NOTE_DEPTH || acc.length >= MAX_NOTE_FILES) return;
-  let entries = [];
+function insideNoteRoot(rootDir, abs) {
+  let realRoot = rootDir;
+  let realAbs = abs;
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    realRoot = fs.realpathSync(rootDir);
+    realAbs = fs.realpathSync(abs);
+  } catch {
+    return false;
+  }
+  const rel = path.relative(realRoot, realAbs);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/** Cualquier archivo de la nota, también en subcarpetas. stat sigue el enlace si queda dentro de la nota. */
+function walkNoteFiles(dir, rel, depth, acc, rootDir) {
+  const top = rootDir || dir;
+  if (depth > MAX_NOTE_DEPTH || acc.length >= MAX_NOTE_FILES) return;
+  if (!insideNoteRoot(top, dir)) return;
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
   } catch {
     return;
   }
   const dirs = [];
   const files = [];
-  for (const ent of entries) {
-    if (!ent.name || ent.name.startsWith('.') || SKIP_DIRS.has(ent.name)) continue;
-    const kind = entryKind(dir, ent);
-    if (kind === 'dir') dirs.push(ent);
-    else if (kind === 'file' && isNoteFile(ent.name)) files.push(ent);
+  for (const name of names) {
+    if (!name || name.startsWith('.') || SKIP_DIRS.has(name)) continue;
+    const abs = path.join(dir, name);
+    if (!insideNoteRoot(top, abs)) continue;
+    let st;
+    try {
+      st = fs.statSync(abs);
+    } catch {
+      continue;
+    }
+    if (st.isDirectory()) dirs.push(name);
+    else if (st.isFile() && isNoteFile(name)) files.push(name);
   }
-  files.sort((a, b) => a.name.localeCompare(b.name));
-  for (const ent of files) {
+  files.sort((a, b) => a.localeCompare(b));
+  for (const name of files) {
     if (acc.length >= MAX_NOTE_FILES) return;
-    const relPosix = (rel ? `${rel}/${ent.name}` : ent.name).split('\\').join('/');
-    acc.push({ abs: path.join(dir, ent.name), rel: relPosix });
+    const relPosix = (rel ? `${rel}/${name}` : name).split('\\').join('/');
+    acc.push({ abs: path.join(dir, name), rel: relPosix });
   }
-  dirs.sort((a, b) => a.name.localeCompare(b.name));
-  for (const ent of dirs) {
-    walkNoteFiles(path.join(dir, ent.name), rel ? `${rel}/${ent.name}` : ent.name, depth + 1, acc);
+  dirs.sort((a, b) => a.localeCompare(b));
+  for (const name of dirs) {
+    walkNoteFiles(path.join(dir, name), rel ? `${rel}/${name}` : name, depth + 1, acc, top);
   }
 }
 

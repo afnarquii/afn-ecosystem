@@ -979,6 +979,36 @@ test('notas: imagen, texto y fotos del README se listan para verlos', () => {
   assert.match(page, /datos\.json/);
 });
 
+test('notas: el arbol dentro de la tarea lista cada carpeta, no solo el README', () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'notes', 'tareas', 'Informe fondos');
+  fs.mkdirSync(path.join(dir, 'evidencias', 'extra'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'scripts', 'validar'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'README.md'), '# Informe\n\n![foto](evidencias/captura.png)\n');
+  fs.writeFileSync(path.join(dir, 'evidencias', 'captura.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  fs.writeFileSync(path.join(dir, 'evidencias', 'extra', 'detalle.pdf'), Buffer.from('%PDF-1.4'));
+  fs.writeFileSync(path.join(dir, 'scripts', 'validar', 'check.js'), 'process.stdout.write("[]")\n');
+  const listed = listTaskNotes(root, { includeBody: true });
+  const note = listed.find((n) => n.slug === 'Informe fondos');
+  assert.ok(note);
+  assert.deepEqual(note.docs.map((d) => d.name), [
+    'README.md',
+    'evidencias/captura.png',
+    'evidencias/extra/detalle.pdf',
+    'scripts/validar/check.js',
+  ]);
+  assert.equal(note.docs.find((d) => d.name === 'evidencias/captura.png').kind, 'image');
+  assert.equal(note.docs.find((d) => d.name === 'evidencias/extra/detalle.pdf').kind, 'pdf');
+  assert.equal(note.docs.find((d) => d.name === 'scripts/validar/check.js').kind, 'script');
+  const png = resolveNoteFile(root, note.docs.find((d) => d.name === 'evidencias/captura.png').file);
+  assert.equal(png.ok, true);
+  const page = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(page, /id="note-tree"/);
+  assert.match(page, /evidencias\/captura\.png/);
+  assert.match(page, /evidencias\/extra\/detalle\.pdf/);
+  assert.match(page, /scripts\/validar\/check\.js/);
+});
+
 test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
   const root = tmp();
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
@@ -1289,8 +1319,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.68/);
-  assert.match(html, /data-afn-version="1\.4\.68"/);
+  assert.match(html, /v1\.4\.69/);
+  assert.match(html, /data-afn-version="1\.4\.69"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1410,7 +1440,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.68/);
+    assert.match(liveHtml, /v1\.4\.69/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
