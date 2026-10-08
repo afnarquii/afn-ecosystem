@@ -928,6 +928,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const ed = document.getElementById("note-ed");
     if (ed) ed.value = binary ? "" : (doc ? (doc.markdown || "") : "");
     noteSavedText = ed ? ed.value : "";
+    if (kind === "markdown") setNoteMode("view");
     if (!binary && window.afnEditorPaint) window.afnEditorPaint("note-ed");
     if (!binary) showNotePreview(doc);
     const bin = document.getElementById("note-binary");
@@ -1364,38 +1365,36 @@ ${mapPickerScript()}
   .sql-hl .md-code { color:#ce9178; }
   .sql-hl .md-bq { color:#6a9955; }
   .sql-hl .md-b { color:#d7ba7d; font-weight:700; }
-  .note-preview { overflow:auto; background:#1f1f1f; border:1px solid #313131; border-radius:12px; }
-  .note-preview .vscode-md { background:#1f1f1f; color:#cccccc; border:0; border-radius:0; max-width:none; min-height:0; font:14px/22px "Segoe WPC", "Segoe UI", system-ui, sans-serif; padding:1em 26px 2rem; }
+  .note-preview { overflow:auto; background:#1e1e1e; border:0; border-radius:0; }
+  .note-preview .vscode-md { background:#1e1e1e; color:#d4d4d4; border:0; border-radius:0; max-width:none; min-height:0; font:14px/22px "Segoe WPC", "Segoe UI", system-ui, sans-serif; padding:1em 26px 2rem; }
   .note-preview .vscode-md h1,
   .note-preview .vscode-md h2,
   .note-preview .vscode-md h3,
-  .note-preview .vscode-md h4,
+  .note-preview .vscode-md h4 { color:#569cd6; letter-spacing:0; text-transform:none; font-weight:600; line-height:1.25; margin-top:24px; margin-bottom:16px; }
   .note-preview .vscode-md p,
-  .note-preview .vscode-md li,
-  .note-preview .vscode-md blockquote { color:#cccccc; letter-spacing:0; text-transform:none; }
-  .note-preview .vscode-md h1,
-  .note-preview .vscode-md h2,
-  .note-preview .vscode-md h3,
-  .note-preview .vscode-md h4 { font-weight:600; line-height:1.25; margin-top:24px; margin-bottom:16px; }
-  .note-preview .vscode-md h1 { font-size:2em; margin-top:0; padding-bottom:.3em; border-bottom:1px solid rgba(255,255,255,.18); }
-  .note-preview .vscode-md h2 { font-size:1.5em; padding-bottom:.3em; border-bottom:1px solid rgba(255,255,255,.18); }
+  .note-preview .vscode-md li { color:#d4d4d4; letter-spacing:0; text-transform:none; }
+  .note-preview .vscode-md h1 { font-size:2em; margin-top:0; padding-bottom:.3em; border-bottom:1px solid #454545; }
+  .note-preview .vscode-md h2 { font-size:1.5em; padding-bottom:.3em; border-bottom:1px solid #454545; }
   .note-preview .vscode-md h3 { font-size:1.25em; border:0; }
   .note-preview .vscode-md h4 { font-size:1em; border:0; }
   .note-preview .vscode-md p { margin:0 0 16px; }
-  .note-preview .vscode-md a { color:#4daafc; text-decoration:none; }
+  .note-preview .vscode-md strong { color:#569cd6; font-weight:700; }
+  .note-preview .vscode-md em { color:#ce9178; font-style:italic; }
+  .note-preview .vscode-md a { color:#3794ff; text-decoration:none; }
   .note-preview .vscode-md a:hover { text-decoration:underline; }
-  .note-preview .vscode-md code { font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:1em; line-height:1.357em; color:#d0d0d0; background:#3c3c3c; padding:0 .2em; border-radius:0; }
-  .note-preview .vscode-md pre.md-pre { background:#2b2b2b; border:1px solid #313131; border-radius:3px; padding:0 0 12px; margin:0 0 16px; overflow:auto; }
-  .note-preview .vscode-md .md-lang { display:block; padding:4px 12px; background:#181818; color:#9d9d9d; border-bottom:1px solid #313131; font:12px/1.4 "Segoe UI", system-ui, sans-serif; text-transform:lowercase; }
-  .note-preview .vscode-md pre.md-pre code { display:block; background:none; color:#cccccc; padding:12px 16px 0; white-space:pre; font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:13px; line-height:1.45; }
+  .note-preview .vscode-md li::marker { color:#569cd6; }
+  .note-preview .vscode-md code { font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:1em; line-height:1.357em; color:#d7ba7d; background:#2d2d2d; padding:.1em .35em; border-radius:3px; }
+  .note-preview .vscode-md pre.md-pre { background:#1e1e1e; border:1px solid #454545; border-radius:3px; padding:0 0 12px; margin:0 0 16px; overflow:auto; }
+  .note-preview .vscode-md .md-lang { display:block; padding:4px 12px; background:#252526; color:#9cdcfe; border-bottom:1px solid #454545; font:12px/1.4 "Segoe UI", system-ui, sans-serif; text-transform:lowercase; }
+  .note-preview .vscode-md pre.md-pre code { display:block; background:none; color:#d4d4d4; padding:12px 16px 0; white-space:pre; font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:13px; line-height:1.45; border-radius:0; }
   .note-preview .vscode-md .tok-kw { color:#569cd6; }
   .note-preview .vscode-md .tok-str { color:#ce9178; }
   .note-preview .vscode-md .tok-cmt { color:#6a9955; font-style:italic; }
   .note-preview .vscode-md .tok-num { color:#b5cea8; }
-  .note-preview .vscode-md blockquote { margin:0 0 16px; padding:0 16px 0 10px; border-left:5px solid #616161; background:#2b2b2b; border-radius:2px; }
-  .note-preview .vscode-md .doc-table th { border-bottom:1px solid rgba(255,255,255,.69); }
-  .note-preview .vscode-md .doc-table td { border-top:1px solid rgba(255,255,255,.18); }
-  .note-preview .vscode-md hr { border:0; height:1px; border-bottom:1px solid rgba(255,255,255,.18); }
+  .note-preview .vscode-md blockquote { margin:0 0 16px; padding:0 16px 0 10px; border-left:5px solid #007acc; background:rgba(127,127,127,.12); border-radius:2px; color:#d4d4d4; }
+  .note-preview .vscode-md .doc-table th { color:#569cd6; text-transform:none; letter-spacing:0; font-size:14px; border-bottom:1px solid rgba(255,255,255,.69); }
+  .note-preview .vscode-md .doc-table td { color:#d4d4d4; border-top:1px solid rgba(255,255,255,.18); }
+  .note-preview .vscode-md hr { border:0; height:1px; border-bottom:1px solid #454545; }
   #note-frame { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#fff; }
   #notes-reader.binary .note-split { display:none; }
   .note-gallery { display:flex; gap:.45rem; overflow-x:auto; padding:.45rem .65rem; border-bottom:1px solid var(--line); background:#0e141c; flex-shrink:0; }
@@ -1410,19 +1409,25 @@ ${mapPickerScript()}
   #note-img { object-fit:contain; }
   #note-img[hidden], #note-pdf[hidden], #note-binary-hint[hidden] { display:none !important; }
   .note-preview .vscode-md img { max-width:100%; height:auto; border-radius:6px; }
-  #note-article.vscode-md { background:#1f1f1f; color:#cccccc; max-width:none; border:0; border-radius:0; font:14px/22px "Segoe WPC","Segoe UI",system-ui,sans-serif; }
-  #note-article.vscode-md h1, #note-article.vscode-md h2, #note-article.vscode-md h3, #note-article.vscode-md h4,
-  #note-article.vscode-md p, #note-article.vscode-md li, #note-article.vscode-md blockquote { color:#cccccc; text-transform:none; letter-spacing:0; }
-  #note-article.vscode-md h1 { font-size:2em; font-weight:600; border-bottom:1px solid rgba(255,255,255,.18); }
-  #note-article.vscode-md h2 { font-size:1.5em; font-weight:600; color:#cccccc; border-bottom:1px solid rgba(255,255,255,.18); }
-  #note-article.vscode-md a { color:#4daafc; }
-  #note-article.vscode-md code { color:#d0d0d0; background:#3c3c3c; }
-  #note-article.vscode-md pre.md-pre { background:#2b2b2b; border:1px solid #313131; border-radius:3px; }
-  #note-article.vscode-md pre.md-pre code { color:#cccccc; background:none; }
+  #note-article.vscode-md { background:#1e1e1e; color:#d4d4d4; max-width:none; border:0; border-radius:0; font:14px/22px "Segoe WPC","Segoe UI",system-ui,sans-serif; }
+  #note-article.vscode-md h1, #note-article.vscode-md h2, #note-article.vscode-md h3, #note-article.vscode-md h4 { color:#569cd6; text-transform:none; letter-spacing:0; font-weight:600; }
+  #note-article.vscode-md p, #note-article.vscode-md li { color:#d4d4d4; text-transform:none; letter-spacing:0; }
+  #note-article.vscode-md h1 { font-size:2em; border-bottom:1px solid #454545; }
+  #note-article.vscode-md h2 { font-size:1.5em; border-bottom:1px solid #454545; }
+  #note-article.vscode-md strong { color:#569cd6; }
+  #note-article.vscode-md em { color:#ce9178; }
+  #note-article.vscode-md a { color:#3794ff; }
+  #note-article.vscode-md li::marker { color:#569cd6; }
+  #note-article.vscode-md blockquote { color:#d4d4d4; border-left:5px solid #007acc; background:rgba(127,127,127,.12); }
+  #note-article.vscode-md code { color:#d7ba7d; background:#2d2d2d; font-size:1em; }
+  #note-article.vscode-md pre.md-pre { background:#1e1e1e; border:1px solid #454545; border-radius:3px; }
+  #note-article.vscode-md pre.md-pre code { color:#d4d4d4; background:none; font-size:13px; }
+  #note-article.vscode-md .md-lang { color:#9cdcfe; background:#252526; }
   #note-article.vscode-md .tok-kw { color:#569cd6; }
   #note-article.vscode-md .tok-str { color:#ce9178; }
   #note-article.vscode-md .tok-cmt { color:#6a9955; }
   #note-article.vscode-md .tok-num { color:#b5cea8; }
+  #note-article.vscode-md th { color:#569cd6; text-transform:none; letter-spacing:0; font-size:14px; }
   @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }
@@ -1672,7 +1677,7 @@ ${textEditorSection()}
         <div class="note-main">
         <div id="note-toc" class="note-filebar"></div>
         <div id="note-gallery" class="note-gallery" hidden></div>
-        <div id="note-split" class="note-split mode-both">
+        <div id="note-split" class="note-split mode-view">
           <div class="note-edit">
             ${textEditorHtml('note', 'Editor', 'Seleccioná y Ctrl+D suma la siguiente igual. Ctrl+F busca. Ctrl+S guarda.')}
           </div>
@@ -1690,9 +1695,9 @@ ${textEditorSection()}
         <div class="note-foot">
           <button type="button" class="btn" data-note-back>← Volver</button>
           <span id="note-kind" class="tag" data-kind="markdown">Markdown</span>
-          <button type="button" class="btn on" data-note-mode="both">Editar y vista</button>
+          <button type="button" class="btn" data-note-mode="both">Editar y vista</button>
           <button type="button" class="btn" data-note-mode="edit">Solo texto</button>
-          <button type="button" class="btn" data-note-mode="view">Solo vista</button>
+          <button type="button" class="btn on" data-note-mode="view">Solo vista</button>
           <button type="button" class="btn" id="note-save">Guardar</button>
           <button type="button" class="btn" id="note-dl" data-dl-note>Descargar</button>
           <button type="button" class="btn" id="note-script" hidden>Asociar a Scripts</button>

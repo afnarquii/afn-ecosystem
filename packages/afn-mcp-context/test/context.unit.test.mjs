@@ -912,9 +912,11 @@ test('una nota html se abre como html y se guarda en el mismo archivo', () => {
   assert.match(html, /id="note-gutter"/);
   assert.match(html, /id="note-pos"/);
   assert.match(html, /vscode-md/);
-  assert.match(html, /background:#1f1f1f/);
-  assert.match(html, /color:#4daafc/);
-  assert.match(html, /background:#2b2b2b/);
+  assert.match(html, /background:#1e1e1e/);
+  assert.match(html, /color:#569cd6/);
+  assert.match(html, /color:#d7ba7d/);
+  assert.match(html, /color:#3794ff/);
+  assert.match(html, /border-left:5px solid #007acc/);
   assert.match(html, /id="note-frame"/);
   assert.match(html, /id="note-save"/);
   assert.match(html, /data-note-mode="both"/);
@@ -1005,7 +1007,9 @@ test('notas: el arbol dentro de la tarea lista cada carpeta, no solo el README',
   const page = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(page, /id="note-tree"/);
   assert.match(page, /data-note-tree-toggle/);
-  assert.match(page, /#note-article\.vscode-md/);
+  assert.match(page, /#note-article\.vscode-md h1, #note-article\.vscode-md h2, #note-article\.vscode-md h3, #note-article\.vscode-md h4 \{ color:#569cd6/);
+  assert.match(page, /#note-article\.vscode-md code \{ color:#d7ba7d/);
+  assert.match(page, /mode-view/);
   assert.match(page, /note-tree\.is-collapsed/);
   assert.match(page, /evidencias\/captura\.png/);
   assert.match(page, /evidencias\/extra\/detalle\.pdf/);
@@ -1322,8 +1326,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.72/);
-  assert.match(html, /data-afn-version="1\.4\.72"/);
+  assert.match(html, /v1\.4\.73/);
+  assert.match(html, /data-afn-version="1\.4\.73"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1366,10 +1370,10 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
 test('un dashboard de otra versión no se reutiliza', () => {
   const root = tmp();
   const abs = path.resolve(root);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.65' }, root, '1.4.72'), false);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: abs }, root, '1.4.72'), false);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.72' }, root, '1.4.72'), true);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: path.resolve(tmp()), version: '1.4.72' }, root, '1.4.72'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.65' }, root, '1.4.73'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs }, root, '1.4.73'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.73' }, root, '1.4.73'), true);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: path.resolve(tmp()), version: '1.4.73' }, root, '1.4.73'), false);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1447,7 +1451,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
     const whoRes = await fetch(`http://127.0.0.1:${info.port}/api/who`);
     const who = await whoRes.json();
-    assert.equal(who.version, '1.4.72');
+    assert.equal(who.version, '1.4.73');
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
@@ -1455,7 +1459,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.72/);
+    assert.match(liveHtml, /v1\.4\.73/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
