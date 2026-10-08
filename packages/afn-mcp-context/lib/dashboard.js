@@ -535,7 +535,10 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (!src || /^(https?:|data:|blob:)/i.test(src)) return "";
     let raw = String(src).replace(/\\\\/g, "/");
     if (raw.startsWith("./")) raw = raw.slice(2);
-    if (raw.toLowerCase().startsWith(".afn/notes/")) return raw.replace(/^\/+/, "");
+    if (raw.toLowerCase().startsWith(".afn/notes/")) {
+      while (raw.startsWith("/")) raw = raw.slice(1);
+      return raw;
+    }
     const parts = (noteDir(baseFile) ? noteDir(baseFile) + "/" + raw : raw).split("/");
     const stack = [];
     for (const part of parts) {
