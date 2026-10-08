@@ -55,6 +55,72 @@ function inlineMd(s) {
     .replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
+const SQL_KW = new Set('select from where and or not in exists join left right inner outer full cross on group by order having insert update delete into values exec execute declare set as top distinct case when then else end union all with nolock begin commit rollback create alter drop table procedure function view index null is like between asc desc offset fetch next rows only apply over partition go use if while return output try catch throw merge using matched pivot'.split(' '));
+const PY_KW = new Set('false none true and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield'.split(' '));
+
+function spanTok(cls, text) {
+  return `<span class="${cls}">${esc(text)}</span>`;
+}
+
+function paintTokens(src, re, classify) {
+  let out = '';
+  let last = 0;
+  re.lastIndex = 0;
+  let m = re.exec(src);
+  while (m) {
+    out += esc(src.slice(last, m.index));
+    out += classify(m);
+    last = m.index + m[0].length;
+    if (m[0].length === 0) re.lastIndex += 1;
+    m = re.exec(src);
+  }
+  out += esc(src.slice(last));
+  return out;
+}
+
+function paintSql(src) {
+  return paintTokens(src, /(--[^\n]*)|(\/\*[\s\S]*?\*\/)|('(?:''|[^'])*')|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_][\w]*\b)/g, (m) => {
+    if (m[1] || m[2]) return spanTok('tok-cmt', m[0]);
+    if (m[3]) return spanTok('tok-str', m[0]);
+    if (m[4]) return spanTok('tok-num', m[0]);
+    if (m[5] && SQL_KW.has(m[5].toLowerCase())) return spanTok('tok-kw', m[5]);
+    return esc(m[0]);
+  });
+}
+
+function paintPython(src) {
+  return paintTokens(src, /(#[^\n]*)|('''[\s\S]*?'''|"""[\s\S]*?""")|('(?:\\'|[^'])*'|"(?:\\"|[^"])*")|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_][\w]*\b)/g, (m) => {
+    if (m[1]) return spanTok('tok-cmt', m[0]);
+    if (m[2] || m[3]) return spanTok('tok-str', m[0]);
+    if (m[4]) return spanTok('tok-num', m[0]);
+    if (m[5] && PY_KW.has(m[5].toLowerCase())) return spanTok('tok-kw', m[5]);
+    return esc(m[0]);
+  });
+}
+
+function paintCode(src, lang) {
+  const kind = String(lang || '').toLowerCase();
+  if (kind === 'sql' || kind === 'tsql' || kind === 'mysql' || kind === 'pgsql' || kind === 'postgres') return paintSql(src);
+  if (kind === 'python' || kind === 'py') return paintPython(src);
+  return esc(src);
+}
+
+function fenceOpen(line) {
+  const m = String(line).match(/^([ \t]*)(`{3,}|~{3,})[ \t]*([^ \t`]*)/);
+  if (!m) return null;
+  const lang = m[3].replace(/^[.{]+|[}.]+$/g, '').toLowerCase();
+  return { indent: m[1], marker: m[2][0], lang };
+}
+
+function fenceClose(line, marker) {
+  return new RegExp(`^[ \\t]*\\${marker}{3,}[ \\t]*$`).test(line);
+}
+
+function codeBlockHtml(body, lang) {
+  const label = lang ? `<span class="md-lang">${esc(lang)}</span>` : '';
+  return `<pre class="md-pre">${label}<code>${paintCode(body, lang)}</code></pre>`;
+}
+
 function tableHtml(rows) {
   const parsed = rows
     .filter((r) => !/^\s*\|[\s:|-]+\|/.test(r))
@@ -76,15 +142,17 @@ export function mdToHtml(md) {
       i += 1;
       continue;
     }
-    if (/^```/.test(line)) {
+    const fence = fenceOpen(line);
+    if (fence) {
       const buf = [];
       i += 1;
-      while (i < lines.length && !/^```/.test(lines[i])) {
-        buf.push(esc(lines[i]));
+      while (i < lines.length && !fenceClose(lines[i], fence.marker)) {
+        const raw = lines[i].startsWith(fence.indent) ? lines[i].slice(fence.indent.length) : lines[i];
+        buf.push(raw);
         i += 1;
       }
       if (i < lines.length) i += 1;
-      out.push(`<pre class="md-pre"><code>${buf.join('\n')}</code></pre>`);
+      out.push(codeBlockHtml(buf.join('\n'), fence.lang));
       continue;
     }
     if (/^>\s?/.test(line)) {
@@ -1066,8 +1134,13 @@ ${mapPickerScript()}
   .note-preview .vscode-md a { color:#4daafc; text-decoration:none; }
   .note-preview .vscode-md a:hover { text-decoration:underline; }
   .note-preview .vscode-md code { font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:1em; line-height:1.357em; color:#d0d0d0; background:#3c3c3c; padding:0 .2em; border-radius:0; }
-  .note-preview .vscode-md pre.md-pre { background:#2b2b2b; border:1px solid #313131; border-radius:3px; padding:16px; margin:0 0 16px; }
-  .note-preview .vscode-md pre.md-pre code { background:none; color:#cccccc; padding:0; }
+  .note-preview .vscode-md pre.md-pre { background:#2b2b2b; border:1px solid #313131; border-radius:3px; padding:0 0 12px; margin:0 0 16px; overflow:auto; }
+  .note-preview .vscode-md .md-lang { display:block; padding:4px 12px; background:#181818; color:#9d9d9d; border-bottom:1px solid #313131; font:12px/1.4 "Segoe UI", system-ui, sans-serif; text-transform:lowercase; }
+  .note-preview .vscode-md pre.md-pre code { display:block; background:none; color:#cccccc; padding:12px 16px 0; white-space:pre; font-family:Consolas,"Cascadia Mono",ui-monospace,monospace; font-size:13px; line-height:1.45; }
+  .note-preview .vscode-md .tok-kw { color:#569cd6; }
+  .note-preview .vscode-md .tok-str { color:#ce9178; }
+  .note-preview .vscode-md .tok-cmt { color:#6a9955; font-style:italic; }
+  .note-preview .vscode-md .tok-num { color:#b5cea8; }
   .note-preview .vscode-md blockquote { margin:0 0 16px; padding:0 16px 0 10px; border-left:5px solid #616161; background:#2b2b2b; border-radius:2px; }
   .note-preview .vscode-md .doc-table th { border-bottom:1px solid rgba(255,255,255,.69); }
   .note-preview .vscode-md .doc-table td { border-top:1px solid rgba(255,255,255,.18); }

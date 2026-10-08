@@ -1,5 +1,5 @@
 /** Versión del generador de mapa/flujo. No dispara regeneración al abrir el proyecto. */
-export const FLOW_GENERATOR_VERSION = '1.4.65';
+export const FLOW_GENERATOR_VERSION = '1.4.66';
 
 /**
  * @param {string} a

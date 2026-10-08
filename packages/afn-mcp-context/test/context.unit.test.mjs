@@ -367,6 +367,13 @@ test('mdToHtml convierte README en tablas, código y enlaces', () => {
   assert.match(h, /const a = 1/);
   assert.match(h, /blockquote/);
   assert.match(h, /https:\/\/example.com\/doc/);
+  const code = mdToHtml('Nota\n\n```sql\nSELECT id FROM pedidos WHERE estado = 1\n```\n\n```python\ndef total(n):\n    return n + 1\n```\n\n  ```sql\n  SELECT 2\n  ```\n');
+  assert.match(code, /class="md-lang">sql</);
+  assert.match(code, /class="tok-kw">SELECT</);
+  assert.match(code, /class="md-lang">python</);
+  assert.match(code, /class="tok-kw">def</);
+  assert.match(code, /tok-kw">SELECT<\/span> <span class="tok-num">2/);
+  assert.equal(code.includes('```'), false);
 });
 
 test('dashboard embebe ARQUITECTURA.md de la raíz y abre en README', () => {
@@ -1254,8 +1261,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.65/);
-  assert.match(html, /data-afn-version="1\.4\.65"/);
+  assert.match(html, /v1\.4\.66/);
+  assert.match(html, /data-afn-version="1\.4\.66"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1375,7 +1382,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.65/);
+    assert.match(liveHtml, /v1\.4\.66/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
