@@ -558,17 +558,42 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       fetchNoteUrl(path, notePreviewBlobs).then((url) => { if (url) img.src = url; });
     });
   }
+  const noteDirsOpen = {};
+  function noteTreeNodes(docs) {
+    const root = { dirs: {}, files: [] };
+    (docs || []).forEach((d) => {
+      const parts = String(d.name || "").split("/").filter(Boolean);
+      let node = root;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const name = parts[i];
+        if (!node.dirs[name]) node.dirs[name] = { dirs: {}, files: [] };
+        node = node.dirs[name];
+      }
+      if (parts.length) node.files.push(d);
+    });
+    return root;
+  }
+  function noteTreeHtml(node, slug, prefix, current) {
+    let html = "";
+    Object.keys(node.dirs).sort().forEach((name) => {
+      const path = prefix ? prefix + "/" + name : name;
+      const open = noteDirsOpen[slug + "/" + path] !== false;
+      html += '<div class="note-branch"><button type="button" class="note-dir-btn' + (open ? "" : " shut") + '" data-note-dir="' + noteEsc(slug) + '" data-dir-path="' + noteEsc(path) + '"><span class="chev">' + (open ? "▾" : "▸") + "</span>" + noteEsc(name) + '</button><div class="note-dir"' + (open ? "" : " hidden") + ">" + noteTreeHtml(node.dirs[name], slug, path, current) + "</div></div>";
+    });
+    node.files.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).forEach((d) => {
+      const rel = String(d.name || "");
+      const base = rel.split("/").pop();
+      const on = rel === current ? " on" : "";
+      html += '<button type="button" class="note-file' + on + '" data-note-task="' + noteEsc(slug) + '" data-note-file="' + noteEsc(rel) + '"><span class="ext">' + noteEsc(noteKindLabel(d.kind)) + "</span><span>" + noteEsc(base) + "</span></button>";
+    });
+    return html;
+  }
   function paintNoteTree(note, current) {
     const box = document.getElementById("note-tree");
     if (!box) return;
     const docs = note && note.docs ? note.docs : [];
-    const head = '<p class="note-tree-h">' + docs.length + (docs.length === 1 ? " archivo" : " archivos") + "</p>";
-    box.innerHTML = head + docs.map((d) => {
-      const rel = String(d.name || "");
-      const depth = Math.max(0, rel.split("/").length - 1);
-      const on = rel && rel === current ? " on" : "";
-      return '<button type="button" class="note-tree-item' + on + '" style="padding-left:' + (10 + depth * 14) + 'px" data-note-task="' + noteEsc(note.slug) + '" data-note-file="' + noteEsc(rel) + '"><span class="k">' + noteEsc(noteKindLabel(d.kind)) + "</span> " + noteEsc(rel) + "</button>";
-    }).join("");
+    const collapsed = box.classList.contains("is-collapsed");
+    box.innerHTML = '<div class="note-tree-bar"><span class="note-tree-title">Archivos</span><button type="button" class="note-tree-toggle" data-note-tree-toggle title="Ocultar o mostrar archivos">' + (collapsed ? "›" : "‹") + '</button></div><div class="note-tree-body">' + noteTreeHtml(noteTreeNodes(docs), note.slug || "", "", current || "") + "</div>";
   }
   function paintGallery(note) {
     const box = document.getElementById("note-gallery");
@@ -882,7 +907,6 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
         return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(d.name || noteBaseName(d.title)) + "</button>";
       }).join("");
     }
-    paintGallery(t);
     paintNoteTree(t, doc ? doc.name : "");
     const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file" || doc.kind === "image" || doc.kind === "text" || doc.kind === "script") ? doc.kind : "markdown";
     const binary = kind === "pdf" || kind === "file" || kind === "image";
@@ -988,6 +1012,29 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       if (!leaveNoteOk()) return;
       showView(go.dataset.go);
       location.hash = go.dataset.go;
+    }
+    const treeToggle = e.target.closest("[data-note-tree-toggle]");
+    if (treeToggle) {
+      e.preventDefault();
+      const box = document.getElementById("note-tree");
+      if (box) {
+        box.classList.toggle("is-collapsed");
+        treeToggle.textContent = box.classList.contains("is-collapsed") ? "›" : "‹";
+      }
+      return;
+    }
+    const dirBtn = e.target.closest("[data-note-dir]");
+    if (dirBtn) {
+      e.preventDefault();
+      const branch = dirBtn.parentElement;
+      const body = branch ? branch.querySelector(":scope > .note-dir") : null;
+      const shut = Boolean(body && !body.hidden);
+      if (body) body.hidden = shut;
+      dirBtn.classList.toggle("shut", shut);
+      const chev = dirBtn.querySelector(".chev");
+      if (chev) chev.textContent = shut ? "▸" : "▾";
+      noteDirsOpen[(dirBtn.dataset.noteDir || "") + "/" + (dirBtn.dataset.dirPath || "")] = !shut;
+      return;
     }
     const noteBtn = e.target.closest("[data-note-task]");
     if (noteBtn) {
@@ -1273,16 +1320,32 @@ ${mapPickerScript()}
   .notes-head .muted { margin-left:auto; }
   #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:row; overflow:hidden; }
   .note-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
-  .note-tree { width:280px; flex:0 0 280px; overflow:auto; border-right:1px solid var(--line); background:#10161e; }
-  .note-tree-h { margin:0; padding:.55rem .7rem .3rem; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .note-tree-item { display:block; width:100%; text-align:left; background:transparent; border:0; border-left:2px solid transparent; color:var(--ink); padding:.32rem .55rem; cursor:pointer; font:12px/1.35 Consolas,ui-monospace,monospace; }
-  .note-tree-item.on { background:#1e1e1e; border-left-color:var(--acc); }
-  .note-tree-item .k { font-size:.62rem; margin-right:.25rem; }
+  .note-tree { width:248px; flex:0 0 248px; min-height:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #2b2b2b; background:#181818; color:#cccccc; }
+  .note-tree.is-collapsed { width:36px; flex-basis:36px; }
+  .note-tree.is-collapsed .note-tree-body, .note-tree.is-collapsed .note-tree-title { display:none; }
+  .note-tree-bar { display:flex; align-items:center; gap:.35rem; height:35px; padding:0 .45rem 0 .7rem; flex-shrink:0; border-bottom:1px solid #2b2b2b; }
+  .note-tree.is-collapsed .note-tree-bar { justify-content:center; padding:0; }
+  .note-tree-title { font:11px/1 "Segoe UI", system-ui, sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#bbbbbb; }
+  .note-tree-toggle { margin-left:auto; width:22px; height:22px; border:0; border-radius:4px; background:transparent; color:#cccccc; cursor:pointer; font:16px/1 "Segoe UI", system-ui, sans-serif; }
+  .note-tree.is-collapsed .note-tree-toggle { margin-left:0; }
+  .note-tree-toggle:hover { background:#2a2d2e; }
+  .note-tree-body { flex:1; min-height:0; overflow:auto; padding:.25rem 0 .6rem; }
+  .note-branch { min-width:0; }
+  .note-dir { padding-left:12px; }
+  .note-dir-btn, .note-file { display:flex; align-items:center; gap:.35rem; width:100%; min-height:22px; padding:0 .55rem; border:0; background:transparent; color:#cccccc; text-align:left; cursor:pointer; font:13px/22px "Segoe UI", system-ui, sans-serif; }
+  .note-dir-btn:hover, .note-file:hover { background:#2a2d2e; }
+  .note-file.on { background:#04395e; color:#ffffff; }
+  .note-dir-btn .chev { width:.8rem; color:#cccccc; font-size:10px; }
+  .note-file .ext { flex:0 0 auto; font:10px/1 Consolas, ui-monospace, monospace; color:#9d9d9d; text-transform:uppercase; }
+  .note-file.on .ext { color:#d0d0d0; }
+  .note-file span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   @media (max-width:900px) {
     #notes-reader:not([hidden]) { flex-direction:column; }
-    .note-tree { width:auto; flex:0 0 auto; max-height:34vh; border-right:0; border-bottom:1px solid var(--line); }
+    .note-tree { width:auto; flex:0 0 auto; max-height:38vh; border-right:0; border-bottom:1px solid #2b2b2b; }
+    .note-tree.is-collapsed { width:auto; flex-basis:auto; max-height:36px; }
   }
   main.note-focus { padding:0; }
+  #note-toc, #note-gallery { display:none !important; }
   .note-filebar { display:flex; gap:.35rem; flex-wrap:nowrap; overflow-x:auto; align-items:flex-end; padding:.45rem .65rem 0; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
   .note-filebar .btn { white-space:nowrap; border-radius:8px 8px 0 0; border-bottom-color:transparent; }
   .note-filebar .btn.on { background:#1e1e1e; border-color:var(--acc); color:var(--ink); }
@@ -1347,6 +1410,19 @@ ${mapPickerScript()}
   #note-img { object-fit:contain; }
   #note-img[hidden], #note-pdf[hidden], #note-binary-hint[hidden] { display:none !important; }
   .note-preview .vscode-md img { max-width:100%; height:auto; border-radius:6px; }
+  #note-article.vscode-md { background:#1f1f1f; color:#cccccc; max-width:none; border:0; border-radius:0; font:14px/22px "Segoe WPC","Segoe UI",system-ui,sans-serif; }
+  #note-article.vscode-md h1, #note-article.vscode-md h2, #note-article.vscode-md h3, #note-article.vscode-md h4,
+  #note-article.vscode-md p, #note-article.vscode-md li, #note-article.vscode-md blockquote { color:#cccccc; text-transform:none; letter-spacing:0; }
+  #note-article.vscode-md h1 { font-size:2em; font-weight:600; border-bottom:1px solid rgba(255,255,255,.18); }
+  #note-article.vscode-md h2 { font-size:1.5em; font-weight:600; color:#cccccc; border-bottom:1px solid rgba(255,255,255,.18); }
+  #note-article.vscode-md a { color:#4daafc; }
+  #note-article.vscode-md code { color:#d0d0d0; background:#3c3c3c; }
+  #note-article.vscode-md pre.md-pre { background:#2b2b2b; border:1px solid #313131; border-radius:3px; }
+  #note-article.vscode-md pre.md-pre code { color:#cccccc; background:none; }
+  #note-article.vscode-md .tok-kw { color:#569cd6; }
+  #note-article.vscode-md .tok-str { color:#ce9178; }
+  #note-article.vscode-md .tok-cmt { color:#6a9955; }
+  #note-article.vscode-md .tok-num { color:#b5cea8; }
   @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }

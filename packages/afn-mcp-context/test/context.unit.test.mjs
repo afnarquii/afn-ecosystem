@@ -1004,6 +1004,9 @@ test('notas: el arbol dentro de la tarea lista cada carpeta, no solo el README',
   assert.equal(png.ok, true);
   const page = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
   assert.match(page, /id="note-tree"/);
+  assert.match(page, /data-note-tree-toggle/);
+  assert.match(page, /#note-article\.vscode-md/);
+  assert.match(page, /note-tree\.is-collapsed/);
   assert.match(page, /evidencias\/captura\.png/);
   assert.match(page, /evidencias\/extra\/detalle\.pdf/);
   assert.match(page, /scripts\/validar\/check\.js/);
@@ -1319,8 +1322,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.71/);
-  assert.match(html, /data-afn-version="1\.4\.71"/);
+  assert.match(html, /v1\.4\.72/);
+  assert.match(html, /data-afn-version="1\.4\.72"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1363,10 +1366,10 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
 test('un dashboard de otra versión no se reutiliza', () => {
   const root = tmp();
   const abs = path.resolve(root);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.65' }, root, '1.4.71'), false);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: abs }, root, '1.4.71'), false);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.71' }, root, '1.4.71'), true);
-  assert.equal(dashboardReuseOk({ mode: 'project', root: path.resolve(tmp()), version: '1.4.71' }, root, '1.4.71'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.65' }, root, '1.4.72'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs }, root, '1.4.72'), false);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: abs, version: '1.4.72' }, root, '1.4.72'), true);
+  assert.equal(dashboardReuseOk({ mode: 'project', root: path.resolve(tmp()), version: '1.4.72' }, root, '1.4.72'), false);
 });
 
 test('servidor local edita orígenes y rechaza DELETE', async () => {
@@ -1444,7 +1447,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
     const whoRes = await fetch(`http://127.0.0.1:${info.port}/api/who`);
     const who = await whoRes.json();
-    assert.equal(who.version, '1.4.71');
+    assert.equal(who.version, '1.4.72');
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
@@ -1452,7 +1455,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.71/);
+    assert.match(liveHtml, /v1\.4\.72/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);
