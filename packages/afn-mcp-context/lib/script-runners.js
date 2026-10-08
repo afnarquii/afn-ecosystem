@@ -2,10 +2,12 @@
  * Scripts Python/Node registrados por la persona en .afn/script-runners.json.
  * El MCP solo ejecuta un id de esa lista. No acepta una ruta inventada.
  */
+import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
+import { listTaskNotes, noteKindFromName, resolveNoteFile } from './task-notes.js';
 
 const MAX_ROWS = 500;
 const TIMEOUT_MS = 30_000;
@@ -131,6 +133,47 @@ export function saveScriptRunner(root, input = {}) {
   next.push({ id, title, lang: lang.lang, path: located.rel, params });
   writeCatalog(root, next);
   return { ok: true, runner: publicRunner({ id, title, lang: lang.lang, path: located.rel, params }) };
+}
+
+function noteScriptLang(name) {
+  return String(name || '').toLowerCase().endsWith('.py') ? 'python' : 'node';
+}
+
+/** Scripts .js/.mjs/.cjs/.py guardados en una nota, y si ya están en el catálogo. */
+export function listNoteScripts(root) {
+  const byPath = new Map(listScriptRunners(root).map((r) => [String(r.path || '').replace(/\\/g, '/'), r]));
+  const out = [];
+  for (const note of listTaskNotes(root)) {
+    for (const doc of note.docs || []) {
+      if (noteKindFromName(doc.name) !== 'script') continue;
+      const file = String(doc.file || '').replace(/\\/g, '/');
+      const linked = byPath.get(file);
+      out.push({
+        note: note.title || note.slug,
+        slug: note.slug,
+        name: doc.name,
+        file,
+        lang: noteScriptLang(doc.name),
+        runnerId: linked ? linked.id : '',
+      });
+    }
+  }
+  return out;
+}
+
+/** Registra un script de la nota en Scripts. No lo ejecuta. */
+export function associateNoteScript(root, rel) {
+  const file = resolveNoteFile(root, rel);
+  if (!file.ok) return file;
+  if (noteKindFromName(file.name) !== 'script') {
+    return { ok: false, error: 'Solo se asocia un .js, .mjs, .cjs o .py de la nota' };
+  }
+  const lang = noteScriptLang(file.name);
+  const base = file.name.replace(/\.(mjs|cjs|js|py)$/i, '') || 'script';
+  const folder = file.path.split('/').slice(-2, -1)[0] || '';
+  const title = `${base}${folder ? ` · ${folder}` : ''}`.slice(0, 80);
+  const id = `n${createHash('sha1').update(file.path).digest('hex').slice(0, 12)}`;
+  return saveScriptRunner(root, { id, title, lang, path: file.path });
 }
 
 export function removeScriptRunner(root, id) {

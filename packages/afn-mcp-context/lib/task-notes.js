@@ -71,6 +71,7 @@ export function noteKindFromName(name) {
   if (/\.pdf$/.test(base)) return 'pdf';
   if (/\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/.test(base)) return 'image';
   if (/\.(txt|json|csv|xml|ya?ml|log|css|sql)$/.test(base)) return 'text';
+  if (/\.(js|mjs|cjs|py)$/.test(base)) return 'script';
   if (/\.(md|markdown)$/.test(base) || base === 'readme') return 'markdown';
   return 'file';
 }
@@ -83,6 +84,8 @@ export function noteMime(name, kind) {
   if (k === 'html' || /\.html?$/.test(base)) return 'text/html; charset=utf-8';
   if (k === 'markdown' || /\.(md|markdown)$/.test(base) || base === 'readme') return 'text/markdown; charset=utf-8';
   if (k === 'text' || /\.(txt|json|csv|xml|ya?ml|log|css|sql)$/.test(base)) return 'text/plain; charset=utf-8';
+  if (base.endsWith('.py')) return 'text/plain; charset=utf-8';
+  if (k === 'script' || /\.(mjs|cjs|js)$/.test(base)) return 'text/javascript; charset=utf-8';
   if (base.endsWith('.png')) return 'image/png';
   if (/\.jpe?g$/.test(base)) return 'image/jpeg';
   if (base.endsWith('.gif')) return 'image/gif';
@@ -158,7 +161,7 @@ function readNoteFile(abs, rel) {
     const st = fs.statSync(abs);
     mtime = st.mtime.toISOString();
     bytes = st.size;
-    if (kind === 'html' || kind === 'markdown' || kind === 'text') text = fs.readFileSync(abs, 'utf8');
+    if (kind === 'html' || kind === 'markdown' || kind === 'text' || kind === 'script') text = fs.readFileSync(abs, 'utf8');
   } catch {
     text = '';
   }
@@ -178,7 +181,7 @@ function readNoteFile(abs, rel) {
     name: rel,
     kind,
     title: title || base.replace(/\.(md|markdown|html|htm)$/i, '') || base,
-    chars: kind === 'html' || kind === 'markdown' || kind === 'text' ? text.length : bytes,
+    chars: kind === 'html' || kind === 'markdown' || kind === 'text' || kind === 'script' ? text.length : bytes,
     mtime,
     text,
   };

@@ -272,6 +272,9 @@ ORDER BY 1, 2;</textarea>
       </div>
       <h3>Guardados</h3>
       <div id="wb-script-list" class="script-grid"></div>
+      <h3>En las notas</h3>
+      <p class="muted">Scripts de Node o Python que quedaron en una nota. Asociarlos los deja acá para ejecutarlos con parámetros o sin ellos.</p>
+      <div id="wb-note-scripts" class="script-grid"></div>
       <div id="wb-script-args-modal" class="fav-modal" hidden>
         <div class="fav-sheet script-args-sheet">
           <div class="fav-head">
@@ -2044,16 +2047,45 @@ export function workbenchScript() {
     }
     box.innerHTML = list.map((r) => {
       const base = scriptBase(r.path);
-      return "<article class=script-item data-q=\\"" + favEsc(r.title) + "\\"><span class=k>" + favEsc(r.lang) + "</span><strong>" + favEsc(r.title) + "</strong><p class=muted>" + favEsc(base) + "</p><div class=script-actions><button type=button class=\\"btn afn-pick-go\\" data-script-run=\\"" + favEsc(r.id) + "\\" data-script-title=\\"" + favEsc(r.title) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div></article>";
+      const fromNote = String(r.path || "").indexOf(".afn/notes/") >= 0 ? "<span class=tag>Nota</span>" : "";
+      return "<article class=script-item data-q=\\"" + favEsc(r.title) + "\\"><span class=k>" + favEsc(r.lang) + "</span>" + fromNote + "<strong>" + favEsc(r.title) + "</strong><p class=muted>" + favEsc(base) + "</p><div class=script-actions><button type=button class=\\"btn afn-pick-go\\" data-script-run=\\"" + favEsc(r.id) + "\\" data-script-title=\\"" + favEsc(r.title) + "\\">Ejecutar</button><button type=button class=btn data-script-del=\\"" + favEsc(r.id) + "\\">Quitar</button></div></article>";
     }).join("");
     box.querySelectorAll("[data-script-run]").forEach((btn) => btn.addEventListener("click", () => openScriptArgs(btn.getAttribute("data-script-run"), btn.getAttribute("data-script-title"))));
     box.querySelectorAll("[data-script-del]").forEach((btn) => btn.addEventListener("click", () => dropScript(btn.getAttribute("data-script-del"))));
+  }
+  function paintNoteScripts(list) {
+    const box = document.getElementById("wb-note-scripts");
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = "<p class=empty>Ninguna nota tiene un .js, .mjs, .cjs o .py.</p>";
+      return;
+    }
+    box.innerHTML = list.map((r) => {
+      const base = scriptBase(r.name || r.file);
+      const run = r.runnerId
+        ? "<button type=button class=\\"btn afn-pick-go\\" data-script-run=\\"" + favEsc(r.runnerId) + "\\" data-script-title=\\"" + favEsc(base) + "\\">Ejecutar</button>"
+        : "<button type=button class=\\"btn afn-pick-go\\" data-note-script=\\"" + favEsc(r.file) + "\\">Asociar</button>";
+      return "<article class=script-item><span class=k>" + favEsc(r.lang) + "</span><strong>" + favEsc(base) + "</strong><p class=muted>" + favEsc(r.note || "") + "</p><div class=script-actions>" + run + "</div></article>";
+    }).join("");
+    box.querySelectorAll("[data-script-run]").forEach((btn) => btn.addEventListener("click", () => openScriptArgs(btn.getAttribute("data-script-run"), btn.getAttribute("data-script-title"))));
+    box.querySelectorAll("[data-note-script]").forEach((btn) => btn.addEventListener("click", () => linkNoteScript(btn.getAttribute("data-note-script"))));
+  }
+  async function linkNoteScript(filePath) {
+    try {
+      setMsg("wb-script-msg", "Asociando…", true);
+      const j = await apiCall("POST", "/api/notes/script", { path: filePath });
+      setMsg("wb-script-msg", "Quedó en Scripts. Ejecutalo con parámetros o sin ellos.", true);
+      await loadScripts();
+      if (j.runner) openScriptArgs(j.runner.id, j.runner.title);
+    } catch (e) { setMsg("wb-script-msg", e.message, false); }
   }
   async function loadScripts() {
     if (!api) return;
     const j = await apiCall("GET", "/api/scripts");
     paintScripts(j.runners || []);
+    paintNoteScripts(j.notes || []);
   }
+  window.afnReloadScripts = loadScripts;
   function showRunError(text) {
     const box = document.getElementById("wb-run-error");
     const msg = String(text || "").trim();

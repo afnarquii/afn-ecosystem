@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { collectDashboard, buildHtml, dashboardNotes, mdToHtml } from './dashboard.js';
 import { saveOriginsPack, saveOriginCredential, credentialLoginIndex, runDashboardSql, loadSqlFavorites, saveSqlFavorites, inspectCredentialsFile, sqlDriverStatus } from './dashboard-query.js';
-import { createScriptRunner, listScriptRunners, removeScriptRunner, runScriptRunner, saveScriptRunner } from './script-runners.js';
+import { associateNoteScript, createScriptRunner, listNoteScripts, listScriptRunners, removeScriptRunner, runScriptRunner, saveScriptRunner } from './script-runners.js';
 import { readLiveSchema, saveDataSelection, readDataSelection, readDataSelectionPack } from './data-sources.js';
 import { afnPath } from './paths.js';
 import { createWorkspaceSkill, listWorkspaceSkills, readWorkspaceSkill, saveWorkspaceSkill } from './skill-library.js';
@@ -272,7 +272,13 @@ async function handleApi(state, token, req, res, url) {
     return;
   }
   if (req.method === 'GET' && route === '/api/scripts') {
-    send(res, 200, { ok: true, runners: listScriptRunners(root) });
+    send(res, 200, { ok: true, runners: listScriptRunners(root), notes: listNoteScripts(root) });
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/notes/script') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const r = associateNoteScript(root, raw.path || raw.rel || '');
+    send(res, r.ok ? 200 : 400, r.ok ? r : { ok: false, error: r.error });
     return;
   }
   if (req.method === 'POST' && route === '/api/scripts') {

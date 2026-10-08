@@ -239,8 +239,8 @@ export function dashboardNotes(root) {
     updatedAt: n.updatedAt,
     rel: n.rel || '',
     docs: (n.docs || []).map((d) => {
-      const kind = d.kind === 'html' || d.kind === 'pdf' || d.kind === 'file' || d.kind === 'image' || d.kind === 'text' ? d.kind : 'markdown';
-      const text = kind === 'html' || kind === 'markdown' || kind === 'text' ? (d.markdown || '') : '';
+      const kind = d.kind === 'html' || d.kind === 'pdf' || d.kind === 'file' || d.kind === 'image' || d.kind === 'text' || d.kind === 'script' ? d.kind : 'markdown';
+      const text = kind === 'html' || kind === 'markdown' || kind === 'text' || kind === 'script' ? (d.markdown || '') : '';
       return {
         name: d.name,
         title: d.title,
@@ -493,6 +493,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (kind === "pdf") return "PDF";
     if (kind === "image") return "Imagen";
     if (kind === "text") return "Texto";
+    if (kind === "script") return "Script";
     if (kind === "file") return "Archivo";
     return "Markdown";
   }
@@ -638,7 +639,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const text = document.getElementById("note-ed")?.value || "";
     const art = document.getElementById("note-article");
     const frame = document.getElementById("note-frame");
-    if (kind === "text") {
+    if (kind === "text" || kind === "script") {
       if (frame) { frame.hidden = true; frame.srcdoc = ""; }
       if (art) { art.hidden = false; art.innerHTML = "<pre class='md-pre'><code>" + noteEsc(text) + "</code></pre>"; }
       return;
@@ -663,7 +664,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }).catch(() => {});
   }
   function showNotePreview(doc) {
-    const kind = doc && doc.kind === "html" ? "html" : (doc && doc.kind === "text" ? "text" : "markdown");
+    const kind = doc && doc.kind === "html" ? "html" : (doc && (doc.kind === "text" || doc.kind === "script") ? doc.kind : "markdown");
     const art = document.getElementById("note-article");
     const frame = document.getElementById("note-frame");
     const text = document.getElementById("note-ed")?.value || "";
@@ -675,10 +676,10 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (frame) { frame.hidden = true; frame.srcdoc = ""; }
     if (art) {
       art.hidden = false;
-      art.innerHTML = kind === "text"
+      art.innerHTML = kind === "text" || kind === "script"
         ? "<pre class='md-pre'><code>" + noteEsc(text) + "</code></pre>"
         : ((doc && doc.html) || "<p class='muted'>Vacío.</p>");
-      if (kind !== "text") hydrateNoteImages(art, doc && doc.file ? doc.file : "");
+      if (kind !== "text" && kind !== "script") hydrateNoteImages(art, doc && doc.file ? doc.file : "");
     }
   }
   function saveOpenNote() {
@@ -824,6 +825,19 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }
   }
 
+  function markNoteScriptLink(filePath) {
+    const btn = document.getElementById("note-script");
+    if (!btn || !filePath || !window.AFN_API || !window.AFN_API.token) return;
+    fetch((window.AFN_API.base || "") + "/api/scripts", {
+      headers: { "x-afn-token": window.AFN_API.token },
+    }).then((r) => r.json()).then((j) => {
+      if (document.getElementById("note-dl")?.dataset.path !== filePath) return;
+      const hit = (j.notes || []).find((n) => n.file === filePath && n.runnerId);
+      if (!hit) return;
+      btn.textContent = "Abrir en Scripts";
+      btn.dataset.runner = hit.runnerId;
+    }).catch(() => {});
+  }
   function showNote(slug, file) {
     showView("notas");
     const list = document.getElementById("notes-list");
@@ -854,7 +868,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       }).join("");
     }
     paintGallery(t);
-    const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file" || doc.kind === "image" || doc.kind === "text") ? doc.kind : "markdown";
+    const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file" || doc.kind === "image" || doc.kind === "text" || doc.kind === "script") ? doc.kind : "markdown";
     const binary = kind === "pdf" || kind === "file" || kind === "image";
     const kindEl = document.getElementById("note-kind");
     if (kindEl) {
@@ -864,7 +878,13 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (reader) reader.classList.toggle("binary", binary);
     document.querySelectorAll("[data-note-mode]").forEach((el) => { el.hidden = binary; });
     const saveBtn = document.getElementById("note-save");
-    if (saveBtn) saveBtn.hidden = binary || kind === "text";
+    if (saveBtn) saveBtn.hidden = binary || kind === "text" || kind === "script";
+    const linkBtn = document.getElementById("note-script");
+    if (linkBtn) {
+      linkBtn.hidden = kind !== "script";
+      linkBtn.textContent = "Asociar a Scripts";
+      linkBtn.dataset.runner = "";
+    }
     const ed = document.getElementById("note-ed");
     if (ed) ed.value = binary ? "" : (doc ? (doc.markdown || "") : "");
     noteSavedText = ed ? ed.value : "";
@@ -895,6 +915,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }
     const msg = document.getElementById("note-msg");
     if (msg) msg.textContent = doc && doc.file ? doc.file : "";
+    if (kind === "script" && doc && doc.file) markNoteScriptLink(doc.file);
     document.querySelector("main")?.classList.add("note-focus");
     const hash = noteHash(t.slug, doc ? doc.name : "");
     const cur = parseNoteHash(location.hash);
@@ -969,6 +990,42 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       e.preventDefault();
       if (!leaveNoteOk()) return;
       showNote("", "");
+    }
+    if (e.target.closest("#note-script")) {
+      e.preventDefault();
+      const btn = document.getElementById("note-script");
+      const b = document.getElementById("note-dl");
+      const filePath = b?.dataset.path || "";
+      const noteMsg = document.getElementById("note-msg");
+      if (btn && btn.dataset.runner) {
+        if (window.afnReloadScripts) window.afnReloadScripts();
+        showView("scripts");
+        location.hash = "scripts";
+        return;
+      }
+      if (!filePath || !window.AFN_API || !window.AFN_API.token) {
+        if (noteMsg) noteMsg.textContent = "Abrí el dashboard del servidor para asociar el script.";
+        return;
+      }
+      if (noteMsg) noteMsg.textContent = "Asociando…";
+      fetch((window.AFN_API.base || "") + "/api/notes/script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-afn-token": window.AFN_API.token },
+        body: JSON.stringify({ path: filePath }),
+      }).then((r) => r.json()).then((j) => {
+        if (!j || !j.ok) throw new Error((j && j.error) || "no se pudo asociar");
+        if (btn) {
+          btn.textContent = "Abrir en Scripts";
+          btn.dataset.runner = (j.runner && j.runner.id) || "1";
+        }
+        if (noteMsg) noteMsg.textContent = "Quedó en Scripts. Ahí se ejecuta con parámetros o sin ellos.";
+        if (window.afnReloadScripts) window.afnReloadScripts();
+        showView("scripts");
+        location.hash = "scripts";
+      }).catch((err) => {
+        if (noteMsg) noteMsg.textContent = err.message || "No pude asociar el script.";
+      });
+      return;
     }
     if (e.target.closest("[data-dl-note]")) {
       e.preventDefault();
@@ -1534,6 +1591,7 @@ ${textEditorSection()}
           <button type="button" class="btn" data-note-mode="view">Solo vista</button>
           <button type="button" class="btn" id="note-save">Guardar</button>
           <button type="button" class="btn" id="note-dl" data-dl-note>Descargar</button>
+          <button type="button" class="btn" id="note-script" hidden>Asociar a Scripts</button>
           <span id="note-crumb" class="muted"></span>
           <span id="note-status" class="muted"></span>
           <span id="note-msg" class="muted"></span>

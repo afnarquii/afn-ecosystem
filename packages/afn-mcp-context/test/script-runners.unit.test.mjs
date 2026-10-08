@@ -7,8 +7,10 @@ import { handleContextTool } from '../lib/handle-tool.js';
 import { STEERING } from '../lib/setup.js';
 import { writeDashboard } from '../lib/dashboard.js';
 import {
+  associateNoteScript,
   buildScriptArgv,
   createScriptRunner,
+  listNoteScripts,
   resolveScriptFile,
   runScriptRunner,
   saveScriptRunner,
@@ -161,5 +163,39 @@ test('el steering no autoriza a Kiro a correr scripts por su cuenta', () => {
   assert.match(html, /data-param-name/);
   assert.match(html, /Agregar parámetro/);
   assert.match(html, /Sin parámetros/);
+  assert.match(html, /id="note-script"/);
+  assert.match(html, /id="wb-note-scripts"/);
+  assert.match(html, /En las notas/);
   assert.match(STEERING, /no inventes ninguno/);
+});
+
+test('un script de una nota se asocia y se ejecuta con o sin parámetros', async () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'notes', 'tareas', 'validar');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'readme.md'), '# Validar\n');
+  fs.writeFileSync(path.join(dir, 'check.js'), 'process.stdout.write(JSON.stringify(process.argv.slice(2)))\n');
+  fs.writeFileSync(path.join(dir, 'check.py'), 'print("[]")\n');
+  const listed = listNoteScripts(root);
+  assert.equal(listed.length, 2);
+  const js = listed.find((item) => item.name === 'check.js');
+  const py = listed.find((item) => item.name === 'check.py');
+  assert.equal(js.lang, 'node');
+  assert.equal(py.lang, 'python');
+  assert.equal(js.runnerId, '');
+  assert.equal(associateNoteScript(root, '.afn/notes/tareas/validar/readme.md').ok, false);
+  assert.equal(associateNoteScript(root, '.afn/notes/tareas/validar/../../package.json').ok, false);
+  const saved = associateNoteScript(root, js.file);
+  assert.equal(saved.ok, true);
+  assert.equal(saved.runner.lang, 'node');
+  assert.match(saved.runner.path, /check\.js$/);
+  const again = associateNoteScript(root, js.file);
+  assert.equal(again.runner.id, saved.runner.id);
+  assert.equal(listNoteScripts(root).find((item) => item.name === 'check.js').runnerId, saved.runner.id);
+  const plain = await runScriptRunner(root, saved.runner.id, {});
+  assert.equal(plain.ok, true);
+  assert.equal(plain.argCount, 0);
+  const named = await runScriptRunner(root, saved.runner.id, { params: { cliente: 'acme' } });
+  assert.equal(named.ok, true);
+  assert.deepEqual(named.rows.map((row) => row.value), ['--cliente', 'acme']);
 });
