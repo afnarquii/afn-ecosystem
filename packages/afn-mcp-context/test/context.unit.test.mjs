@@ -18,7 +18,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
-import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile } from '../lib/task-notes.js';
+import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile, noteMime } from '../lib/task-notes.js';
 import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
@@ -951,6 +951,34 @@ test('notas: un pdf se lista y se puede resolver para descargarlo', () => {
   assert.equal(saveExistingNote(root, pdf.file, 'x').ok, false);
 });
 
+test('notas: imagen, texto y fotos del README se listan para verlos', () => {
+  const root = tmp();
+  const dir = path.join(root, '.afn', 'notes', 'tareas', 'entrega');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'readme.md'), '# Entrega\n\n![captura](./foto.png)\n');
+  fs.writeFileSync(path.join(dir, 'foto.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  fs.writeFileSync(path.join(dir, 'datos.json'), '{"ok":true}\n');
+  const listed = listTaskNotes(root, { includeBody: true });
+  const note = listed.find((n) => n.slug === 'entrega');
+  assert.ok(note);
+  const img = note.docs.find((d) => d.name === 'foto.png');
+  const json = note.docs.find((d) => d.name === 'datos.json');
+  assert.equal(img.kind, 'image');
+  assert.equal(img.markdown || '', '');
+  assert.equal(json.kind, 'text');
+  assert.match(json.markdown, /"ok":true/);
+  assert.equal(noteMime('foto.png', 'image'), 'image/png');
+  assert.equal(noteMime('informe.pdf', 'pdf'), 'application/pdf');
+  assert.equal(saveExistingNote(root, img.file, 'x').ok, false);
+  const preview = mdToHtml(note.docs.find((d) => d.name === 'readme.md').markdown);
+  assert.match(preview, /<img alt="captura" data-note-src="\.\/foto\.png">/);
+  const page = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(page, /id="note-img"/);
+  assert.match(page, /id="note-gallery"/);
+  assert.match(page, /foto\.png/);
+  assert.match(page, /datos\.json/);
+});
+
 test('orígenes de datos: contexto sin secretos, PAs en código y schema_commit', () => {
   const root = tmp();
   writePkg(path.join(root, 'api'), 'api', { dependencies: { express: '4' } });
@@ -1261,8 +1289,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.66/);
-  assert.match(html, /data-afn-version="1\.4\.66"/);
+  assert.match(html, /v1\.4\.67/);
+  assert.match(html, /data-afn-version="1\.4\.67"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1382,7 +1410,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.66/);
+    assert.match(liveHtml, /v1\.4\.67/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

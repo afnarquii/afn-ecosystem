@@ -46,6 +46,10 @@ function esc(s) {
 
 function inlineMd(s) {
   return esc(s)
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (full, alt, href) => {
+      if (/^(https?:|data:)/i.test(href)) return `<img alt="${alt}" src="${href}">`;
+      return `<img alt="${alt}" data-note-src="${href}">`;
+    })
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (full, label, href) => {
       if (/^(https?:|javascript:|data:)/i.test(href)) return full;
@@ -235,8 +239,8 @@ export function dashboardNotes(root) {
     updatedAt: n.updatedAt,
     rel: n.rel || '',
     docs: (n.docs || []).map((d) => {
-      const kind = d.kind === 'html' || d.kind === 'pdf' || d.kind === 'file' ? d.kind : 'markdown';
-      const text = kind === 'html' || kind === 'markdown' ? (d.markdown || '') : '';
+      const kind = d.kind === 'html' || d.kind === 'pdf' || d.kind === 'file' || d.kind === 'image' || d.kind === 'text' ? d.kind : 'markdown';
+      const text = kind === 'html' || kind === 'markdown' || kind === 'text' ? (d.markdown || '') : '';
       return {
         name: d.name,
         title: d.title,
@@ -304,6 +308,14 @@ function collectDashboard(root) {
     })(),
     notes: dashboardNotes(root),
   };
+}
+
+function noteFilesLabel(n) {
+  const names = (n.docs || []).map((d) => String(d.name || d.title || '').split('/').pop()).filter(Boolean);
+  if (!names.length) return 'Sin archivos';
+  const shown = names.slice(0, 4);
+  const more = names.length > shown.length ? ` · +${names.length - shown.length}` : '';
+  return `${names.length} ${names.length === 1 ? 'archivo' : 'archivos'} · ${shown.join(' · ')}${more}`;
 }
 
 function kindLabel(kind) {
@@ -381,9 +393,9 @@ function buildHtml(data, opts = {}) {
             `<button type="button" class="tile" data-note-task="${esc(n.slug)}" data-q="${esc([n.title, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
               <span class="k">${esc(statusLabel(n.status))}</span>
               <strong>${esc(n.title)}</strong>
-              <span class="muted">${(n.docs || []).length} documentos</span>
+              <span class="muted">${esc(noteFilesLabel(n))}</span>
               <code>${esc(n.rel || n.slug)}</code>
-              <span class="cta">Abrir README →</span>
+              <span class="cta">Abrir →</span>
             </button>`,
         )
         .join('')
@@ -479,13 +491,86 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   function noteKindLabel(kind) {
     if (kind === "html") return "HTML";
     if (kind === "pdf") return "PDF";
+    if (kind === "image") return "Imagen";
+    if (kind === "text") return "Texto";
     if (kind === "file") return "Archivo";
     return "Markdown";
   }
-  let noteBlobUrl = "";
-  function clearNoteBlob() {
-    if (noteBlobUrl) URL.revokeObjectURL(noteBlobUrl);
-    noteBlobUrl = "";
+  function noteBaseName(name) {
+    return String(name || "").split("/").pop() || "archivo";
+  }
+  function noteFilesLine(n) {
+    const names = (n.docs || []).map((d) => noteBaseName(d.name || d.title));
+    if (!names.length) return "Sin archivos";
+    const shown = names.slice(0, 4);
+    const more = names.length > shown.length ? " · +" + (names.length - shown.length) : "";
+    return names.length + (names.length === 1 ? " archivo · " : " archivos · ") + shown.join(" · ") + more;
+  }
+  let noteViewGen = 0;
+  let noteViewBlobs = [];
+  let notePreviewBlobs = [];
+  function dropBlobs(list) {
+    list.forEach((u) => URL.revokeObjectURL(u));
+    list.length = 0;
+  }
+  function fetchNoteUrl(filePath, list) {
+    const gen = noteViewGen;
+    if (!filePath || !window.AFN_API || !window.AFN_API.token) return Promise.resolve("");
+    return fetch((window.AFN_API.base || "") + "/api/notes/file?path=" + encodeURIComponent(filePath), {
+      headers: { "x-afn-token": window.AFN_API.token },
+    }).then((r) => { if (!r.ok) throw new Error("file"); return r.blob(); }).then((blob) => {
+      if (gen !== noteViewGen) return "";
+      const url = URL.createObjectURL(blob);
+      list.push(url);
+      return url;
+    }).catch(() => "");
+  }
+  function noteDir(filePath) {
+    const p = String(filePath || "").replace(/\\\\/g, "/");
+    const i = p.lastIndexOf("/");
+    return i < 0 ? "" : p.slice(0, i);
+  }
+  function resolveNoteSrc(baseFile, src) {
+    if (!src || /^(https?:|data:|blob:)/i.test(src)) return "";
+    let raw = String(src).replace(/\\\\/g, "/");
+    if (raw.startsWith("./")) raw = raw.slice(2);
+    if (raw.toLowerCase().startsWith(".afn/notes/")) return raw.replace(/^\/+/, "");
+    const parts = (noteDir(baseFile) ? noteDir(baseFile) + "/" + raw : raw).split("/");
+    const stack = [];
+    for (const part of parts) {
+      if (!part || part === ".") continue;
+      if (part === "..") stack.pop();
+      else stack.push(part);
+    }
+    const out = stack.join("/");
+    return out.toLowerCase().startsWith(".afn/notes/") ? out : "";
+  }
+  function hydrateNoteImages(rootEl, baseFile) {
+    if (!rootEl) return;
+    dropBlobs(notePreviewBlobs);
+    rootEl.querySelectorAll("img[data-note-src]").forEach((img) => {
+      const path = resolveNoteSrc(baseFile, img.getAttribute("data-note-src") || "");
+      if (!path) return;
+      fetchNoteUrl(path, notePreviewBlobs).then((url) => { if (url) img.src = url; });
+    });
+  }
+  function paintGallery(note) {
+    const box = document.getElementById("note-gallery");
+    if (!box) return;
+    const docs = note && note.docs ? note.docs : [];
+    if (docs.length < 2) { box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false;
+    box.innerHTML = docs.map((d) => {
+      const base = noteBaseName(d.name || d.title);
+      const open = ' data-note-task="' + noteEsc(note.slug) + '" data-note-file="' + noteEsc(d.name) + '"';
+      if (d.kind === "image" && d.file) {
+        return '<button type="button" class="note-thumb"' + open + '><img alt="" data-note-blob="' + noteEsc(d.file) + '"><span>' + noteEsc(base) + "</span></button>";
+      }
+      return '<button type="button" class="note-chip"' + open + '><span class="k">' + noteEsc(noteKindLabel(d.kind)) + "</span><span>" + noteEsc(base) + "</span></button>";
+    }).join("");
+    box.querySelectorAll("img[data-note-blob]").forEach((img) => {
+      fetchNoteUrl(img.getAttribute("data-note-blob") || "", noteViewBlobs).then((url) => { if (url) img.src = url; });
+    });
   }
   function renderNoteCards() {
     const grid = document.getElementById("notes-grid");
@@ -498,7 +583,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }
     grid.innerHTML = notes.map((n) => {
       const q = [n.title, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
-      return '<button type="button" class="tile" data-note-task="' + noteEsc(n.slug) + '" data-q="' + noteEsc(q) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + (n.docs || []).length + ' documentos</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir README →</span></button>';
+      return '<button type="button" class="tile" data-note-task="' + noteEsc(n.slug) + '" data-q="' + noteEsc(q) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + '</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir →</span></button>';
     }).join("");
   }
   function applyNotes(list) {
@@ -553,6 +638,11 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const text = document.getElementById("note-ed")?.value || "";
     const art = document.getElementById("note-article");
     const frame = document.getElementById("note-frame");
+    if (kind === "text") {
+      if (frame) { frame.hidden = true; frame.srcdoc = ""; }
+      if (art) { art.hidden = false; art.innerHTML = "<pre class='md-pre'><code>" + noteEsc(text) + "</code></pre>"; }
+      return;
+    }
     if (kind === "html") {
       if (art) art.hidden = true;
       if (frame) { frame.hidden = false; frame.srcdoc = text; }
@@ -569,10 +659,11 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }).then((r) => r.json()).then((j) => {
       if (seq !== notePreviewSeq || !art || !j || !j.ok) return;
       art.innerHTML = j.html || "<p class='muted'>Vacío.</p>";
+      hydrateNoteImages(art, document.getElementById("note-dl")?.dataset.path || "");
     }).catch(() => {});
   }
   function showNotePreview(doc) {
-    const kind = doc && doc.kind === "html" ? "html" : "markdown";
+    const kind = doc && doc.kind === "html" ? "html" : (doc && doc.kind === "text" ? "text" : "markdown");
     const art = document.getElementById("note-article");
     const frame = document.getElementById("note-frame");
     const text = document.getElementById("note-ed")?.value || "";
@@ -582,7 +673,13 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       return;
     }
     if (frame) { frame.hidden = true; frame.srcdoc = ""; }
-    if (art) { art.hidden = false; art.innerHTML = (doc && doc.html) || "<p class='muted'>Vacío.</p>"; }
+    if (art) {
+      art.hidden = false;
+      art.innerHTML = kind === "text"
+        ? "<pre class='md-pre'><code>" + noteEsc(text) + "</code></pre>"
+        : ((doc && doc.html) || "<p class='muted'>Vacío.</p>");
+      if (kind !== "text") hydrateNoteImages(art, doc && doc.file ? doc.file : "");
+    }
   }
   function saveOpenNote() {
     const msg = document.getElementById("note-msg");
@@ -747,21 +844,27 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (crumb) crumb.textContent = t.rel ? (t.title + " · " + t.rel) : t.title;
     if (st) st.textContent = noteStatus(t.status);
     const toc = document.getElementById("note-toc");
+    noteViewGen += 1;
+    dropBlobs(noteViewBlobs);
+    dropBlobs(notePreviewBlobs);
     if (toc) {
       toc.innerHTML = (t.docs || []).map((d) => {
         const on = doc && d.name === doc.name ? " on" : "";
-        return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(d.title || d.name) + "</button>";
+        return '<button type="button" class="btn' + on + '" data-note-task="' + noteEsc(t.slug) + '" data-note-file="' + noteEsc(d.name) + '">' + noteEsc(noteBaseName(d.name || d.title)) + "</button>";
       }).join("");
     }
-    const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file") ? doc.kind : "markdown";
-    const binary = kind === "pdf" || kind === "file";
+    paintGallery(t);
+    const kind = doc && (doc.kind === "html" || doc.kind === "pdf" || doc.kind === "file" || doc.kind === "image" || doc.kind === "text") ? doc.kind : "markdown";
+    const binary = kind === "pdf" || kind === "file" || kind === "image";
     const kindEl = document.getElementById("note-kind");
     if (kindEl) {
       kindEl.dataset.kind = kind;
       kindEl.textContent = noteKindLabel(kind);
     }
     if (reader) reader.classList.toggle("binary", binary);
-    document.querySelectorAll("[data-note-mode], #note-save").forEach((el) => { el.hidden = binary; });
+    document.querySelectorAll("[data-note-mode]").forEach((el) => { el.hidden = binary; });
+    const saveBtn = document.getElementById("note-save");
+    if (saveBtn) saveBtn.hidden = binary || kind === "text";
     const ed = document.getElementById("note-ed");
     if (ed) ed.value = binary ? "" : (doc ? (doc.markdown || "") : "");
     noteSavedText = ed ? ed.value : "";
@@ -769,18 +872,20 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (!binary) showNotePreview(doc);
     const bin = document.getElementById("note-binary");
     const pdf = document.getElementById("note-pdf");
-    clearNoteBlob();
+    const img = document.getElementById("note-img");
+    const hint = document.getElementById("note-binary-hint");
     if (bin) bin.hidden = !binary;
     if (pdf) { pdf.hidden = true; pdf.removeAttribute("src"); }
+    if (img) { img.hidden = true; img.removeAttribute("src"); }
+    if (hint) hint.hidden = kind === "pdf" || kind === "image";
     const binName = document.getElementById("note-binary-name");
     if (binName) binName.textContent = doc ? (doc.name || doc.title || "") : "";
-    if (binary && kind === "pdf" && doc && doc.file && window.AFN_API && window.AFN_API.token) {
-      fetch((window.AFN_API.base || "") + "/api/notes/file?path=" + encodeURIComponent(doc.file), {
-        headers: { "x-afn-token": window.AFN_API.token },
-      }).then((r) => { if (!r.ok) throw new Error("pdf"); return r.blob(); }).then((blob) => {
-        noteBlobUrl = URL.createObjectURL(blob);
-        if (pdf) { pdf.hidden = false; pdf.src = noteBlobUrl; }
-      }).catch(() => {});
+    if (binary && (kind === "pdf" || kind === "image") && doc && doc.file) {
+      fetchNoteUrl(doc.file, noteViewBlobs).then((url) => {
+        if (!url) return;
+        if (kind === "image" && img) { img.hidden = false; img.alt = doc.name || ""; img.src = url; }
+        if (kind === "pdf" && pdf) { pdf.hidden = false; pdf.src = url; }
+      });
     }
     const dl = document.getElementById("note-dl");
     if (dl) {
@@ -872,7 +977,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const name = String(b?.dataset.file || "nota.md").split("/").pop();
       const kind = document.getElementById("note-kind")?.dataset.kind || "markdown";
       const filePath = b?.dataset.path || "";
-      const binary = kind === "pdf" || kind === "file";
+      const binary = kind === "pdf" || kind === "file" || kind === "image";
       if (!binary && ed) {
         const mime = kind === "html" ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8";
         const blob = new Blob([ed.value], { type: mime });
@@ -1147,9 +1252,18 @@ ${mapPickerScript()}
   .note-preview .vscode-md hr { border:0; height:1px; border-bottom:1px solid rgba(255,255,255,.18); }
   #note-frame { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#fff; }
   #notes-reader.binary .note-split { display:none; }
+  .note-gallery { display:flex; gap:.45rem; overflow-x:auto; padding:.45rem .65rem; border-bottom:1px solid var(--line); background:#0e141c; flex-shrink:0; }
+  .note-gallery[hidden] { display:none !important; }
+  .note-gallery .note-thumb, .note-gallery .note-chip { display:flex; flex-direction:column; gap:.25rem; align-items:flex-start; background:#161d27; border:1px solid var(--line); border-radius:8px; color:var(--ink); cursor:pointer; padding:.35rem; font:inherit; text-align:left; }
+  .note-gallery .note-thumb img { width:112px; height:78px; object-fit:cover; border-radius:4px; background:#111; }
+  .note-gallery .note-chip { justify-content:center; min-width:7rem; min-height:78px; }
+  .note-gallery span { font-size:.75rem; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #note-binary { flex:1; min-height:0; display:flex; flex-direction:column; gap:.6rem; padding:.7rem .8rem; }
   #note-binary[hidden] { display:none !important; }
-  #note-pdf { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#111; }
+  #note-pdf, #note-img { flex:1; width:100%; min-height:0; border:1px solid var(--line); border-radius:12px; background:#111; }
+  #note-img { object-fit:contain; }
+  #note-img[hidden], #note-pdf[hidden], #note-binary-hint[hidden] { display:none !important; }
+  .note-preview .vscode-md img { max-width:100%; height:auto; border-radius:6px; }
   @media (max-width:900px) { .note-split.mode-both { grid-template-columns:minmax(0,1fr); } }
   .table-wrap { overflow:auto; margin:0 0 1rem; }
   .doc-table { min-width:640px; }
@@ -1396,6 +1510,7 @@ ${textEditorSection()}
       </div>
       <div id="notes-reader" hidden>
         <div id="note-toc" class="note-filebar"></div>
+        <div id="note-gallery" class="note-gallery" hidden></div>
         <div id="note-split" class="note-split mode-both">
           <div class="note-edit">
             ${textEditorHtml('note', 'Editor', 'Seleccioná y Ctrl+D suma la siguiente igual. Ctrl+F busca. Ctrl+S guarda.')}
@@ -1407,7 +1522,8 @@ ${textEditorSection()}
         </div>
         <div id="note-binary" hidden>
           <p id="note-binary-name" style="margin:0"></p>
-          <p class="muted" style="margin:0">Este archivo se descarga tal cual está en la carpeta. Usá Descargar.</p>
+          <p id="note-binary-hint" class="muted" style="margin:0">Este archivo se descarga tal cual está en la carpeta. Usá Descargar.</p>
+          <img id="note-img" alt="" hidden>
           <iframe id="note-pdf" title="PDF" hidden></iframe>
         </div>
         <div class="note-foot">

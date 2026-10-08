@@ -16,7 +16,7 @@ import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
 import { listMapFolders, saveMapSelection } from './map-selection.js';
 import { discoverWorkspace } from './discover.js';
-import { resolveNoteFile, saveExistingNote } from './task-notes.js';
+import { noteMime, resolveNoteFile, saveExistingNote } from './task-notes.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -121,18 +121,13 @@ async function handleApi(state, token, req, res, url) {
       return;
     }
     const buf = fs.readFileSync(file.abs);
-    const mime = file.kind === 'pdf'
-      ? 'application/pdf'
-      : file.kind === 'html'
-        ? 'text/html; charset=utf-8'
-        : file.kind === 'markdown'
-          ? 'text/markdown; charset=utf-8'
-          : 'application/octet-stream';
+    const mime = noteMime(file.name, file.kind);
     const filename = String(file.name || 'archivo').replace(/["\r\n]/g, '');
+    const inline = mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('text/');
     res.writeHead(200, {
       'Content-Type': mime,
       'Content-Length': buf.length,
-      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${filename}"`,
       'Cache-Control': 'no-store',
     });
     res.end(buf);

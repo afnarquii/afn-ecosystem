@@ -69,8 +69,29 @@ export function noteKindFromName(name) {
   const base = String(name || '').split('/').pop().split('\\').pop().toLowerCase();
   if (/\.(html|htm)$/.test(base)) return 'html';
   if (/\.pdf$/.test(base)) return 'pdf';
+  if (/\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/.test(base)) return 'image';
+  if (/\.(txt|json|csv|xml|ya?ml|log|css|sql)$/.test(base)) return 'text';
   if (/\.(md|markdown)$/.test(base) || base === 'readme') return 'markdown';
   return 'file';
+}
+
+/** Tipo que el navegador necesita para mostrar el archivo, no solo descargarlo. */
+export function noteMime(name, kind) {
+  const base = String(name || '').split('/').pop().split('\\').pop().toLowerCase();
+  const k = kind || noteKindFromName(base);
+  if (k === 'pdf' || base.endsWith('.pdf')) return 'application/pdf';
+  if (k === 'html' || /\.html?$/.test(base)) return 'text/html; charset=utf-8';
+  if (k === 'markdown' || /\.(md|markdown)$/.test(base) || base === 'readme') return 'text/markdown; charset=utf-8';
+  if (k === 'text' || /\.(txt|json|csv|xml|ya?ml|log|css|sql)$/.test(base)) return 'text/plain; charset=utf-8';
+  if (base.endsWith('.png')) return 'image/png';
+  if (/\.jpe?g$/.test(base)) return 'image/jpeg';
+  if (base.endsWith('.gif')) return 'image/gif';
+  if (base.endsWith('.webp')) return 'image/webp';
+  if (base.endsWith('.svg')) return 'image/svg+xml';
+  if (base.endsWith('.bmp')) return 'image/bmp';
+  if (base.endsWith('.ico')) return 'image/x-icon';
+  if (base.endsWith('.avif')) return 'image/avif';
+  return 'application/octet-stream';
 }
 
 export function isTextNoteName(name) {
@@ -137,7 +158,7 @@ function readNoteFile(abs, rel) {
     const st = fs.statSync(abs);
     mtime = st.mtime.toISOString();
     bytes = st.size;
-    if (kind === 'html' || kind === 'markdown') text = fs.readFileSync(abs, 'utf8');
+    if (kind === 'html' || kind === 'markdown' || kind === 'text') text = fs.readFileSync(abs, 'utf8');
   } catch {
     text = '';
   }
@@ -157,7 +178,7 @@ function readNoteFile(abs, rel) {
     name: rel,
     kind,
     title: title || base.replace(/\.(md|markdown|html|htm)$/i, '') || base,
-    chars: kind === 'html' || kind === 'markdown' ? text.length : bytes,
+    chars: kind === 'html' || kind === 'markdown' || kind === 'text' ? text.length : bytes,
     mtime,
     text,
   };
