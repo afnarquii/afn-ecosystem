@@ -573,24 +573,59 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     });
     return root;
   }
+  function noteSplitName(base) {
+    const name = String(base || "");
+    const i = name.lastIndexOf(".");
+    if (i <= 0 || i >= name.length - 1) return { stem: name, ext: "" };
+    return { stem: name.slice(0, i), ext: name.slice(i) };
+  }
   function noteTreeHtml(node, slug, prefix, current) {
     let html = "";
     Object.keys(node.dirs).sort().forEach((name) => {
       const path = prefix ? prefix + "/" + name : name;
       const open = noteDirsOpen[slug + "/" + path] !== false;
-      html += '<div class="note-branch"><button type="button" class="note-dir-btn' + (open ? "" : " shut") + '" data-note-dir="' + noteEsc(slug) + '" data-dir-path="' + noteEsc(path) + '"><span class="chev">' + (open ? "▾" : "▸") + "</span>" + noteEsc(name) + '</button><div class="note-dir"' + (open ? "" : " hidden") + ">" + noteTreeHtml(node.dirs[name], slug, path, current) + "</div></div>";
+      html += '<div class="note-branch"><button type="button" class="note-dir-btn' + (open ? "" : " shut") + '" data-tip="' + noteEsc(name) + '" data-note-dir="' + noteEsc(slug) + '" data-dir-path="' + noteEsc(path) + '"><span class="chev">' + (open ? "▾" : "▸") + '</span><span class="note-label">' + noteEsc(name) + '</span></button><div class="note-dir"' + (open ? "" : " hidden") + ">" + noteTreeHtml(node.dirs[name], slug, path, current) + "</div></div>";
     });
     node.files.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).forEach((d) => {
       const rel = String(d.name || "");
       const base = rel.split("/").pop();
+      const parts = noteSplitName(base);
       const on = rel === current ? " on" : "";
-      html += '<button type="button" class="note-file' + on + '" data-note-task="' + noteEsc(slug) + '" data-note-file="' + noteEsc(rel) + '"><span class="ext">' + noteEsc(noteKindLabel(d.kind)) + "</span><span>" + noteEsc(base) + "</span></button>";
+      const ext = parts.ext ? '<span class="note-ext">' + noteEsc(parts.ext) + "</span>" : "";
+      html += '<button type="button" class="note-file' + on + '" data-tip="' + noteEsc(base) + '" data-note-task="' + noteEsc(slug) + '" data-note-file="' + noteEsc(rel) + '"><span class="note-label">' + noteEsc(parts.stem) + "</span>" + ext + "</button>";
     });
     return html;
+  }
+  let noteTipEl = null;
+  function hideNoteTip() {
+    if (noteTipEl) noteTipEl.hidden = true;
+  }
+  function showNoteTip(btn) {
+    const label = btn.querySelector(".note-label");
+    const full = btn.getAttribute("data-tip") || "";
+    if (!label || !full || label.scrollWidth <= label.clientWidth + 1) { hideNoteTip(); return; }
+    if (!noteTipEl) {
+      noteTipEl = document.createElement("div");
+      noteTipEl.className = "note-tip";
+      noteTipEl.setAttribute("role", "tooltip");
+      document.body.appendChild(noteTipEl);
+    }
+    noteTipEl.textContent = full;
+    noteTipEl.hidden = false;
+    const r = btn.getBoundingClientRect();
+    const w = noteTipEl.offsetWidth;
+    const h = noteTipEl.offsetHeight;
+    let left = r.left;
+    let top = r.bottom + 6;
+    if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    noteTipEl.style.left = left + "px";
+    noteTipEl.style.top = top + "px";
   }
   function paintNoteTree(note, current) {
     const box = document.getElementById("note-tree");
     if (!box) return;
+    hideNoteTip();
     const docs = note && note.docs ? note.docs : [];
     const collapsed = box.classList.contains("is-collapsed");
     box.innerHTML = '<div class="note-tree-bar"><span class="note-tree-title">Archivos</span><button type="button" class="note-tree-toggle" data-note-tree-toggle title="Ocultar o mostrar archivos">' + (collapsed ? "›" : "‹") + '</button></div><div class="note-tree-body">' + noteTreeHtml(noteTreeNodes(docs), note.slug || "", "", current || "") + "</div>";
@@ -1006,6 +1041,16 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     downloadText((d?.slug || "diagrama") + ".architecture.md", md);
   }
 
+  document.addEventListener("mouseover", (e) => {
+    const btn = e.target.closest && e.target.closest(".note-tree .note-file, .note-tree .note-dir-btn");
+    if (btn) showNoteTip(btn);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const btn = e.target.closest && e.target.closest(".note-tree .note-file, .note-tree .note-dir-btn");
+    if (!btn || (e.relatedTarget && btn.contains(e.relatedTarget))) return;
+    hideNoteTip();
+  });
+  document.addEventListener("scroll", hideNoteTip, true);
   window.addEventListener("click", (e) => {
     const go = e.target.closest("[data-go]");
     if (go) {
@@ -1321,7 +1366,7 @@ ${mapPickerScript()}
   .notes-head .muted { margin-left:auto; }
   #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:row; overflow:hidden; }
   .note-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
-  .note-tree { width:248px; flex:0 0 248px; min-height:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #2b2b2b; background:#181818; color:#cccccc; }
+  .note-tree { width:280px; flex:0 0 280px; min-height:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #2b2b2b; background:#181818; color:#cccccc; }
   .note-tree.is-collapsed { width:36px; flex-basis:36px; }
   .note-tree.is-collapsed .note-tree-body, .note-tree.is-collapsed .note-tree-title { display:none; }
   .note-tree-bar { display:flex; align-items:center; gap:.35rem; height:35px; padding:0 .45rem 0 .7rem; flex-shrink:0; border-bottom:1px solid #2b2b2b; }
@@ -1333,13 +1378,14 @@ ${mapPickerScript()}
   .note-tree-body { flex:1; min-height:0; overflow:auto; padding:.25rem 0 .6rem; }
   .note-branch { min-width:0; }
   .note-dir { padding-left:12px; }
-  .note-dir-btn, .note-file { display:flex; align-items:center; gap:.35rem; width:100%; min-height:22px; padding:0 .55rem; border:0; background:transparent; color:#cccccc; text-align:left; cursor:pointer; font:13px/22px "Segoe UI", system-ui, sans-serif; }
+  .note-dir-btn, .note-file { display:flex; align-items:center; gap:.4rem; width:100%; min-width:0; min-height:28px; padding:0 .7rem 0 .55rem; border:0; background:transparent; color:#cccccc; text-align:left; cursor:pointer; font:13px/28px "Segoe UI", system-ui, sans-serif; }
   .note-dir-btn:hover, .note-file:hover { background:#2a2d2e; }
   .note-file.on { background:#04395e; color:#ffffff; }
-  .note-dir-btn .chev { width:.8rem; color:#cccccc; font-size:10px; }
-  .note-file .ext { flex:0 0 auto; font:10px/1 Consolas, ui-monospace, monospace; color:#9d9d9d; text-transform:uppercase; }
-  .note-file.on .ext { color:#d0d0d0; }
-  .note-file span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .note-dir-btn .chev { flex:0 0 auto; width:.85rem; color:#c5c5c5; font-size:10px; }
+  .note-label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .note-ext { flex:0 0 auto; color:#8d8d8d; font-size:12px; }
+  .note-file.on .note-ext { color:#d6d6d6; }
+  .note-tip { position:fixed; z-index:40; max-width:min(420px, calc(100vw - 16px)); padding:.4rem .55rem; border:1px solid #454545; border-radius:6px; background:#252526; color:#f3f3f3; box-shadow:0 8px 24px rgba(0,0,0,.45); font:12px/1.4 "Segoe UI", system-ui, sans-serif; white-space:normal; overflow-wrap:anywhere; pointer-events:none; }
   @media (max-width:900px) {
     #notes-reader:not([hidden]) { flex-direction:column; }
     .note-tree { width:auto; flex:0 0 auto; max-height:38vh; border-right:0; border-bottom:1px solid #2b2b2b; }

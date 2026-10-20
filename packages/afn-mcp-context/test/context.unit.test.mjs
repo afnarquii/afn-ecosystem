@@ -1011,6 +1011,11 @@ test('notas: el arbol dentro de la tarea lista cada carpeta, no solo el README',
   assert.match(page, /#note-article\.vscode-md code \{ color:#d7ba7d/);
   assert.match(page, /mode-view/);
   assert.match(page, /note-tree\.is-collapsed/);
+  assert.match(page, /class="note-label"/);
+  assert.match(page, /className = "note-tip"/);
+  assert.match(page, /\.note-tip \{/);
+  assert.match(page, /data-tip=/);
+  assert.doesNotMatch(page, /class="ext"/);
   assert.match(page, /evidencias\/captura\.png/);
   assert.match(page, /evidencias\/extra\/detalle\.pdf/);
   assert.match(page, /scripts\/validar\/check\.js/);
@@ -1451,7 +1456,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
     const whoRes = await fetch(`http://127.0.0.1:${info.port}/api/who`);
     const who = await whoRes.json();
-    assert.equal(who.version, '1.4.73');
+    assert.equal(who.version, '1.4.74');
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
