@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildPromptHint } from './snapshot.js';
 import { saveTaskNoteFromFile } from './task-notes.js';
+import { isTaskNoteFlowAsk } from './task-note-contract.js';
 import { extractFileToMarkdown } from './extract-text.js';
 import { searchCerebro } from './cerebro.js';
 import { readDashboardPointer } from './dashboard-server.js';
@@ -85,7 +86,7 @@ export function parseLocalIntent(text) {
   const n = fold(raw);
 
   const note = n.match(/\b(?:guarda(?:r)?|save)\b(?:\s+el)?\s+(?:readme|nota|md)\s+([a-z0-9._\-]+)/i);
-  if (note) return { kind: 'note-save', file: note[1] };
+  if (note && !isTaskNoteFlowAsk(raw)) return { kind: 'note-save', file: note[1] };
 
   const mem =
     n.match(/^(?:cerebro|mem-search|memoria)\s*[:\-]\s*(.+)$/i)

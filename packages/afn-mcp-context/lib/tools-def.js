@@ -78,7 +78,7 @@ export const CONTEXT_TOOLS = [
   {
     name: 'afn_note_save',
     description:
-      'Guarda un README/entrega de UNA tarea en .afn/notes/tareas/<slug>/ (varios .md por tarea). No es ARQUITECTURA.md ni el cerebro. Solo si el usuario pidió dejarlo listo.',
+      'Guarda un README/entrega de UNA tarea en .afn/notes/tareas/<slug>/ (varios .md por tarea). No es ARQUITECTURA.md ni el cerebro. Solo si el usuario pidió dejarlo listo. Si el mensaje trae nota-flujo, flow true y el markdown con ## Veredicto, ## Por qué, ## Qué hay hoy, ## Qué cambia, ## Código propuesto, ## Pruebas propuestas, ## Qué no se toca. En ese turno no edites el producto.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -87,6 +87,10 @@ export const CONTEXT_TOOLS = [
         filename: { type: 'string', description: 'readme.md, e2e.md, decision.md…' },
         markdown: { type: 'string' },
         status: { type: 'string', description: 'draft | listo | aprobado' },
+        flow: {
+          type: 'boolean',
+          description: 'true si el usuario escribió nota-flujo. Exige las 7 secciones. No edites el producto en ese turno.',
+        },
       },
       required: ['markdown'],
     },

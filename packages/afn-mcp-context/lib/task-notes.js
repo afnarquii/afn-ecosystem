@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afnPath } from './paths.js';
+import { missingTaskNoteSections } from './task-note-contract.js';
 
 const STATUSES = new Set(['draft', 'listo', 'aprobado']);
 const MAX_NOTE_CHARS = 80_000;
@@ -334,6 +335,13 @@ export function saveTaskNote(root, input = {}) {
   if (!file) return { ok: false, error: 'nombre de archivo inválido' };
   let markdown = String(input.markdown || input.text || '').trim();
   if (!markdown) return { ok: false, error: 'markdown vacío' };
+  const flow = input.flow === true || input.flow === 'true';
+  if (flow) {
+    const missing = missingTaskNoteSections(markdown);
+    if (missing.length) {
+      return { ok: false, error: `nota-flujo incompleta: faltan ${missing.join(', ')}`, missing };
+    }
+  }
   if (markdown.length > MAX_NOTE_CHARS) markdown = `${markdown.slice(0, MAX_NOTE_CHARS)}\n\n_(recortado)_\n`;
   const dir = path.join(taskNotesDir(root), slug);
   fs.mkdirSync(dir, { recursive: true });

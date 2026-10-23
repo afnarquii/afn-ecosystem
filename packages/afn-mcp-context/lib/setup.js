@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { resolveWorkspaceRoot, isCatalogish, isAfnEcosystemCatalog } from './resolve-root.js';
 import { registerKnownProject } from './catalog-registry.js';
 import { pruneAutoNpxDataAgent } from './kiro-mcp-policy.js';
+import { taskNoteFlowSteeringBullet } from './task-note-contract.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_ROOT = path.resolve(here, '..');
@@ -96,8 +97,9 @@ Tenés tools MCP **afn-context** (no Engram). El mapa y el cerebro del producto 
 - **Antes del LLM:** si escribís *abre dashboard AFN*, *guarda el readme …* o *busca en el cerebro …*, el hook \`prompt-gate\` lo hace en local y **bloquea** el envío al modelo (exit 2). No gasta tokens.
 - Dashboard también: \`.afn/_tmp/afn-dashboard.cmd\` o \`node …/index.js dashboard\` (\`http://127.0.0.1:5847\`).
 - Guardar un README: \`node …/index.js note-save hu_102030_fondos.md\` (o \`.afn/_tmp/afn-note-save.cmd\`).
+${taskNoteFlowSteeringBullet()}
 - Cerebro: pestaña Cerebro del dashboard, o \`node …/index.js mem-search texto\`.
-- Si el usuario **igual** lo pide en el chat: **una sola tool** (\`afn_dashboard\` / \`afn_note_save\` / \`afn_mem_search\`). **No** llames snapshot, diagram ni architecture. Abrí **solo** el campo \`url\` (\`http://127.0.0.1\`). **Nunca** \`.afn/_tmp/dashboard.html\`.
+- Si el usuario **igual** lo pide en el chat: **una sola tool** (\`afn_dashboard\` / \`afn_note_save\` / \`afn_mem_search\`). **No** llames snapshot, diagram ni architecture. Abrí **solo** el campo \`url\` (\`http://127.0.0.1\`). **Nunca** \`.afn/_tmp/dashboard.html\`. **nota-flujo** es la excepción de lectura: leé los archivos del tema y después una sola \`afn_note_save\`.
 - Al empezar un trabajo de código (no un comando operativo): \`afn_context_snapshot\` si hace falta. Fuente: \`ARQUITECTURA.md\` en la raíz. **No** vuelques el repo.
 - Guardá **hechos** con \`afn_mem_save\` solo si el usuario pidió recordar algo. No transcripts.
 - **No** regeneres arquitectura al abrir el proyecto, en SessionStart, ni en cada turno.

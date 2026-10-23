@@ -10,6 +10,7 @@ import { loadAgentAssets } from './agent-assets.js';
 import { loadWorkspaceFlow } from './workspace-flow.js';
 import { architectureReadmeBrief, workspaceFlowMarkdown } from './architecture-readme.js';
 import { listTaskNotes } from './task-notes.js';
+import { TASK_NOTE_FLOW_WORD } from './task-note-contract.js';
 import { structuralDrift } from './architecture-llm.js';
 import { isAfnEcosystemCatalog } from './resolve-root.js';
 import { aggregateCatalogMemory } from './catalog-registry.js';
@@ -54,6 +55,7 @@ export function buildPromptHint(root) {
     'AFN: mapa en ARQUITECTURA.md. Cerebro en .afn/memory/cerebro.json.',
     'SIN tokens de chat: node …/afn-mcp-context/index.js dashboard | note-save archivo.md | mem-search texto.',
     'No abras el dashboard ni guardes notes ni busques cerebro por el chat. No regeneres arquitectura.',
+    `Excepción: si el mensaje trae ${TASK_NOTE_FLOW_WORD}, sí llamá afn_note_save con flow true (veredicto, por qué, código y pruebas en la nota) y no edites el producto.`,
     'No leas .afn/sql-favorites.json ni el texto de Comparar o del Editor: no son contexto.',
   ].join('\n');
   return { ok: true, markdown: `${md}\n`, root: root || '', hint: true };
