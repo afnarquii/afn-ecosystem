@@ -397,9 +397,11 @@ function buildHtml(data, opts = {}) {
             `<article class="tile note-card" data-q="${esc([n.title, n.group, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
               <div class="note-card-top"><span class="note-pill">${esc(statusLabel(n.status))}</span>${n.group ? `<span class="note-pill group">${esc(n.group)}</span>` : '<span class="note-pill quiet">Sin grupo</span>'}</div>
               <div class="note-card-edit">
-                <label>Editar título<input data-note-title-input value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota"/></label>
-                <label>Grupo<input data-note-group-input list="note-group-list" value="${esc(n.group || '')}" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"/></label>
-                <button type="button" class="btn" data-note-title-save="${esc(n.slug)}">Guardar</button>
+                <label class="note-title-field">Editar título<input data-note-title-input value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota"/></label>
+                <div class="note-card-row">
+                  <label>Grupo<input data-note-group-input list="note-group-list" value="${esc(n.group || '')}" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"/></label>
+                  <button type="button" class="btn" data-note-title-save="${esc(n.slug)}">Guardar</button>
+                </div>
               </div>
               <button type="button" class="note-open" data-note-task="${esc(n.slug)}">
               <strong>${esc(n.title)}</strong>
@@ -693,7 +695,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   function noteCardHtml(n) {
     const q = [n.title, n.group, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
     const badge = n.group ? '<span class="note-pill group">' + noteEsc(n.group) + "</span>" : '<span class="note-pill quiet">Sin grupo</span>';
-    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-card-top"><span class="note-pill">' + noteEsc(noteStatus(n.status)) + "</span>" + badge + '</div><div class="note-card-edit"><label>Editar título<input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"></label><label>Grupo<input data-note-group-input list="note-group-list" value="' + noteEsc(n.group || "") + '" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"></label><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar</button></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + "</span><code>" + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir nota</span></button></article>';
+    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-card-top"><span class="note-pill">' + noteEsc(noteStatus(n.status)) + "</span>" + badge + '</div><div class="note-card-edit"><label class="note-title-field">Editar título<input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"></label><div class="note-card-row"><label>Grupo<input data-note-group-input list="note-group-list" value="' + noteEsc(n.group || "") + '" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"></label><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar</button></div></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + "</span><code>" + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir nota</span></button></article>';
   }
   let noteSearchLeaveAsked = false;
   function backToNoteList() {
@@ -1596,16 +1598,19 @@ ${mapPickerScript()}
   .note-pill { display:inline-flex; align-items:center; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); background:#12352f; border-radius:999px; padding:.16rem .5rem; }
   .note-pill.group { color:#dbeafe; background:#1e3a5f; }
   .note-pill.quiet { color:var(--muted); background:#1a2330; }
-  .note-card-edit { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(8rem,.8fr) auto; gap:.45rem; align-items:end; padding:.7rem; border:1px solid #243246; border-radius:12px; background:#0e1520; }
+  .note-card-edit { display:flex; flex-direction:column; gap:.55rem; padding:.7rem; border:1px solid #243246; border-radius:12px; background:#0e1520; }
   .note-card-edit label { display:flex; flex-direction:column; gap:.22rem; min-width:0; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .note-card-edit .btn { height:2.45rem; }
+  .note-title-field input { font-size:1.05rem; }
+  .note-card-row, .note-titlebar-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.45rem; align-items:end; }
+  .note-card-edit .btn, .note-titlebar .btn { height:2.45rem; white-space:nowrap; }
   .note-open { background:transparent; border:0; padding:.15rem 0 0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:.28rem; width:100%; }
   .note-open strong { font-size:1.05rem; letter-spacing:-.02em; }
   .note-open:hover .cta { text-decoration:underline; }
-  .note-titlebar { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(8rem,.8fr) auto; gap:.55rem; align-items:end; padding:.7rem .8rem; border-bottom:1px solid var(--line); background:#101820; flex-shrink:0; }
+  .note-titlebar { display:flex; flex-direction:column; gap:.55rem; padding:.7rem .8rem; border-bottom:1px solid var(--line); background:#101820; flex-shrink:0; }
   .note-titlebar label { display:flex; flex-direction:column; gap:.22rem; min-width:0; margin:0; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  #note-title { font-size:1.05rem; }
   @media (max-width:720px) {
-    .note-card-edit, .note-titlebar, .notes-group-create { grid-template-columns:1fr; display:grid; }
+    .notes-group-create { grid-template-columns:1fr; display:grid; }
     .notes-tools-actions { margin-left:0; }
     .notes-tools-top { flex-wrap:wrap; }
   }
@@ -1991,9 +1996,11 @@ ${textEditorSection()}
         <div id="note-tree" class="note-tree"></div>
         <div class="note-main">
         <div class="note-titlebar">
-          <label>Editar título<input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/></label>
-          <label>Grupo<input id="note-group" type="text" maxlength="40" list="note-group-list" autocomplete="off" placeholder="Sin grupo"/></label>
-          <button type="button" class="btn" id="note-title-save">Guardar</button>
+          <label class="note-title-field">Editar título<input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/></label>
+          <div class="note-titlebar-row">
+            <label>Grupo<input id="note-group" type="text" maxlength="40" list="note-group-list" autocomplete="off" placeholder="Sin grupo"/></label>
+            <button type="button" class="btn" id="note-title-save">Guardar</button>
+          </div>
         </div>
         <div id="note-toc" class="note-filebar"></div>
         <div id="note-gallery" class="note-gallery" hidden></div>
