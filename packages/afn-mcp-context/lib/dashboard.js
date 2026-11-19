@@ -391,6 +391,11 @@ function buildHtml(data, opts = {}) {
         .map(
           (n) =>
             `<article class="tile note-card" data-q="${esc([n.title, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
+              <div class="note-title-row">
+                <span class="k">Editar título</span>
+                <input data-note-title-input value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota"/>
+                <button type="button" class="btn" data-note-title-save="${esc(n.slug)}">Guardar título</button>
+              </div>
               <button type="button" class="note-open" data-note-task="${esc(n.slug)}">
               <span class="k">${esc(statusLabel(n.status))}</span>
               <strong>${esc(n.title)}</strong>
@@ -398,7 +403,6 @@ function buildHtml(data, opts = {}) {
               <code>${esc(n.rel || n.slug)}</code>
               <span class="cta">Abrir →</span>
               </button>
-              <button type="button" class="btn note-rename" data-note-rename="${esc(n.slug)}">Editar título</button>
             </article>`,
         )
         .join('')
@@ -468,7 +472,6 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   let notes = JSON.parse(document.getElementById("notes-data")?.textContent || "[]");
   const notesBy = Object.fromEntries(notes.map((n) => [n.slug, n]));
   const filterNotesByQuery = ${filterNotesByQuery.toString()};
-  let noteTitleEdit = "";
   function noteEsc(s) {
     return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -655,11 +658,18 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   }
   function noteCardHtml(n) {
     const q = [n.title, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
-    const editing = noteTitleEdit === n.slug;
-    const titleCtl = editing
-      ? '<div class="note-title-row"><input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar título</button></div>'
-      : '<button type="button" class="btn note-rename" data-note-rename="' + noteEsc(n.slug) + '">Editar título</button>';
-    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + '</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir →</span></button>' + titleCtl + '</article>';
+    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-title-row"><span class="k">Editar título</span><input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar título</button></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + '</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir →</span></button></article>';
+  }
+  let noteSearchLeaveAsked = false;
+  function backToNoteList() {
+    if (!leaveNoteOk()) return false;
+    const list = document.getElementById("notes-list");
+    const reader = document.getElementById("notes-reader");
+    if (list) list.hidden = false;
+    if (reader) reader.hidden = true;
+    document.querySelector("main")?.classList.remove("note-focus");
+    if (location.hash.startsWith("#n-")) location.hash = "notas";
+    return true;
   }
   function notesQueryLabel(found, raw) {
     const q = String(raw || "").trim();
@@ -718,7 +728,6 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const j = await r.json();
       if (!j || !j.ok) { say((j && j.error) || "No pude guardar el título."); return; }
       note.title = j.title || next;
-      noteTitleEdit = "";
       renderNoteCards();
       const input = document.getElementById("note-title");
       if (input && document.getElementById("note-dl")?.dataset.slug === note.slug) input.value = note.title;
@@ -1151,15 +1160,6 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       noteDirsOpen[(dirBtn.dataset.noteDir || "") + "/" + (dirBtn.dataset.dirPath || "")] = !shut;
       return;
     }
-    const renameBtn = e.target.closest("[data-note-rename]");
-    if (renameBtn) {
-      e.preventDefault();
-      noteTitleEdit = renameBtn.dataset.noteRename || "";
-      renderNoteCards();
-      const input = document.querySelector("[data-note-title-input]");
-      if (input) { input.focus(); input.select(); }
-      return;
-    }
     const titleSave = e.target.closest("[data-note-title-save]");
     if (titleSave) {
       e.preventDefault();
@@ -1287,7 +1287,16 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   });
   window.addEventListener("input", (e) => {
     if (e.target && e.target.id === "q") applySearch();
-    if (e.target && e.target.id === "notes-q") renderNoteCards();
+    if (e.target && e.target.id === "notes-q") {
+      const reader = document.getElementById("notes-reader");
+      const q = String(e.target.value || "").trim();
+      if (!q) noteSearchLeaveAsked = false;
+      if (q && reader && !reader.hidden && (!noteDirty() || !noteSearchLeaveAsked)) {
+        noteSearchLeaveAsked = noteDirty();
+        if (!backToNoteList()) return;
+      }
+      renderNoteCards();
+    }
     if (e.target && e.target.id === "note-ed") {
       const msg = document.getElementById("note-msg");
       if (noteDirty() && msg) msg.textContent = "Sin guardar";
@@ -1319,11 +1328,6 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
         return;
       }
       saveOpenNote();
-    }
-    if (e.key === "Escape" && e.target && e.target.matches && e.target.matches("[data-note-title-input]")) {
-      noteTitleEdit = "";
-      renderNoteCards();
-      return;
     }
     if (e.key === "Escape") closeOverlay();
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && document.activeElement?.tagName !== "TEXTAREA") {
@@ -1475,23 +1479,24 @@ ${mapPickerScript()}
   main.notes-on .afn-pick-copy strong { font-size:.82rem; max-width:14rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   main.notes-on .btn { padding:.32rem .65rem; }
   #notes-list { flex:1; min-height:0; overflow:auto; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; }
+  .notes-tools { flex-shrink:0; padding:.75rem 1rem .6rem; border-bottom:1px solid var(--line); background:#0e141c; }
   .notes-head { display:flex; align-items:center; gap:.6rem; margin:0 0 .75rem; flex-shrink:0; flex-wrap:wrap; }
   .notes-head h2 { margin:0; font-size:1.05rem; }
-  .notes-search { flex:1 1 14rem; display:flex; align-items:center; gap:.45rem; min-width:8rem; }
-  .notes-search span { margin:0; }
-  #notes-q { flex:1; min-width:0; width:auto; margin:0; padding:.4rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
+  .notes-search { display:flex; flex-direction:column; align-items:stretch; gap:.28rem; width:100%; min-width:0; }
+  .notes-search span { margin:0; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); font-weight:700; }
+  #notes-q { width:100%; margin:0; padding:.62rem .75rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; font-size:1rem; }
   #notes-q:focus, #note-title:focus, .note-title-row input:focus { outline:1px solid var(--acc); border-color:var(--acc); }
-  #notes-q-hint { flex:1 1 100%; margin:0; min-height:1.1em; }
+  #notes-q-hint { margin:.4rem 0 0; min-height:1.1em; }
   #notes-sync { margin-left:auto; }
   .note-card { gap:.55rem; }
   .note-open { background:transparent; border:0; padding:0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:.32rem; width:100%; }
-  .note-rename { align-self:flex-start; }
-  .note-title-row { display:flex; gap:.35rem; align-items:center; }
-  .note-title-row input, #note-title { min-width:0; padding:.4rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
-  .note-title-row input { flex:1; }
-  .note-titlebar { display:flex; gap:.45rem; align-items:center; padding:.45rem .65rem; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
-  .note-titlebar label { margin:0; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
-  #note-title { flex:1; }
+  .note-title-row { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }
+  .note-title-row .k { flex:1 1 100%; }
+  .note-title-row input, #note-title { min-width:0; padding:.45rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
+  .note-title-row input { flex:1 1 8rem; }
+  .note-titlebar { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; padding:.65rem .75rem; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
+  .note-titlebar .k { flex:1 1 100%; margin:0; }
+  #note-title { flex:1 1 12rem; }
   #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:row; overflow:hidden; }
   .note-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
   .note-tree { width:280px; flex:0 0 280px; min-height:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #2b2b2b; background:#181818; color:#cccccc; }
@@ -1838,16 +1843,18 @@ ${workbenchSections()}
 ${compareSection()}
 ${textEditorSection()}
     <section data-view="notas" hidden>
+      <div class="notes-tools">
+        <label class="notes-search">
+          <span>Buscar notas</span>
+          <input id="notes-q" type="search" placeholder="Escribí el título. Si no aparece, se busca dentro del texto." autocomplete="off"/>
+        </label>
+        <p id="notes-q-hint" class="muted"></p>
+      </div>
       <div id="notes-list">
         <div class="notes-head">
           <h2>Notas</h2>
-          <label class="notes-search">
-            <span class="muted">Buscar</span>
-            <input id="notes-q" type="search" placeholder="Título o, si no está, el texto de la nota" autocomplete="off"/>
-          </label>
           <button type="button" class="btn" id="notes-refresh">Actualizar</button>
           <span id="notes-sync" class="muted"></span>
-          <p id="notes-q-hint" class="muted"></p>
         </div>
         <div id="notes-grid" class="grid">${noteCards}</div>
       </div>
@@ -1855,7 +1862,7 @@ ${textEditorSection()}
         <div id="note-tree" class="note-tree"></div>
         <div class="note-main">
         <div class="note-titlebar">
-          <label for="note-title">Título</label>
+          <span class="k">Editar título</span>
           <input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/>
           <button type="button" class="btn" id="note-title-save">Guardar título</button>
         </div>
