@@ -11,7 +11,7 @@ import { listDiagramIrs } from './diagram-store.js';
 import { loadAgentAssets } from './agent-assets.js';
 import { irToMermaid } from './diagram-ir.js';
 import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid, workspaceFlowMarkdown } from './workspace-flow.js';
-import { listTaskNotes } from './task-notes.js';
+import { filterNotesByQuery, listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { compareCss, compareScript, compareSection } from './dashboard-compare-ui.js';
 import { textEditorCss, textEditorHtml, textEditorScript, textEditorSection } from './dashboard-text-editor.js';
@@ -390,13 +390,16 @@ function buildHtml(data, opts = {}) {
     ? notes
         .map(
           (n) =>
-            `<button type="button" class="tile" data-note-task="${esc(n.slug)}" data-q="${esc([n.title, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
+            `<article class="tile note-card" data-q="${esc([n.title, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
+              <button type="button" class="note-open" data-note-task="${esc(n.slug)}">
               <span class="k">${esc(statusLabel(n.status))}</span>
               <strong>${esc(n.title)}</strong>
               <span class="muted">${esc(noteFilesLabel(n))}</span>
               <code>${esc(n.rel || n.slug)}</code>
               <span class="cta">Abrir →</span>
-            </button>`,
+              </button>
+              <button type="button" class="btn note-rename" data-note-rename="${esc(n.slug)}">Editar título</button>
+            </article>`,
         )
         .join('')
     : `<div class="empty">No hay notas en <code>.afn/notes/</code>. Creá una carpeta en <code>.afn/notes/tareas/</code> y un <code>README.md</code> adentro (también en una subcarpeta). Esta pestaña las muestra en HTML.</div>`;
@@ -464,6 +467,8 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   const bySlug = Object.fromEntries(diagrams.map((d) => [d.slug, d]));
   let notes = JSON.parse(document.getElementById("notes-data")?.textContent || "[]");
   const notesBy = Object.fromEntries(notes.map((n) => [n.slug, n]));
+  const filterNotesByQuery = ${filterNotesByQuery.toString()};
+  let noteTitleEdit = "";
   function noteEsc(s) {
     return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -648,19 +653,81 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       fetchNoteUrl(img.getAttribute("data-note-blob") || "", noteViewBlobs).then((url) => { if (url) img.src = url; });
     });
   }
+  function noteCardHtml(n) {
+    const q = [n.title, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
+    const editing = noteTitleEdit === n.slug;
+    const titleCtl = editing
+      ? '<div class="note-title-row"><input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar título</button></div>'
+      : '<button type="button" class="btn note-rename" data-note-rename="' + noteEsc(n.slug) + '">Editar título</button>';
+    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + '</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir →</span></button>' + titleCtl + '</article>';
+  }
+  function notesQueryLabel(found, raw) {
+    const q = String(raw || "").trim();
+    if (!q) return "";
+    const n = found.notes.length;
+    if (!n) return "Nada en el título ni dentro de las notas.";
+    if (found.via === "title") return n + (n === 1 ? " coincidencia en el título" : " coincidencias en el título");
+    return "Nada en el título. " + n + (n === 1 ? " coincidencia dentro de la nota" : " coincidencias dentro de la nota");
+  }
   function renderNoteCards() {
     const grid = document.getElementById("notes-grid");
     const btn = document.querySelector("nav button[data-go='notas']");
     if (btn) btn.textContent = "Notas (" + notes.length + ")";
+    const rawQ = document.getElementById("notes-q")?.value || "";
+    const found = filterNotesByQuery(notes, rawQ);
+    const hint = document.getElementById("notes-q-hint");
+    if (hint) hint.textContent = notesQueryLabel(found, rawQ);
     if (!grid) return;
     if (!notes.length) {
       grid.innerHTML = '<div class="empty">No hay notas en <code>.afn/notes/</code>. Creá una carpeta en <code>.afn/notes/tareas/</code> y un README.md adentro.</div>';
       return;
     }
-    grid.innerHTML = notes.map((n) => {
-      const q = [n.title, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
-      return '<button type="button" class="tile" data-note-task="' + noteEsc(n.slug) + '" data-q="' + noteEsc(q) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + '</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir →</span></button>';
-    }).join("");
+    if (!found.notes.length) {
+      grid.innerHTML = '<div class="empty">Nada en el título ni dentro de las notas.</div>';
+      return;
+    }
+    grid.innerHTML = found.notes.map(noteCardHtml).join("");
+    const globalQ = (document.getElementById("q")?.value || "").trim().toLowerCase();
+    if (globalQ) {
+      grid.querySelectorAll("[data-q]").forEach((el) => {
+        const hay = (el.getAttribute("data-q") || "").toLowerCase();
+        el.hidden = !hay.includes(globalQ);
+      });
+    }
+  }
+  async function saveNoteTitle(slug, title) {
+    const note = notesBy[slug];
+    const hint = document.getElementById("notes-q-hint");
+    const msg = document.getElementById("note-msg");
+    const readerOpen = document.getElementById("notes-reader") && !document.getElementById("notes-reader").hidden;
+    const say = (t) => {
+      if (readerOpen && msg) msg.textContent = t;
+      else if (hint) hint.textContent = t;
+    };
+    if (!note) return;
+    const next = String(title || "").trim();
+    if (!next) { say("El título no puede quedar vacío."); return; }
+    if (!window.AFN_API || !window.AFN_API.token) { say("Abrí el dashboard del servidor para guardar el título."); return; }
+    say("Guardando título…");
+    try {
+      const r = await fetch((window.AFN_API.base || "") + "/api/notes/title", {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-afn-token": window.AFN_API.token },
+        body: JSON.stringify({ rel: note.rel, slug: note.slug, title: next }),
+      });
+      const j = await r.json();
+      if (!j || !j.ok) { say((j && j.error) || "No pude guardar el título."); return; }
+      note.title = j.title || next;
+      noteTitleEdit = "";
+      renderNoteCards();
+      const input = document.getElementById("note-title");
+      if (input && document.getElementById("note-dl")?.dataset.slug === note.slug) input.value = note.title;
+      const crumb = document.getElementById("note-crumb");
+      if (crumb && document.getElementById("note-dl")?.dataset.slug === note.slug) crumb.textContent = note.rel ? (note.title + " · " + note.rel) : note.title;
+      say("Título guardado.");
+    } catch (err) {
+      say("No pude guardar el título.");
+    }
   }
   function applyNotes(list) {
     notes = Array.isArray(list) ? list : [];
@@ -931,6 +998,8 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const crumb = document.getElementById("note-crumb");
     const st = document.getElementById("note-status");
     if (crumb) crumb.textContent = t.rel ? (t.title + " · " + t.rel) : t.title;
+    const titleInput = document.getElementById("note-title");
+    if (titleInput) titleInput.value = t.title || "";
     if (st) st.textContent = noteStatus(t.status);
     const toc = document.getElementById("note-toc");
     noteViewGen += 1;
@@ -1082,6 +1151,29 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       noteDirsOpen[(dirBtn.dataset.noteDir || "") + "/" + (dirBtn.dataset.dirPath || "")] = !shut;
       return;
     }
+    const renameBtn = e.target.closest("[data-note-rename]");
+    if (renameBtn) {
+      e.preventDefault();
+      noteTitleEdit = renameBtn.dataset.noteRename || "";
+      renderNoteCards();
+      const input = document.querySelector("[data-note-title-input]");
+      if (input) { input.focus(); input.select(); }
+      return;
+    }
+    const titleSave = e.target.closest("[data-note-title-save]");
+    if (titleSave) {
+      e.preventDefault();
+      const input = titleSave.parentElement ? titleSave.parentElement.querySelector("[data-note-title-input]") : null;
+      saveNoteTitle(titleSave.dataset.noteTitleSave || "", input ? input.value : "");
+      return;
+    }
+    if (e.target.closest("#note-title-save")) {
+      e.preventDefault();
+      const open = document.getElementById("note-dl");
+      const input = document.getElementById("note-title");
+      saveNoteTitle((open && open.dataset.slug) || "", input ? input.value : "");
+      return;
+    }
     const noteBtn = e.target.closest("[data-note-task]");
     if (noteBtn) {
       e.preventDefault();
@@ -1195,6 +1287,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   });
   window.addEventListener("input", (e) => {
     if (e.target && e.target.id === "q") applySearch();
+    if (e.target && e.target.id === "notes-q") renderNoteCards();
     if (e.target && e.target.id === "note-ed") {
       const msg = document.getElementById("note-msg");
       if (noteDirty() && msg) msg.textContent = "Sin guardar";
@@ -1203,13 +1296,34 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }
   });
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target && (e.target.id === "note-title" || (e.target.matches && e.target.matches("[data-note-title-input]")))) {
+      e.preventDefault();
+      if (e.target.id === "note-title") {
+        const open = document.getElementById("note-dl");
+        saveNoteTitle((open && open.dataset.slug) || "", e.target.value);
+      } else {
+        const save = e.target.parentElement ? e.target.parentElement.querySelector("[data-note-title-save]") : null;
+        saveNoteTitle((save && save.dataset.noteTitleSave) || "", e.target.value);
+      }
+      return;
+    }
     if (e.key === "Enter" && e.target && e.target.id === "q" && typeof window.afnSqlFindNext === "function") {
       e.preventDefault();
       window.afnSqlFindNext(e.shiftKey ? "prev" : "next");
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && document.getElementById("notes-reader") && !document.getElementById("notes-reader").hidden) {
       e.preventDefault();
+      if (document.activeElement && document.activeElement.id === "note-title") {
+        const open = document.getElementById("note-dl");
+        saveNoteTitle((open && open.dataset.slug) || "", document.activeElement.value);
+        return;
+      }
       saveOpenNote();
+    }
+    if (e.key === "Escape" && e.target && e.target.matches && e.target.matches("[data-note-title-input]")) {
+      noteTitleEdit = "";
+      renderNoteCards();
+      return;
     }
     if (e.key === "Escape") closeOverlay();
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && document.activeElement?.tagName !== "TEXTAREA") {
@@ -1361,9 +1475,23 @@ ${mapPickerScript()}
   main.notes-on .afn-pick-copy strong { font-size:.82rem; max-width:14rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   main.notes-on .btn { padding:.32rem .65rem; }
   #notes-list { flex:1; min-height:0; overflow:auto; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; }
-  .notes-head { display:flex; align-items:center; gap:.6rem; margin:0 0 .75rem; flex-shrink:0; }
+  .notes-head { display:flex; align-items:center; gap:.6rem; margin:0 0 .75rem; flex-shrink:0; flex-wrap:wrap; }
   .notes-head h2 { margin:0; font-size:1.05rem; }
-  .notes-head .muted { margin-left:auto; }
+  .notes-search { flex:1 1 14rem; display:flex; align-items:center; gap:.45rem; min-width:8rem; }
+  .notes-search span { margin:0; }
+  #notes-q { flex:1; min-width:0; width:auto; margin:0; padding:.4rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
+  #notes-q:focus, #note-title:focus, .note-title-row input:focus { outline:1px solid var(--acc); border-color:var(--acc); }
+  #notes-q-hint { flex:1 1 100%; margin:0; min-height:1.1em; }
+  #notes-sync { margin-left:auto; }
+  .note-card { gap:.55rem; }
+  .note-open { background:transparent; border:0; padding:0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:.32rem; width:100%; }
+  .note-rename { align-self:flex-start; }
+  .note-title-row { display:flex; gap:.35rem; align-items:center; }
+  .note-title-row input, #note-title { min-width:0; padding:.4rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
+  .note-title-row input { flex:1; }
+  .note-titlebar { display:flex; gap:.45rem; align-items:center; padding:.45rem .65rem; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
+  .note-titlebar label { margin:0; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  #note-title { flex:1; }
   #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:row; overflow:hidden; }
   .note-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
   .note-tree { width:280px; flex:0 0 280px; min-height:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #2b2b2b; background:#181818; color:#cccccc; }
@@ -1713,14 +1841,24 @@ ${textEditorSection()}
       <div id="notes-list">
         <div class="notes-head">
           <h2>Notas</h2>
+          <label class="notes-search">
+            <span class="muted">Buscar</span>
+            <input id="notes-q" type="search" placeholder="Título o, si no está, el texto de la nota" autocomplete="off"/>
+          </label>
           <button type="button" class="btn" id="notes-refresh">Actualizar</button>
           <span id="notes-sync" class="muted"></span>
+          <p id="notes-q-hint" class="muted"></p>
         </div>
         <div id="notes-grid" class="grid">${noteCards}</div>
       </div>
       <div id="notes-reader" hidden>
         <div id="note-tree" class="note-tree"></div>
         <div class="note-main">
+        <div class="note-titlebar">
+          <label for="note-title">Título</label>
+          <input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/>
+          <button type="button" class="btn" id="note-title-save">Guardar título</button>
+        </div>
         <div id="note-toc" class="note-filebar"></div>
         <div id="note-gallery" class="note-gallery" hidden></div>
         <div id="note-split" class="note-split mode-view">

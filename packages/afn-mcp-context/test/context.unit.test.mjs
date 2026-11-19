@@ -18,7 +18,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
-import { saveTaskNote, setTaskNoteStatus, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile, noteMime } from '../lib/task-notes.js';
+import { saveTaskNote, setTaskNoteStatus, setNoteTitle, filterNotesByQuery, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile, noteMime } from '../lib/task-notes.js';
 import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
@@ -863,6 +863,57 @@ test('wiki de tareas: varios md, status y dashboard; no pisa ARQUITECTURA.md', (
   assert.equal(arch.includes('Login OAuth'), false);
 });
 
+test('notas: el título se edita y la búsqueda mira el título antes que el texto', () => {
+  const root = tmp();
+  const saved = saveTaskNote(root, {
+    task: 'Caja diaria',
+    title: 'Caja diaria',
+    filename: 'readme.md',
+    markdown: '# Caja\n\nArqueo de turno.\n',
+    status: 'listo',
+  });
+  assert.equal(saved.ok, true);
+  const renamed = setNoteTitle(root, { slug: saved.slug, title: 'Liquidación de caja' });
+  assert.equal(renamed.ok, true);
+  assert.equal(renamed.title, 'Liquidación de caja');
+  const again = setNoteTitle(root, { rel: saved.rel.replace(/\/readme\.md$/, ''), title: 'Arqueo final' });
+  assert.equal(again.ok, true);
+  const listed = listTaskNotes(root);
+  assert.equal(listed[0].title, 'Arqueo final');
+  assert.equal(listed[0].status, 'listo');
+  assert.match(fs.readFileSync(path.join(root, '.afn', 'notes', 'tareas', 'caja-diaria', 'readme.md'), 'utf8'), /Arqueo de turno/);
+  assert.equal(setNoteTitle(root, { slug: 'caja-diaria', title: '   ' }).ok, false);
+  assert.equal(setNoteTitle(root, { slug: 'no-esta', title: 'X' }).ok, false);
+  assert.equal(setNoteTitle(root, { rel: '.afn/notes/tareas/caja-diaria/../../package.json', title: 'X' }).ok, false);
+
+  fs.writeFileSync(path.join(root, '.afn', 'notes', 'tareas', 'suelta.md'), '# Suelta\n\nTexto interno del archivo.\n');
+  const loose = setNoteTitle(root, { rel: '.afn/notes/tareas/suelta.md', title: 'Nota suelta' });
+  assert.equal(loose.ok, true);
+  const fileNote = listTaskNotes(root).find((n) => n.rel === '.afn/notes/tareas/suelta.md');
+  assert.equal(fileNote.title, 'Nota suelta');
+  assert.equal(fs.existsSync(path.join(root, '.afn', 'notes', 'tareas', 'meta.json')), false);
+
+  const notes = [
+    { title: 'Fondos', docs: [{ title: 'Fondos', markdown: 'liquidación del día' }] },
+    { title: 'Caja', docs: [{ title: 'Caja', markdown: 'fondos del turno' }] },
+  ];
+  assert.equal(filterNotesByQuery(notes, '').via, 'all');
+  assert.equal(filterNotesByQuery(notes, '').notes.length, 2);
+  assert.deepEqual(filterNotesByQuery(notes, 'fondos').notes.map((n) => n.title), ['Fondos']);
+  assert.equal(filterNotesByQuery(notes, 'FÓNdos').via, 'title');
+  assert.deepEqual(filterNotesByQuery(notes, 'liquidacion').notes.map((n) => n.title), ['Fondos']);
+  assert.equal(filterNotesByQuery(notes, 'liquidacion').via, 'body');
+  assert.equal(filterNotesByQuery(notes, 'no-esta').notes.length, 0);
+
+  const html = fs.readFileSync(writeDashboard(root, { open: false }).file, 'utf8');
+  assert.match(html, /id="notes-q"/);
+  assert.match(html, /id="note-title"/);
+  assert.match(html, /Editar título/);
+  assert.match(html, /function filterNotesByQuery/);
+  assert.match(html, /\/api\/notes\/title/);
+  assert.match(html, /Arqueo final/);
+});
+
 test('notas: carpeta con cualquier nombre y README anidado se ven en HTML', () => {
   const root = tmp();
   const dir = path.join(root, '.afn', 'notes', 'tareas', 'HU_102030 Fondos');
@@ -1331,8 +1382,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.73/);
-  assert.match(html, /data-afn-version="1\.4\.73"/);
+  assert.match(html, /v1\.4\.75/);
+  assert.match(html, /data-afn-version="1\.4\.75"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1456,7 +1507,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
     const whoRes = await fetch(`http://127.0.0.1:${info.port}/api/who`);
     const who = await whoRes.json();
-    assert.equal(who.version, '1.4.74');
+    assert.equal(who.version, '1.4.75');
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
@@ -1464,7 +1515,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.73/);
+    assert.match(liveHtml, /v1\.4\.75/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

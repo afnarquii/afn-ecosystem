@@ -176,12 +176,15 @@ afn_script  action: "run"  id: "informe"  params: { "desde": "2024-01-01", "clie
 | Guardar un hecho (no el chat, no secretos) | `afn_mem_save` | |
 | Abrir / cerrar sesión de trabajo | `afn_session_start` / `afn_session_summary` | `node …\index.js session-start` |
 | Dejar el README de una tarea | `afn_note_save` | `node …\index.js note-save archivo.md` |
+| Nota con veredicto, por qué, código y pruebas, sin tocar el producto | `afn_note_save` con `flow: true` si el mensaje trae `nota-flujo` | |
 | Listar entregas | `afn_note_list` | |
 | Marcar draft / listo / aprobado | `afn_note_set_status` | |
 | PDF, Excel o imagen a Markdown | `afn_extract_file` | `node …\index.js extract archivo.pdf` |
 | Salud de `.afn/` | `afn_doctor` | `node …\index.js doctor` |
 
-Las notas van a `.afn/notes/tareas/<carpeta>/`. El nombre de la carpeta puede llevar mayúsculas, espacios o `_`. Un `README.md` (también en una subcarpeta) y un `.html` aparecen en el dashboard → **Notas**. Markdown se abre en texto y en vista previa. HTML se reconoce y se ve como página. **Guardar** (o Ctrl+S) escribe el mismo archivo. También entra el resto de `.afn/notes/`. No reemplazan `ARQUITECTURA.md`. Si acabás de crear el archivo, en Notas usá **Actualizar**.
+Las notas van a `.afn/notes/tareas/<carpeta>/`. El nombre de la carpeta puede llevar mayúsculas, espacios o `_`. Un `README.md` (también en una subcarpeta) y un `.html` aparecen en el dashboard → **Notas**. Markdown se abre en texto y en vista previa. HTML se reconoce y se ve como página. **Guardar** (o Ctrl+S) escribe el mismo archivo. También entra el resto de `.afn/notes/`. No reemplazan `ARQUITECTURA.md`. Si acabás de crear el archivo, en Notas usá **Actualizar**. **Editar título** (o el campo Título al abrirla) cambia el nombre con el que se busca; queda en `meta.json` de esa carpeta. El buscador de Notas filtra primero por ese título y, si no hay coincidencias, busca dentro del texto.
+
+La palabra **nota-flujo** en el chat pide el contrato completo en ese turno: veredicto, por qué, qué hay hoy, qué cambia, código propuesto, pruebas propuestas y qué no se toca. El agente lo guarda con `afn_note_save` (`flow: true`). El código del producto entra en otro mensaje («implementá la nota»). `guarda el readme …` sin esa palabra sigue siendo local y no llama al modelo.
 
 ## 8. Comandos de terminal
 

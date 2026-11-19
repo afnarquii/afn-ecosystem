@@ -321,6 +321,13 @@ export function listTaskNotes(root, opts = {}) {
       pushFile(abs, ent.name.replace(/\.[^.]+$/, '') || ent.name, `.afn/notes/${ent.name}`);
     }
   }
+  const loose = readLooseTitles(root);
+  for (const g of groups) {
+    const custom = cleanNoteTitle(loose[g.rel]);
+    if (!custom) continue;
+    const located = locateNoteGroup(root, g.rel);
+    if (located && located.kind === 'file') g.title = custom;
+  }
   return groups.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)) || a.title.localeCompare(b.title));
 }
 
@@ -392,6 +399,117 @@ export function saveTaskNoteFromFile(root, filePath) {
   const base = path.basename(file);
   const stem = base.replace(/\.md$/i, '');
   return saveTaskNote(root, { task: stem, title: stem, filename: base, markdown });
+}
+
+function cleanNoteTitle(raw) {
+  return String(raw || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+function looseTitlesFile(root) {
+  return path.join(afnPath(root, 'notes'), '.titles.json');
+}
+
+function readLooseTitles(root) {
+  try {
+    const j = JSON.parse(fs.readFileSync(looseTitlesFile(root), 'utf8'));
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return {};
+    return j;
+  } catch {
+    return {};
+  }
+}
+
+function writeLooseTitle(root, rel, title) {
+  const map = readLooseTitles(root);
+  const next = {};
+  for (const [k, v] of Object.entries(map)) {
+    const t = cleanNoteTitle(v);
+    if (t && k.startsWith('.afn/notes/') && !k.includes('..')) next[k] = t;
+  }
+  next[rel] = title;
+  const file = looseTitlesFile(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+}
+
+/** Carpeta propia de la nota, o archivo suelto bajo `.afn/notes`. */
+function locateNoteGroup(root, rel) {
+  const notesRoot = path.resolve(afnPath(root, 'notes'));
+  let raw = String(rel || '').trim().replace(/\\/g, '/');
+  if (raw.startsWith('./')) raw = raw.slice(2);
+  if (raw.toLowerCase().startsWith('.afn/notes/')) raw = raw.slice('.afn/notes/'.length);
+  while (raw.startsWith('/')) raw = raw.slice(1);
+  if (!raw || raw.split('/').some((part) => !part || part === '.' || part === '..')) return null;
+  const abs = path.resolve(notesRoot, ...raw.split('/'));
+  let realRoot = notesRoot;
+  let realAbs = abs;
+  try {
+    realRoot = fs.realpathSync(notesRoot);
+    realAbs = fs.realpathSync(abs);
+  } catch {
+    return null;
+  }
+  const inside = path.relative(realRoot, realAbs);
+  if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) return null;
+  if (inside.split(path.sep).join('/') === 'tareas') return null;
+  let st;
+  try {
+    st = fs.statSync(realAbs);
+  } catch {
+    return null;
+  }
+  if (st.isDirectory()) return { kind: 'dir', dir: realAbs };
+  if (st.isFile()) return { kind: 'file' };
+  return null;
+}
+
+/**
+ * Cambia el título visible de una nota que ya existe.
+ * Carpeta: `meta.json`. Archivo suelto: `.afn/notes/.titles.json`.
+ * @param {string} root
+ * @param {{ rel?: string, slug?: string, title?: string }} input
+ */
+export function setNoteTitle(root, input = {}) {
+  const title = cleanNoteTitle(input.title);
+  if (!title) return { ok: false, error: 'título vacío' };
+  const wantRel = String(input.rel || '').trim();
+  const wantSlug = String(input.slug || '').trim();
+  if (!wantRel && !wantSlug) return { ok: false, error: 'no existe' };
+  const note = listTaskNotes(root).find((n) => (wantRel ? n.rel === wantRel : n.slug === wantSlug));
+  if (!note) return { ok: false, error: 'no existe' };
+  const located = locateNoteGroup(root, note.rel);
+  if (!located) return { ok: false, error: 'ruta inválida' };
+  if (located.kind === 'file') {
+    writeLooseTitle(root, note.rel, title);
+    return { ok: true, title, slug: note.slug, rel: note.rel };
+  }
+  const prev = readMeta(located.dir, path.basename(located.dir));
+  const now = new Date().toISOString();
+  writeMeta(located.dir, {
+    slug: prev.slug || path.basename(located.dir),
+    title,
+    status: prev.status || 'draft',
+    createdAt: prev.createdAt || now,
+    updatedAt: now,
+  });
+  return { ok: true, title, slug: note.slug, rel: note.rel };
+}
+
+/**
+ * Busca notas: primero por título. Si no hay ninguna, dentro del texto.
+ * Misma función en el dashboard (se incrusta con toString).
+ * @param {Array<{ title?: string, docs?: Array<{ title?: string, markdown?: string }> }>} notes
+ * @param {string} query
+ */
+export function filterNotesByQuery(notes, query) {
+  const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = fold(query).trim();
+  const list = Array.isArray(notes) ? notes : [];
+  if (!q) return { notes: list, via: 'all' };
+  const byTitle = list.filter((n) => fold(n && n.title).includes(q));
+  if (byTitle.length) return { notes: byTitle, via: 'title' };
+  const byBody = list.filter((n) => (n && n.docs ? n.docs : []).some((d) => fold(`${d && d.title ? d.title : ''}\n${d && d.markdown ? d.markdown : ''}`).includes(q)));
+  return { notes: byBody, via: 'body' };
 }
 
 /**

@@ -17,7 +17,7 @@ import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
 import { listMapFolders, saveMapSelection } from './map-selection.js';
 import { discoverWorkspace } from './discover.js';
-import { noteMime, resolveNoteFile, saveExistingNote } from './task-notes.js';
+import { noteMime, resolveNoteFile, saveExistingNote, setNoteTitle } from './task-notes.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -139,6 +139,12 @@ async function handleApi(state, token, req, res, url) {
     const raw = JSON.parse((await readBody(req)) || '{}');
     const text = String(raw.text ?? '').slice(0, 200_000);
     send(res, 200, { ok: true, html: mdToHtml(text) });
+    return;
+  }
+  if (req.method === 'PUT' && route === '/api/notes/title') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const saved = setNoteTitle(root, { rel: raw.rel, slug: raw.slug, title: raw.title });
+    send(res, saved.ok ? 200 : 400, saved);
     return;
   }
   if (req.method === 'PUT' && route === '/api/notes') {
