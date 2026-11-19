@@ -17,7 +17,7 @@ import { portProjectAssets } from './project-port.js';
 import { pickFolder, pickScriptFile } from './pick-folder.js';
 import { listMapFolders, saveMapSelection } from './map-selection.js';
 import { discoverWorkspace } from './discover.js';
-import { noteMime, resolveNoteFile, saveExistingNote, setNoteTitle } from './task-notes.js';
+import { listNoteGroups, noteMime, rememberNoteGroup, resolveNoteFile, saveExistingNote, setNoteTitle } from './task-notes.js';
 
 /**
  * Cambia el repo que sirve este dashboard. El HTML y las APIs leen `state.root`.
@@ -113,7 +113,7 @@ async function handleApi(state, token, req, res, url) {
     return;
   }
   if (req.method === 'GET' && route === '/api/notes') {
-    send(res, 200, { ok: true, notes: dashboardNotes(root) });
+    send(res, 200, { ok: true, notes: dashboardNotes(root), groups: listNoteGroups(root) });
     return;
   }
   if (req.method === 'GET' && route === '/api/notes/file') {
@@ -143,7 +143,13 @@ async function handleApi(state, token, req, res, url) {
   }
   if (req.method === 'PUT' && route === '/api/notes/title') {
     const raw = JSON.parse((await readBody(req)) || '{}');
-    const saved = setNoteTitle(root, { rel: raw.rel, slug: raw.slug, title: raw.title });
+    const saved = setNoteTitle(root, { rel: raw.rel, slug: raw.slug, title: raw.title, ...(Object.prototype.hasOwnProperty.call(raw, 'group') ? { group: raw.group } : {}) });
+    send(res, saved.ok ? 200 : 400, saved);
+    return;
+  }
+  if (req.method === 'POST' && route === '/api/notes/groups') {
+    const raw = JSON.parse((await readBody(req)) || '{}');
+    const saved = rememberNoteGroup(root, raw.name || raw.group);
     send(res, saved.ok ? 200 : 400, saved);
     return;
   }

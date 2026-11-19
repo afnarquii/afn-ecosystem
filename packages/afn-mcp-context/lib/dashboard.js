@@ -11,7 +11,7 @@ import { listDiagramIrs } from './diagram-store.js';
 import { loadAgentAssets } from './agent-assets.js';
 import { irToMermaid } from './diagram-ir.js';
 import { loadWorkspaceFlow, buildLayersMermaid, buildEndpointsMermaid, buildE2eMermaid, workspaceFlowMarkdown } from './workspace-flow.js';
-import { filterNotesByQuery, listTaskNotes } from './task-notes.js';
+import { filterNotesByQuery, filterNotesForView, listNoteGroups, listTaskNotes } from './task-notes.js';
 import { workbenchNavButtons, workbenchSections, workbenchScript } from './dashboard-workbench.js';
 import { compareCss, compareScript, compareSection } from './dashboard-compare-ui.js';
 import { textEditorCss, textEditorHtml, textEditorScript, textEditorSection } from './dashboard-text-editor.js';
@@ -235,6 +235,7 @@ export function dashboardNotes(root) {
   return listTaskNotes(root, { includeBody: true }).map((n) => ({
     slug: n.slug,
     title: n.title,
+    group: n.group || '',
     status: n.status,
     updatedAt: n.updatedAt,
     rel: n.rel || '',
@@ -352,7 +353,10 @@ function buildHtml(data, opts = {}) {
       edges: d.edges,
     })),
   );
+  const noteGroupNames = listNoteGroups(root);
+  const ungroupedCount = notes.filter((n) => !n.group).length;
   const notesPayload = JSON.stringify(notes);
+  const noteGroupsPayload = JSON.stringify(noteGroupNames);
   const statusLabel = (s) => ({ draft: 'Borrador', listo: 'Listo', aprobado: 'Aprobado' }[s] || s);
   const listed = flow?.projects || projects;
   const portRows = listed
@@ -390,18 +394,18 @@ function buildHtml(data, opts = {}) {
     ? notes
         .map(
           (n) =>
-            `<article class="tile note-card" data-q="${esc([n.title, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
-              <div class="note-title-row">
-                <span class="k">Editar título</span>
-                <input data-note-title-input value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota"/>
-                <button type="button" class="btn" data-note-title-save="${esc(n.slug)}">Guardar título</button>
+            `<article class="tile note-card" data-q="${esc([n.title, n.group, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
+              <div class="note-card-top"><span class="note-pill">${esc(statusLabel(n.status))}</span>${n.group ? `<span class="note-pill group">${esc(n.group)}</span>` : '<span class="note-pill quiet">Sin grupo</span>'}</div>
+              <div class="note-card-edit">
+                <label>Editar título<input data-note-title-input value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota"/></label>
+                <label>Grupo<input data-note-group-input list="note-group-list" value="${esc(n.group || '')}" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"/></label>
+                <button type="button" class="btn" data-note-title-save="${esc(n.slug)}">Guardar</button>
               </div>
               <button type="button" class="note-open" data-note-task="${esc(n.slug)}">
-              <span class="k">${esc(statusLabel(n.status))}</span>
               <strong>${esc(n.title)}</strong>
               <span class="muted">${esc(noteFilesLabel(n))}</span>
               <code>${esc(n.rel || n.slug)}</code>
-              <span class="cta">Abrir →</span>
+              <span class="cta">Abrir nota</span>
               </button>
             </article>`,
         )
@@ -471,7 +475,10 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   const bySlug = Object.fromEntries(diagrams.map((d) => [d.slug, d]));
   let notes = JSON.parse(document.getElementById("notes-data")?.textContent || "[]");
   const notesBy = Object.fromEntries(notes.map((n) => [n.slug, n]));
+  let noteGroups = JSON.parse(document.getElementById("note-groups-data")?.textContent || "[]");
+  let noteGroupFilter = "*";
   const filterNotesByQuery = ${filterNotesByQuery.toString()};
+  const filterNotesForView = ${filterNotesForView.toString()};
   function noteEsc(s) {
     return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -656,9 +663,37 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       fetchNoteUrl(img.getAttribute("data-note-blob") || "", noteViewBlobs).then((url) => { if (url) img.src = url; });
     });
   }
+  function noteGroupKey(name) {
+    return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  }
+  function noteGroupNamesNow() {
+    const seen = {};
+    const out = [];
+    function add(name) {
+      const clean = String(name || "").trim();
+      const key = noteGroupKey(clean);
+      if (!key || key === "todas" || key === "sin grupo" || key === "__none__" || seen[key]) return;
+      seen[key] = true;
+      out.push(clean);
+    }
+    (noteGroups || []).forEach(add);
+    notes.forEach((n) => add(n.group));
+    out.sort((a, b) => a.localeCompare(b, "es"));
+    return out;
+  }
+  function renderNoteGroups() {
+    const box = document.getElementById("notes-groups");
+    const list = document.getElementById("note-group-list");
+    const names = noteGroupNamesNow();
+    if (list) list.innerHTML = names.map((name) => "<option value=\\"" + noteEsc(name) + "\\"></option>").join("");
+    if (!box) return;
+    const chips = [{ id: "*", label: "Todas", count: notes.length }, { id: "__none__", label: "Sin grupo", count: notes.filter((n) => !String(n.group || "").trim()).length }].concat(names.map((name) => ({ id: name, label: name, count: notes.filter((n) => noteGroupKey(n.group) === noteGroupKey(name)).length })));
+    box.innerHTML = chips.map((c) => '<button type="button" class="note-filter' + (noteGroupFilter === c.id ? " on" : "") + '" data-note-group-filter="' + noteEsc(c.id) + '">' + noteEsc(c.label) + ' <span>' + c.count + "</span></button>").join("");
+  }
   function noteCardHtml(n) {
-    const q = [n.title, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
-    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-title-row"><span class="k">Editar título</span><input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar título</button></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><span class="k">' + noteEsc(noteStatus(n.status)) + '</span><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + '</span><code>' + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir →</span></button></article>';
+    const q = [n.title, n.group, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
+    const badge = n.group ? '<span class="note-pill group">' + noteEsc(n.group) + "</span>" : '<span class="note-pill quiet">Sin grupo</span>';
+    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-card-top"><span class="note-pill">' + noteEsc(noteStatus(n.status)) + "</span>" + badge + '</div><div class="note-card-edit"><label>Editar título<input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"></label><label>Grupo<input data-note-group-input list="note-group-list" value="' + noteEsc(n.group || "") + '" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"></label><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar</button></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + "</span><code>" + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir nota</span></button></article>';
   }
   let noteSearchLeaveAsked = false;
   function backToNoteList() {
@@ -684,16 +719,20 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const btn = document.querySelector("nav button[data-go='notas']");
     if (btn) btn.textContent = "Notas (" + notes.length + ")";
     const rawQ = document.getElementById("notes-q")?.value || "";
-    const found = filterNotesByQuery(notes, rawQ);
+    const found = filterNotesForView(notes, noteGroupFilter, rawQ);
     const hint = document.getElementById("notes-q-hint");
     if (hint) hint.textContent = notesQueryLabel(found, rawQ);
+    renderNoteGroups();
     if (!grid) return;
     if (!notes.length) {
       grid.innerHTML = '<div class="empty">No hay notas en <code>.afn/notes/</code>. Creá una carpeta en <code>.afn/notes/tareas/</code> y un README.md adentro.</div>';
       return;
     }
     if (!found.notes.length) {
-      grid.innerHTML = '<div class="empty">Nada en el título ni dentro de las notas.</div>';
+      const inGroup = noteGroupFilter && noteGroupFilter !== "*";
+      grid.innerHTML = inGroup && !String(rawQ || "").trim()
+        ? '<div class="empty">Este grupo todavía no tiene notas. En una tarjeta escribí ese nombre en Grupo y guardá. Si el grupo queda vacío, la nota sigue suelta.</div>'
+        : '<div class="empty">Nada en el título ni dentro de las notas de esta vista.</div>';
       return;
     }
     grid.innerHTML = found.notes.map(noteCardHtml).join("");
@@ -705,7 +744,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       });
     }
   }
-  async function saveNoteTitle(slug, title) {
+  async function saveNoteTitle(slug, title, group) {
     const note = notesBy[slug];
     const hint = document.getElementById("notes-q-hint");
     const msg = document.getElementById("note-msg");
@@ -718,31 +757,59 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const next = String(title || "").trim();
     if (!next) { say("El título no puede quedar vacío."); return; }
     if (!window.AFN_API || !window.AFN_API.token) { say("Abrí el dashboard del servidor para guardar el título."); return; }
-    say("Guardando título…");
+    say("Guardando…");
     try {
       const r = await fetch((window.AFN_API.base || "") + "/api/notes/title", {
         method: "PUT",
         headers: { "content-type": "application/json", "x-afn-token": window.AFN_API.token },
-        body: JSON.stringify({ rel: note.rel, slug: note.slug, title: next }),
+        body: JSON.stringify({ rel: note.rel, slug: note.slug, title: next, group: String(group || "") }),
       });
       const j = await r.json();
-      if (!j || !j.ok) { say((j && j.error) || "No pude guardar el título."); return; }
+      if (!j || !j.ok) { say((j && j.error) || "No pude guardar."); return; }
       note.title = j.title || next;
+      note.group = j.group || "";
+      if (Array.isArray(j.groups)) noteGroups = j.groups;
       renderNoteCards();
       const input = document.getElementById("note-title");
+      const groupInput = document.getElementById("note-group");
       if (input && document.getElementById("note-dl")?.dataset.slug === note.slug) input.value = note.title;
+      if (groupInput && document.getElementById("note-dl")?.dataset.slug === note.slug) groupInput.value = note.group || "";
       const crumb = document.getElementById("note-crumb");
       if (crumb && document.getElementById("note-dl")?.dataset.slug === note.slug) crumb.textContent = note.rel ? (note.title + " · " + note.rel) : note.title;
-      say("Título guardado.");
+      say(note.group ? "Guardado en " + note.group + "." : "Guardado, sin grupo.");
     } catch (err) {
       say("No pude guardar el título.");
     }
   }
-  function applyNotes(list) {
+  function applyNotes(list, groups) {
     notes = Array.isArray(list) ? list : [];
+    if (Array.isArray(groups)) noteGroups = groups;
     Object.keys(notesBy).forEach((k) => { delete notesBy[k]; });
     notes.forEach((n) => { notesBy[n.slug] = n; });
     renderNoteCards();
+  }
+  async function createNoteGroup() {
+    const input = document.getElementById("notes-group-new");
+    const hint = document.getElementById("notes-q-hint");
+    const name = input ? String(input.value || "").trim() : "";
+    if (!name) { if (hint) hint.textContent = "Escribí el nombre del grupo."; return; }
+    if (!window.AFN_API || !window.AFN_API.token) { if (hint) hint.textContent = "Abrí el dashboard del servidor para crear el grupo."; return; }
+    try {
+      const r = await fetch((window.AFN_API.base || "") + "/api/notes/groups", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-afn-token": window.AFN_API.token },
+        body: JSON.stringify({ name: name }),
+      });
+      const j = await r.json();
+      if (!j || !j.ok) { if (hint) hint.textContent = (j && j.error) || "No pude crear el grupo."; return; }
+      noteGroups = Array.isArray(j.groups) ? j.groups : noteGroups.concat([j.name]);
+      noteGroupFilter = j.name || name;
+      if (input) input.value = "";
+      if (hint) hint.textContent = "Grupo " + (j.name || name) + " listo. Elegilo en una nota y guardá, o dejala sin grupo.";
+      renderNoteCards();
+    } catch (err) {
+      if (hint) hint.textContent = "No pude crear el grupo.";
+    }
   }
   let notesLoading = null;
   function refreshNotes() {
@@ -758,7 +825,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }).then((r) => r.json()).then((j) => {
       if (!j || !j.ok || !Array.isArray(j.notes)) throw new Error((j && j.error) || "notes");
       const reading = parseNoteHash(location.hash);
-      applyNotes(j.notes);
+      applyNotes(j.notes, j.groups);
       if (st) st.textContent = notes.length + (notes.length === 1 ? " nota en disco" : " notas en disco");
       if (reading.slug && notesBy[reading.slug] && location.hash.startsWith("#n-") && !noteDirty()) showNote(reading.slug, reading.file);
     }).catch(() => {
@@ -1008,7 +1075,9 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     const st = document.getElementById("note-status");
     if (crumb) crumb.textContent = t.rel ? (t.title + " · " + t.rel) : t.title;
     const titleInput = document.getElementById("note-title");
+    const groupInput = document.getElementById("note-group");
     if (titleInput) titleInput.value = t.title || "";
+    if (groupInput) groupInput.value = t.group || "";
     if (st) st.textContent = noteStatus(t.status);
     const toc = document.getElementById("note-toc");
     noteViewGen += 1;
@@ -1160,18 +1229,33 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       noteDirsOpen[(dirBtn.dataset.noteDir || "") + "/" + (dirBtn.dataset.dirPath || "")] = !shut;
       return;
     }
+    const groupFilter = e.target.closest("[data-note-group-filter]");
+    if (groupFilter) {
+      e.preventDefault();
+      noteGroupFilter = groupFilter.dataset.noteGroupFilter || "*";
+      renderNoteCards();
+      return;
+    }
+    if (e.target.closest("#notes-group-add")) {
+      e.preventDefault();
+      createNoteGroup();
+      return;
+    }
     const titleSave = e.target.closest("[data-note-title-save]");
     if (titleSave) {
       e.preventDefault();
-      const input = titleSave.parentElement ? titleSave.parentElement.querySelector("[data-note-title-input]") : null;
-      saveNoteTitle(titleSave.dataset.noteTitleSave || "", input ? input.value : "");
+      const card = titleSave.closest(".note-card");
+      const input = card ? card.querySelector("[data-note-title-input]") : null;
+      const group = card ? card.querySelector("[data-note-group-input]") : null;
+      saveNoteTitle(titleSave.dataset.noteTitleSave || "", input ? input.value : "", group ? group.value : "");
       return;
     }
     if (e.target.closest("#note-title-save")) {
       e.preventDefault();
       const open = document.getElementById("note-dl");
       const input = document.getElementById("note-title");
-      saveNoteTitle((open && open.dataset.slug) || "", input ? input.value : "");
+      const group = document.getElementById("note-group");
+      saveNoteTitle((open && open.dataset.slug) || "", input ? input.value : "", group ? group.value : "");
       return;
     }
     const noteBtn = e.target.closest("[data-note-task]");
@@ -1305,14 +1389,22 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     }
   });
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && e.target && (e.target.id === "note-title" || (e.target.matches && e.target.matches("[data-note-title-input]")))) {
+    if (e.key === "Enter" && e.target && e.target.id === "notes-group-new") {
       e.preventDefault();
-      if (e.target.id === "note-title") {
+      createNoteGroup();
+      return;
+    }
+    if (e.key === "Enter" && e.target && (e.target.id === "note-title" || e.target.id === "note-group" || (e.target.matches && (e.target.matches("[data-note-title-input]") || e.target.matches("[data-note-group-input]"))))) {
+      e.preventDefault();
+      if (e.target.id === "note-title" || e.target.id === "note-group") {
         const open = document.getElementById("note-dl");
-        saveNoteTitle((open && open.dataset.slug) || "", e.target.value);
+        saveNoteTitle((open && open.dataset.slug) || "", (document.getElementById("note-title") || {}).value || "", (document.getElementById("note-group") || {}).value || "");
       } else {
-        const save = e.target.parentElement ? e.target.parentElement.querySelector("[data-note-title-save]") : null;
-        saveNoteTitle((save && save.dataset.noteTitleSave) || "", e.target.value);
+        const card = e.target.closest(".note-card");
+        const save = card ? card.querySelector("[data-note-title-save]") : null;
+        const title = card ? card.querySelector("[data-note-title-input]") : null;
+        const group = card ? card.querySelector("[data-note-group-input]") : null;
+        saveNoteTitle((save && save.dataset.noteTitleSave) || "", title ? title.value : "", group ? group.value : "");
       }
       return;
     }
@@ -1324,7 +1416,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       e.preventDefault();
       if (document.activeElement && document.activeElement.id === "note-title") {
         const open = document.getElementById("note-dl");
-        saveNoteTitle((open && open.dataset.slug) || "", document.activeElement.value);
+        saveNoteTitle((open && open.dataset.slug) || "", (document.getElementById("note-title") || {}).value || "", (document.getElementById("note-group") || {}).value || "");
         return;
       }
       saveOpenNote();
@@ -1479,24 +1571,44 @@ ${mapPickerScript()}
   main.notes-on .afn-pick-copy strong { font-size:.82rem; max-width:14rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   main.notes-on .btn { padding:.32rem .65rem; }
   #notes-list { flex:1; min-height:0; overflow:auto; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; }
-  .notes-tools { flex-shrink:0; padding:.75rem 1rem .6rem; border-bottom:1px solid var(--line); background:#0e141c; }
-  .notes-head { display:flex; align-items:center; gap:.6rem; margin:0 0 .75rem; flex-shrink:0; flex-wrap:wrap; }
-  .notes-head h2 { margin:0; font-size:1.05rem; }
+  .notes-tools { flex-shrink:0; padding:.85rem 1.1rem .75rem; border-bottom:1px solid var(--line); background:linear-gradient(180deg,#121a24 0%,#0e141c 100%); }
+  .notes-tools-top { display:flex; align-items:flex-start; gap:.8rem; margin:0 0 .7rem; }
+  .notes-tools-top h2 { margin:0; font-size:1.2rem; letter-spacing:-.02em; }
+  .notes-tools-top p { margin:.15rem 0 0; max-width:62ch; }
+  .notes-tools-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }
+  #notes-sync { margin:0; }
   .notes-search { display:flex; flex-direction:column; align-items:stretch; gap:.28rem; width:100%; min-width:0; }
-  .notes-search span { margin:0; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); font-weight:700; }
-  #notes-q { width:100%; margin:0; padding:.62rem .75rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; font-size:1rem; }
-  #notes-q:focus, #note-title:focus, .note-title-row input:focus { outline:1px solid var(--acc); border-color:var(--acc); }
+  .notes-search span { margin:0; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--acc); font-weight:700; }
+  #notes-q, #notes-group-new, #note-title, #note-group, .note-card-edit input { width:100%; margin:0; padding:.62rem .75rem; border-radius:10px; border:1px solid #314258; background:#0c1118; color:var(--ink); font:inherit; font-size:.98rem; }
+  #notes-q:focus, #notes-group-new:focus, #note-title:focus, #note-group:focus, .note-card-edit input:focus { outline:1px solid var(--acc); border-color:var(--acc); }
   #notes-q-hint { margin:.4rem 0 0; min-height:1.1em; }
-  #notes-sync { margin-left:auto; }
-  .note-card { gap:.55rem; }
-  .note-open { background:transparent; border:0; padding:0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:.32rem; width:100%; }
-  .note-title-row { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }
-  .note-title-row .k { flex:1 1 100%; }
-  .note-title-row input, #note-title { min-width:0; padding:.45rem .65rem; border-radius:8px; border:1px solid var(--line); background:#0c1118; color:var(--ink); font:inherit; }
-  .note-title-row input { flex:1 1 8rem; }
-  .note-titlebar { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; padding:.65rem .75rem; border-bottom:1px solid var(--line); background:#10161e; flex-shrink:0; }
-  .note-titlebar .k { flex:1 1 100%; margin:0; }
-  #note-title { flex:1 1 12rem; }
+  .notes-groups-bar { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin-top:.7rem; }
+  #notes-groups { display:flex; flex-wrap:wrap; gap:.4rem; flex:1 1 16rem; }
+  .note-filter { border:1px solid #314258; background:#101820; color:var(--muted); border-radius:999px; padding:.28rem .7rem; cursor:pointer; font:inherit; font-size:.8rem; }
+  .note-filter span { color:var(--acc2); margin-left:.2rem; }
+  .note-filter.on, .note-filter:hover { color:var(--ink); border-color:var(--acc); background:#12352f; }
+  .notes-group-create { display:flex; gap:.4rem; flex:1 1 16rem; min-width:14rem; }
+  .notes-group-create input { flex:1; width:auto; }
+  #notes-grid.note-board { grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:.9rem; align-items:stretch; }
+  .note-card { gap:.7rem; padding:1rem; border-radius:16px; border:1px solid #2c3c52; background:linear-gradient(180deg,#1a2433 0%,#141c27 100%); box-shadow:0 12px 28px rgba(0,0,0,.18); cursor:default; }
+  .note-card:hover { border-color:#3d5c78; }
+  .note-card-top { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .note-pill { display:inline-flex; align-items:center; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); background:#12352f; border-radius:999px; padding:.16rem .5rem; }
+  .note-pill.group { color:#dbeafe; background:#1e3a5f; }
+  .note-pill.quiet { color:var(--muted); background:#1a2330; }
+  .note-card-edit { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(8rem,.8fr) auto; gap:.45rem; align-items:end; padding:.7rem; border:1px solid #243246; border-radius:12px; background:#0e1520; }
+  .note-card-edit label { display:flex; flex-direction:column; gap:.22rem; min-width:0; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .note-card-edit .btn { height:2.45rem; }
+  .note-open { background:transparent; border:0; padding:.15rem 0 0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:.28rem; width:100%; }
+  .note-open strong { font-size:1.05rem; letter-spacing:-.02em; }
+  .note-open:hover .cta { text-decoration:underline; }
+  .note-titlebar { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(8rem,.8fr) auto; gap:.55rem; align-items:end; padding:.7rem .8rem; border-bottom:1px solid var(--line); background:#101820; flex-shrink:0; }
+  .note-titlebar label { display:flex; flex-direction:column; gap:.22rem; min-width:0; margin:0; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  @media (max-width:720px) {
+    .note-card-edit, .note-titlebar, .notes-group-create { grid-template-columns:1fr; display:grid; }
+    .notes-tools-actions { margin-left:0; }
+    .notes-tools-top { flex-wrap:wrap; }
+  }
   #notes-reader:not([hidden]) { flex:1 1 0; min-height:0; display:flex; flex-direction:row; overflow:hidden; }
   .note-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
   .note-tree { width:280px; flex:0 0 280px; min-height:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #2b2b2b; background:#181818; color:#cccccc; }
@@ -1844,27 +1956,44 @@ ${compareSection()}
 ${textEditorSection()}
     <section data-view="notas" hidden>
       <div class="notes-tools">
+        <div class="notes-tools-top">
+          <div>
+            <h2>Notas</h2>
+            <p class="muted">Buscá por título y, si no aparece, dentro del texto. El grupo es opcional.</p>
+          </div>
+          <div class="notes-tools-actions">
+            <button type="button" class="btn" id="notes-refresh">Actualizar</button>
+            <span id="notes-sync" class="muted"></span>
+          </div>
+        </div>
         <label class="notes-search">
           <span>Buscar notas</span>
           <input id="notes-q" type="search" placeholder="Escribí el título. Si no aparece, se busca dentro del texto." autocomplete="off"/>
         </label>
         <p id="notes-q-hint" class="muted"></p>
+        <div class="notes-groups-bar">
+          <div id="notes-groups">
+            <button type="button" class="note-filter on" data-note-group-filter="*">Todas <span>${notes.length}</span></button>
+            <button type="button" class="note-filter" data-note-group-filter="__none__">Sin grupo <span>${ungroupedCount}</span></button>
+            ${noteGroupNames.map((name) => `<button type="button" class="note-filter" data-note-group-filter="${esc(name)}">${esc(name)} <span>${notes.filter((n) => n.group === name).length}</span></button>`).join('')}
+          </div>
+          <div class="notes-group-create">
+            <input id="notes-group-new" type="text" maxlength="40" placeholder="Nuevo grupo, por ejemplo BANCO" autocomplete="off"/>
+            <button type="button" class="btn" id="notes-group-add">Crear grupo</button>
+          </div>
+        </div>
+        <datalist id="note-group-list">${noteGroupNames.map((name) => `<option value="${esc(name)}"></option>`).join('')}</datalist>
       </div>
       <div id="notes-list">
-        <div class="notes-head">
-          <h2>Notas</h2>
-          <button type="button" class="btn" id="notes-refresh">Actualizar</button>
-          <span id="notes-sync" class="muted"></span>
-        </div>
-        <div id="notes-grid" class="grid">${noteCards}</div>
+        <div id="notes-grid" class="grid note-board">${noteCards}</div>
       </div>
       <div id="notes-reader" hidden>
         <div id="note-tree" class="note-tree"></div>
         <div class="note-main">
         <div class="note-titlebar">
-          <span class="k">Editar título</span>
-          <input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/>
-          <button type="button" class="btn" id="note-title-save">Guardar título</button>
+          <label>Editar título<input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/></label>
+          <label>Grupo<input id="note-group" type="text" maxlength="40" list="note-group-list" autocomplete="off" placeholder="Sin grupo"/></label>
+          <button type="button" class="btn" id="note-title-save">Guardar</button>
         </div>
         <div id="note-toc" class="note-filebar"></div>
         <div id="note-gallery" class="note-gallery" hidden></div>
@@ -2020,6 +2149,7 @@ ${extractSection()}
 </div>
 <script type="application/json" id="diagrams-data">${payload.replace(/</g, '\\u003c')}</script>
 <script type="application/json" id="notes-data">${notesPayload.replace(/</g, '\\u003c')}</script>
+<script type="application/json" id="note-groups-data">${noteGroupsPayload.replace(/</g, '\\u003c')}</script>
 <script type="text/plain" id="flow-md">${esc(flowMd || '')}</script>
 </body>
 </html>

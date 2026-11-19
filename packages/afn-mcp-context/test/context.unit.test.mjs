@@ -18,7 +18,7 @@ import { isWeakProjectsMap } from '../lib/detect-projects.js';
 import { saveObservation, startSession, endSession, getMemContext, loadCerebro } from '../lib/cerebro.js';
 import { writeDashboard, mdToHtml } from '../lib/dashboard.js';
 import { extractPortFromText, findPortEvidence } from '../lib/port-evidence.js';
-import { saveTaskNote, setTaskNoteStatus, setNoteTitle, filterNotesByQuery, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile, noteMime } from '../lib/task-notes.js';
+import { saveTaskNote, setTaskNoteStatus, setNoteTitle, filterNotesByQuery, filterNotesForView, rememberNoteGroup, listNoteGroups, listTaskNotes, saveTaskNoteFromFile, saveExistingNote, resolveNoteFile, noteMime } from '../lib/task-notes.js';
 import { parseLocalIntent, runPromptGate } from '../lib/prompt-gate.js';
 import { collectDataSources, commitLiveSchema, inferDbOrigin, inferDbOrigins, saveDataSelection } from '../lib/data-sources.js';
 import { assertSafeReadonlySql } from '../lib/sql-safety.js';
@@ -912,6 +912,35 @@ test('notas: el título se edita y la búsqueda mira el título antes que el tex
   assert.match(html, /function filterNotesByQuery/);
   assert.match(html, /\/api\/notes\/title/);
   assert.match(html, /Arqueo final/);
+  assert.match(html, /id="notes-groups"/);
+  assert.match(html, /Crear grupo/);
+  assert.match(html, /id="note-group"/);
+  assert.equal(listed[0].group, '');
+
+  const made = rememberNoteGroup(root, 'BANCO');
+  assert.equal(made.ok, true);
+  assert.deepEqual(listNoteGroups(root), ['BANCO']);
+  assert.equal(rememberNoteGroup(root, 'sin grupo').ok, false);
+  const placed = setNoteTitle(root, { slug: 'caja-diaria', title: 'Arqueo final', group: 'BANCO' });
+  assert.equal(placed.ok, true);
+  assert.equal(placed.group, 'BANCO');
+  const looseNote = listTaskNotes(root).find((n) => n.slug === 'caja-diaria');
+  assert.equal(looseNote.group, 'BANCO');
+  assert.equal(looseNote.status, 'listo');
+  const cleared = setNoteTitle(root, { slug: 'caja-diaria', title: 'Arqueo final', group: '' });
+  assert.equal(cleared.group, '');
+  assert.equal(listTaskNotes(root).find((n) => n.slug === 'caja-diaria').group, '');
+
+  const sample = [
+    { title: 'Fondos', group: 'BANCO', docs: [{ title: 'Fondos', markdown: 'liquidación del día' }] },
+    { title: 'Caja', group: '', docs: [{ title: 'Caja', markdown: 'fondos del turno' }] },
+  ];
+  assert.equal(filterNotesForView(sample, '*', '').notes.length, 2);
+  assert.deepEqual(filterNotesForView(sample, 'BANCO', '').notes.map((n) => n.title), ['Fondos']);
+  assert.deepEqual(filterNotesForView(sample, '__none__', '').notes.map((n) => n.title), ['Caja']);
+  assert.deepEqual(filterNotesForView(sample, 'BANCO', 'liquidacion').notes.map((n) => n.title), ['Fondos']);
+  assert.equal(filterNotesForView(sample, 'BANCO', 'turno').notes.length, 0);
+  assert.deepEqual(filterNotesForView(sample, '*', 'fondos').notes.map((n) => n.title), ['Fondos']);
 });
 
 test('notas: carpeta con cualquier nombre y README anidado se ven en HTML', () => {
@@ -1382,8 +1411,8 @@ test('sql-safety bloquea escrituras; selección recorta tablas del README', () =
   assert.match(html, /Previsualizaci/);
   assert.match(html, /wb-sql-inspect-fs/);
   assert.match(html, /EXEC dbo\.NombrePA/);
-  assert.match(html, /v1\.4\.76/);
-  assert.match(html, /data-afn-version="1\.4\.76"/);
+  assert.match(html, /v1\.4\.77/);
+  assert.match(html, /data-afn-version="1\.4\.77"/);
   assert.match(html, /id="wb-sql-tabs"/);
   assert.match(html, /id="wb-sql-cross-open"/);
   assert.match(html, /id="wb-sql-cross"/);
@@ -1507,7 +1536,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(JSON.stringify(pack2).includes('no-en-conexion'), false);
     const whoRes = await fetch(`http://127.0.0.1:${info.port}/api/who`);
     const who = await whoRes.json();
-    assert.equal(who.version, '1.4.76');
+    assert.equal(who.version, '1.4.77');
     const health = await fetch(`http://127.0.0.1:${info.port}/api/health`, { headers });
     const hj = await health.json();
     assert.equal(hj.ok, true);
@@ -1515,7 +1544,7 @@ test('servidor local edita orígenes y rechaza DELETE', async () => {
     assert.equal(hj.driver.mssql, 'ready');
     const page = await fetch(`http://127.0.0.1:${info.port}/?token=${info.token}`);
     const liveHtml = await page.text();
-    assert.match(liveHtml, /v1\.4\.76/);
+    assert.match(liveHtml, /v1\.4\.77/);
     assert.match(liveHtml, /data-view="comparar"/);
     assert.match(liveHtml, /data-view="skills"/);
     assert.match(liveHtml, /wb-sql-inspect/);

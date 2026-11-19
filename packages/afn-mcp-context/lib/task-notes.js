@@ -40,12 +40,13 @@ function readMeta(dir, slug) {
     return {
       slug,
       title: String(j?.title || slug),
+      group: cleanNoteGroup(j?.group),
       status: STATUSES.has(j?.status) ? j.status : 'draft',
       createdAt: String(j?.createdAt || ''),
       updatedAt: String(j?.updatedAt || ''),
     };
   } catch {
-    return { slug, title: slug, status: 'draft', createdAt: '', updatedAt: '' };
+    return { slug, title: slug, group: '', status: 'draft', createdAt: '', updatedAt: '' };
   }
 }
 
@@ -227,6 +228,7 @@ function finishGroup(dir, slug, rel, rawDocs, includeBody) {
   return {
     slug,
     title: hasMeta ? meta.title : slug,
+    group: hasMeta ? meta.group : '',
     status: meta.status,
     createdAt: meta.createdAt || newest,
     updatedAt,
@@ -323,10 +325,12 @@ export function listTaskNotes(root, opts = {}) {
   }
   const loose = readLooseTitles(root);
   for (const g of groups) {
-    const custom = cleanNoteTitle(loose[g.rel]);
-    if (!custom) continue;
+    if (!Object.prototype.hasOwnProperty.call(loose, g.rel)) continue;
     const located = locateNoteGroup(root, g.rel);
-    if (located && located.kind === 'file') g.title = custom;
+    if (!located || located.kind !== 'file') continue;
+    const face = looseNoteFace(loose[g.rel]);
+    if (face.title) g.title = face.title;
+    g.group = face.group;
   }
   return groups.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)) || a.title.localeCompare(b.title));
 }
@@ -405,6 +409,79 @@ function cleanNoteTitle(raw) {
   return String(raw || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
 }
 
+function foldNoteText(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+export function cleanNoteGroup(raw) {
+  return String(raw || '').replace(/[\r\n\t]+/g, ' ').replace(/[\\/]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+function groupKey(name) {
+  return foldNoteText(cleanNoteGroup(name)).trim();
+}
+
+function reservedGroup(name) {
+  const key = groupKey(name);
+  return key === '__none__' || key === 'sin grupo' || key === 'todas';
+}
+
+function looseNoteFace(v) {
+  if (v && typeof v === 'object') return { title: cleanNoteTitle(v.title), group: cleanNoteGroup(v.group) };
+  return { title: cleanNoteTitle(v), group: '' };
+}
+
+function groupsFile(root) {
+  return path.join(afnPath(root, 'notes'), '.groups.json');
+}
+
+function readGroupCatalog(root) {
+  try {
+    const j = JSON.parse(fs.readFileSync(groupsFile(root), 'utf8'));
+    const list = Array.isArray(j) ? j : [];
+    return list.map((name) => cleanNoteGroup(name)).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function uniqueGroups(names) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of names) {
+    const name = cleanNoteGroup(raw);
+    const key = groupKey(name);
+    if (!key || seen.has(key) || reservedGroup(name)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out.sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+export function listNoteGroups(root) {
+  const used = [];
+  try {
+    for (const n of listTaskNotes(root)) {
+      if (n.group) used.push(n.group);
+    }
+  } catch {
+    /* el catálogo igual se lee */
+  }
+  return uniqueGroups([...readGroupCatalog(root), ...used]);
+}
+
+export function rememberNoteGroup(root, name) {
+  const clean = cleanNoteGroup(name);
+  if (!clean) return { ok: false, error: 'grupo vacío' };
+  if (reservedGroup(clean)) return { ok: false, error: 'ese nombre está reservado' };
+  const groups = uniqueGroups([...readGroupCatalog(root), clean]);
+  const file = groupsFile(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(groups, null, 2)}\n`, 'utf8');
+  const saved = groups.find((g) => groupKey(g) === groupKey(clean)) || clean;
+  return { ok: true, name: saved, groups };
+}
+
 function looseTitlesFile(root) {
   return path.join(afnPath(root, 'notes'), '.titles.json');
 }
@@ -419,14 +496,14 @@ function readLooseTitles(root) {
   }
 }
 
-function writeLooseTitle(root, rel, title) {
+function writeLooseFace(root, rel, title, group) {
   const map = readLooseTitles(root);
   const next = {};
   for (const [k, v] of Object.entries(map)) {
-    const t = cleanNoteTitle(v);
-    if (t && k.startsWith('.afn/notes/') && !k.includes('..')) next[k] = t;
+    const face = looseNoteFace(v);
+    if ((face.title || face.group) && k.startsWith('.afn/notes/') && !k.includes('..')) next[k] = face;
   }
-  next[rel] = title;
+  next[rel] = { title, group: cleanNoteGroup(group) };
   const file = looseTitlesFile(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
@@ -472,6 +549,9 @@ function locateNoteGroup(root, rel) {
 export function setNoteTitle(root, input = {}) {
   const title = cleanNoteTitle(input.title);
   if (!title) return { ok: false, error: 'título vacío' };
+  const hasGroup = Object.prototype.hasOwnProperty.call(input, 'group');
+  const nextGroup = hasGroup ? cleanNoteGroup(input.group) : '';
+  if (hasGroup && nextGroup && reservedGroup(nextGroup)) return { ok: false, error: 'ese nombre está reservado' };
   const wantRel = String(input.rel || '').trim();
   const wantSlug = String(input.slug || '').trim();
   if (!wantRel && !wantSlug) return { ok: false, error: 'no existe' };
@@ -479,20 +559,26 @@ export function setNoteTitle(root, input = {}) {
   if (!note) return { ok: false, error: 'no existe' };
   const located = locateNoteGroup(root, note.rel);
   if (!located) return { ok: false, error: 'ruta inválida' };
+  let group = hasGroup ? nextGroup : cleanNoteGroup(note.group);
+  if (group) {
+    const remembered = rememberNoteGroup(root, group);
+    if (remembered.ok) group = remembered.name;
+  }
   if (located.kind === 'file') {
-    writeLooseTitle(root, note.rel, title);
-    return { ok: true, title, slug: note.slug, rel: note.rel };
+    writeLooseFace(root, note.rel, title, group);
+    return { ok: true, title, group, slug: note.slug, rel: note.rel, groups: listNoteGroups(root) };
   }
   const prev = readMeta(located.dir, path.basename(located.dir));
   const now = new Date().toISOString();
   writeMeta(located.dir, {
     slug: prev.slug || path.basename(located.dir),
     title,
+    group,
     status: prev.status || 'draft',
     createdAt: prev.createdAt || now,
     updatedAt: now,
   });
-  return { ok: true, title, slug: note.slug, rel: note.rel };
+  return { ok: true, title, group, slug: note.slug, rel: note.rel, groups: listNoteGroups(root) };
 }
 
 /**
@@ -510,6 +596,26 @@ export function filterNotesByQuery(notes, query) {
   if (byTitle.length) return { notes: byTitle, via: 'title' };
   const byBody = list.filter((n) => (n && n.docs ? n.docs : []).some((d) => fold(`${d && d.title ? d.title : ''}\n${d && d.markdown ? d.markdown : ''}`).includes(q)));
   return { notes: byBody, via: 'body' };
+}
+
+/**
+ * Acota por grupo y después busca: primero título, si no hay coincidencias, el texto.
+ * `group` vacío o `*` es todas. `__none__` son las que no tienen grupo.
+ * @param {Array<{ title?: string, group?: string, docs?: Array<{ title?: string, markdown?: string }> }>} notes
+ * @param {string} group
+ * @param {string} query
+ */
+export function filterNotesForView(notes, group, query) {
+  const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const list = Array.isArray(notes) ? notes : [];
+  const g = fold(group).trim();
+  let scoped = list;
+  if (g && g !== '*') {
+    scoped = g === '__none__'
+      ? list.filter((n) => !fold(n && n.group).trim())
+      : list.filter((n) => fold(n && n.group).trim() === g);
+  }
+  return filterNotesByQuery(scoped, query);
 }
 
 /**
