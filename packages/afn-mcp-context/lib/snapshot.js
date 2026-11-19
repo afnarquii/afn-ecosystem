@@ -56,7 +56,7 @@ export function buildPromptHint(root) {
     'SIN tokens de chat: node …/afn-mcp-context/index.js dashboard | note-save archivo.md | mem-search texto.',
     'No abras el dashboard ni guardes notes ni busques cerebro por el chat. No regeneres arquitectura.',
     `Excepción: si el mensaje trae ${TASK_NOTE_FLOW_WORD}, sí llamá afn_note_save con flow true (veredicto, por qué, código y pruebas en la nota) y no edites el producto.`,
-    'No leas .afn/sql-favorites.json ni el texto de Comparar o del Editor: no son contexto.',
+    'No leas .afn/sql-favorites.json, Comparar ni Editor: no son contexto.',
   ].join('\n');
   return { ok: true, markdown: `${md}\n`, root: root || '', hint: true };
 }
