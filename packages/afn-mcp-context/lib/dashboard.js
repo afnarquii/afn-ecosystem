@@ -397,7 +397,7 @@ function buildHtml(data, opts = {}) {
             `<article class="tile note-card" data-q="${esc([n.title, n.group, n.slug, n.rel, n.status, ...(n.docs || []).map((d) => `${d.title} ${d.name}`)].join(' '))}">
               <div class="note-card-top"><span class="note-pill">${esc(statusLabel(n.status))}</span>${n.group ? `<span class="note-pill group">${esc(n.group)}</span>` : '<span class="note-pill quiet">Sin grupo</span>'}</div>
               <div class="note-card-edit">
-                <label class="note-title-field">Editar título<input data-note-title-input value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota"/></label>
+                <label class="note-title-field">Editar título<input data-note-title-input readonly value="${esc(n.title)}" maxlength="160" aria-label="Título de la nota. Clic para verlo y editarlo completo."/></label>
                 <div class="note-card-row">
                   <label>Grupo<input data-note-group-input list="note-group-list" value="${esc(n.group || '')}" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"/></label>
                   <button type="button" class="btn" data-note-title-save="${esc(n.slug)}">Guardar</button>
@@ -617,19 +617,18 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   function hideNoteTip() {
     if (noteTipEl) noteTipEl.hidden = true;
   }
-  function showNoteTip(btn) {
-    const label = btn.querySelector(".note-label");
-    const full = btn.getAttribute("data-tip") || "";
-    if (!label || !full || label.scrollWidth <= label.clientWidth + 1) { hideNoteTip(); return; }
+  function placeNoteTip(anchor, full) {
+    const text = String(full || "").trim();
+    if (!anchor || !text) { hideNoteTip(); return; }
     if (!noteTipEl) {
       noteTipEl = document.createElement("div");
       noteTipEl.className = "note-tip";
       noteTipEl.setAttribute("role", "tooltip");
       document.body.appendChild(noteTipEl);
     }
-    noteTipEl.textContent = full;
+    noteTipEl.textContent = text;
     noteTipEl.hidden = false;
-    const r = btn.getBoundingClientRect();
+    const r = anchor.getBoundingClientRect();
     const w = noteTipEl.offsetWidth;
     const h = noteTipEl.offsetHeight;
     let left = r.left;
@@ -638,6 +637,12 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
     noteTipEl.style.left = left + "px";
     noteTipEl.style.top = top + "px";
+  }
+  function showNoteTip(btn) {
+    const label = btn.querySelector(".note-label");
+    const full = btn.getAttribute("data-tip") || "";
+    if (!label || !full || label.scrollWidth <= label.clientWidth + 1) { hideNoteTip(); return; }
+    placeNoteTip(btn, full);
   }
   function paintNoteTree(note, current) {
     const box = document.getElementById("note-tree");
@@ -695,7 +700,7 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   function noteCardHtml(n) {
     const q = [n.title, n.group, n.slug, n.rel, n.status].concat((n.docs || []).map((d) => (d.title || "") + " " + (d.name || ""))).join(" ");
     const badge = n.group ? '<span class="note-pill group">' + noteEsc(n.group) + "</span>" : '<span class="note-pill quiet">Sin grupo</span>';
-    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-card-top"><span class="note-pill">' + noteEsc(noteStatus(n.status)) + "</span>" + badge + '</div><div class="note-card-edit"><label class="note-title-field">Editar título<input data-note-title-input value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota"></label><div class="note-card-row"><label>Grupo<input data-note-group-input list="note-group-list" value="' + noteEsc(n.group || "") + '" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"></label><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar</button></div></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + "</span><code>" + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir nota</span></button></article>';
+    return '<article class="tile note-card" data-q="' + noteEsc(q) + '"><div class="note-card-top"><span class="note-pill">' + noteEsc(noteStatus(n.status)) + "</span>" + badge + '</div><div class="note-card-edit"><label class="note-title-field">Editar título<input data-note-title-input readonly value="' + noteEsc(n.title) + '" maxlength="160" aria-label="Título de la nota. Clic para verlo y editarlo completo."></label><div class="note-card-row"><label>Grupo<input data-note-group-input list="note-group-list" value="' + noteEsc(n.group || "") + '" maxlength="40" placeholder="Sin grupo" aria-label="Grupo de la nota"></label><button type="button" class="btn" data-note-title-save="' + noteEsc(n.slug) + '">Guardar</button></div></div><button type="button" class="note-open" data-note-task="' + noteEsc(n.slug) + '"><strong>' + noteEsc(n.title) + '</strong><span class="muted">' + noteEsc(noteFilesLine(n)) + "</span><code>" + noteEsc(n.rel || n.slug) + '</code><span class="cta">Abrir nota</span></button></article>';
   }
   let noteSearchLeaveAsked = false;
   function backToNoteList() {
@@ -746,12 +751,60 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       });
     }
   }
+  let noteTitleModalSlug = "";
+  function openNoteTitleModal(slug, preset) {
+    const note = notesBy[slug];
+    const modal = document.getElementById("note-title-modal");
+    if (!note || !modal) return;
+    hideNoteTip();
+    noteTitleModalSlug = slug;
+    const title = document.getElementById("note-title-modal-input");
+    const group = document.getElementById("note-title-modal-group");
+    const status = document.getElementById("note-title-modal-status");
+    const rel = document.getElementById("note-title-modal-rel");
+    const files = document.getElementById("note-title-modal-files");
+    const when = document.getElementById("note-title-modal-when");
+    const msg = document.getElementById("note-title-modal-msg");
+    const titleValue = preset && preset.title != null ? preset.title : (note.title || "");
+    const groupValue = preset && preset.group != null ? preset.group : (note.group || "");
+    if (title) title.value = titleValue;
+    if (group) group.value = groupValue;
+    if (status) status.textContent = noteStatus(note.status);
+    if (rel) rel.textContent = note.rel || note.slug || "";
+    if (when) when.textContent = note.updatedAt ? String(note.updatedAt).replace("T", " ").slice(0, 16) : "Sin fecha";
+    const preview = document.getElementById("note-title-modal-preview");
+    if (preview) {
+      const doc = (note.docs || []).find((d) => d.markdown);
+      const text = doc ? String(doc.markdown || "").replace(/\\s+/g, " ").trim() : "";
+      preview.textContent = text ? text.slice(0, 320) : "Sin texto";
+    }
+    if (files) {
+      const docs = note.docs || [];
+      files.textContent = docs.length ? docs.map((d) => (d.name || noteBaseName(d.title)) + (d.kind ? " · " + noteKindLabel(d.kind) : "")).join("\\n") : "Sin archivos";
+    }
+    if (msg) msg.textContent = "El título se edita completo acá. El grupo es opcional.";
+    modal.hidden = false;
+    if (title) {
+      title.focus();
+      const end = title.value.length;
+      if (title.setSelectionRange) title.setSelectionRange(end, end);
+    }
+  }
+  function closeNoteTitleModal() {
+    const modal = document.getElementById("note-title-modal");
+    if (modal) modal.hidden = true;
+    noteTitleModalSlug = "";
+  }
   async function saveNoteTitle(slug, title, group) {
     const note = notesBy[slug];
     const hint = document.getElementById("notes-q-hint");
     const msg = document.getElementById("note-msg");
     const readerOpen = document.getElementById("notes-reader") && !document.getElementById("notes-reader").hidden;
+    const modal = document.getElementById("note-title-modal");
+    const modalOn = Boolean(modal && !modal.hidden && noteTitleModalSlug === slug);
+    const modalMsg = document.getElementById("note-title-modal-msg");
     const say = (t) => {
+      if (modalOn && modalMsg) modalMsg.textContent = t;
       if (readerOpen && msg) msg.textContent = t;
       else if (hint) hint.textContent = t;
     };
@@ -776,6 +829,12 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       const groupInput = document.getElementById("note-group");
       if (input && document.getElementById("note-dl")?.dataset.slug === note.slug) input.value = note.title;
       if (groupInput && document.getElementById("note-dl")?.dataset.slug === note.slug) groupInput.value = note.group || "";
+      if (modalOn) {
+        const modalTitle = document.getElementById("note-title-modal-input");
+        const modalGroup = document.getElementById("note-title-modal-group");
+        if (modalTitle) modalTitle.value = note.title;
+        if (modalGroup) modalGroup.value = note.group || "";
+      }
       const crumb = document.getElementById("note-crumb");
       if (crumb && document.getElementById("note-dl")?.dataset.slug === note.slug) crumb.textContent = note.rel ? (note.title + " · " + note.rel) : note.title;
       say(note.group ? "Guardado en " + note.group + "." : "Guardado, sin grupo.");
@@ -1191,10 +1250,19 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
   }
 
   document.addEventListener("mouseover", (e) => {
+    const titleField = e.target.closest && e.target.closest(".note-title-field");
+    if (titleField && !(e.target.closest && e.target.closest("#note-title-modal"))) {
+      const input = titleField.querySelector("input");
+      const full = input ? (input.value || input.getAttribute("placeholder") || "") : "";
+      if (full) placeNoteTip(input || titleField, full);
+      return;
+    }
     const btn = e.target.closest && e.target.closest(".note-tree .note-file, .note-tree .note-dir-btn");
     if (btn) showNoteTip(btn);
   });
   document.addEventListener("mouseout", (e) => {
+    const titleField = e.target.closest && e.target.closest(".note-title-field");
+    if (titleField && (!e.relatedTarget || !titleField.contains(e.relatedTarget))) hideNoteTip();
     const btn = e.target.closest && e.target.closest(".note-tree .note-file, .note-tree .note-dir-btn");
     if (!btn || (e.relatedTarget && btn.contains(e.relatedTarget))) return;
     hideNoteTip();
@@ -1241,6 +1309,42 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
     if (e.target.closest("#notes-group-add")) {
       e.preventDefault();
       createNoteGroup();
+      return;
+    }
+    if (e.target.id === "note-title-modal") {
+      closeNoteTitleModal();
+      return;
+    }
+    if (e.target.closest("[data-note-title-close]")) {
+      e.preventDefault();
+      closeNoteTitleModal();
+      return;
+    }
+    if (e.target.closest("#note-title-modal-save")) {
+      e.preventDefault();
+      const title = document.getElementById("note-title-modal-input");
+      const group = document.getElementById("note-title-modal-group");
+      const clean = String(title ? title.value : "").replace(/[\\r\\n]+/g, " ");
+      saveNoteTitle(noteTitleModalSlug, clean, group ? group.value : "");
+      return;
+    }
+    if (e.target.closest("#note-title-modal-open")) {
+      e.preventDefault();
+      const slug = noteTitleModalSlug;
+      closeNoteTitleModal();
+      if (slug) showNote(slug, "");
+      return;
+    }
+    const titleField = e.target.closest(".note-title-field");
+    if (titleField) {
+      e.preventDefault();
+      const card = titleField.closest(".note-card");
+      const direct = titleField.querySelector("#note-title");
+      const save = card ? card.querySelector("[data-note-title-save]") : null;
+      const slug = direct ? ((document.getElementById("note-dl") || {}).dataset.slug || "") : (save ? save.dataset.noteTitleSave || "" : "");
+      const titleInput = titleField.querySelector("input");
+      const groupInput = card ? card.querySelector("[data-note-group-input]") : document.getElementById("note-group");
+      openNoteTitleModal(slug, { title: titleInput ? titleInput.value : "", group: groupInput ? groupInput.value : "" });
       return;
     }
     const titleSave = e.target.closest("[data-note-title-save]");
@@ -1396,6 +1500,11 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       createNoteGroup();
       return;
     }
+    if (e.key === "Enter" && !e.shiftKey && e.target && (e.target.id === "note-title-modal-input" || e.target.id === "note-title-modal-group")) {
+      e.preventDefault();
+      document.getElementById("note-title-modal-save")?.click();
+      return;
+    }
     if (e.key === "Enter" && e.target && (e.target.id === "note-title" || e.target.id === "note-group" || (e.target.matches && (e.target.matches("[data-note-title-input]") || e.target.matches("[data-note-group-input]"))))) {
       e.preventDefault();
       if (e.target.id === "note-title" || e.target.id === "note-group") {
@@ -1414,6 +1523,14 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       e.preventDefault();
       window.afnSqlFindNext(e.shiftKey ? "prev" : "next");
     }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      const titleModal = document.getElementById("note-title-modal");
+      if (titleModal && !titleModal.hidden) {
+        e.preventDefault();
+        document.getElementById("note-title-modal-save")?.click();
+        return;
+      }
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && document.getElementById("notes-reader") && !document.getElementById("notes-reader").hidden) {
       e.preventDefault();
       if (document.activeElement && document.activeElement.id === "note-title") {
@@ -1423,7 +1540,11 @@ ${opts.api?.token ? `<script>window.AFN_API={token:${JSON.stringify(opts.api.tok
       }
       saveOpenNote();
     }
-    if (e.key === "Escape") closeOverlay();
+    if (e.key === "Escape") {
+      const titleModal = document.getElementById("note-title-modal");
+      if (titleModal && !titleModal.hidden) { closeNoteTitleModal(); return; }
+      closeOverlay();
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && document.activeElement?.tagName !== "TEXTAREA") {
       e.preventDefault();
       document.getElementById("q")?.focus();
@@ -1635,7 +1756,25 @@ ${mapPickerScript()}
   .note-label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .note-ext { flex:0 0 auto; color:#8d8d8d; font-size:12px; }
   .note-file.on .note-ext { color:#d6d6d6; }
-  .note-tip { position:fixed; z-index:40; max-width:min(420px, calc(100vw - 16px)); padding:.4rem .55rem; border:1px solid #454545; border-radius:6px; background:#252526; color:#f3f3f3; box-shadow:0 8px 24px rgba(0,0,0,.45); font:12px/1.4 "Segoe UI", system-ui, sans-serif; white-space:normal; overflow-wrap:anywhere; pointer-events:none; }
+  .note-title-field input[readonly] { cursor:pointer; }
+  .note-title-field input[readonly]:hover { border-color:var(--acc); }
+  .note-title-modal { position:fixed; inset:0; z-index:70; background:rgba(7,11,16,.72); display:flex; align-items:center; justify-content:center; padding:1.2rem; }
+  .note-title-modal[hidden] { display:none; }
+  .note-title-sheet { width:min(680px,100%); max-height:min(90vh,760px); overflow:auto; background:#111827; border:1px solid #314258; border-radius:16px; box-shadow:0 24px 80px rgba(0,0,0,.5); display:flex; flex-direction:column; }
+  .note-title-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; padding:1rem 1.15rem .85rem; border-bottom:1px solid var(--line); }
+  .note-title-head h3 { margin:.15rem 0 0; font-size:1.2rem; }
+  .note-title-head .k { margin:0; }
+  .note-title-body { display:flex; flex-direction:column; gap:.75rem; padding:1rem 1.15rem 1.15rem; }
+  .note-title-body label { display:flex; flex-direction:column; gap:.28rem; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  #note-title-modal-input { width:100%; min-height:8.5rem; resize:vertical; margin:0; padding:.85rem .95rem; border-radius:12px; border:1px solid #314258; background:#0c1118; color:var(--ink); font:inherit; font-size:1.2rem; line-height:1.45; text-transform:none; letter-spacing:0; }
+  #note-title-modal-input:focus, #note-title-modal-group:focus { outline:1px solid var(--acc); border-color:var(--acc); }
+  #note-title-modal-group { width:100%; margin:0; padding:.62rem .75rem; border-radius:10px; border:1px solid #314258; background:#0c1118; color:var(--ink); font:inherit; font-size:1rem; text-transform:none; letter-spacing:0; }
+  .note-title-facts { display:grid; gap:.45rem; margin:0; padding:.75rem .85rem; border:1px solid #243246; border-radius:12px; background:#0e1520; }
+  .note-title-facts div { display:grid; grid-template-columns:6.2rem minmax(0,1fr); gap:.45rem; align-items:start; }
+  .note-title-facts dt { margin:0; color:var(--muted); font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; }
+  .note-title-facts dd { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; color:var(--ink); font-size:.92rem; text-transform:none; letter-spacing:0; }
+  .note-title-actions { display:flex; flex-wrap:wrap; gap:.45rem; }
+  .note-tip { position:fixed; z-index:80; max-width:min(560px, calc(100vw - 16px)); padding:.45rem .6rem; border:1px solid #454545; border-radius:6px; background:#252526; color:#f3f3f3; box-shadow:0 8px 24px rgba(0,0,0,.45); font:13px/1.4 "Segoe UI", system-ui, sans-serif; white-space:normal; overflow-wrap:anywhere; pointer-events:none; }
   @media (max-width:900px) {
     #notes-reader:not([hidden]) { flex-direction:column; }
     .note-tree { width:auto; flex:0 0 auto; max-height:38vh; border-right:0; border-bottom:1px solid #2b2b2b; }
@@ -1996,7 +2135,7 @@ ${textEditorSection()}
         <div id="note-tree" class="note-tree"></div>
         <div class="note-main">
         <div class="note-titlebar">
-          <label class="note-title-field">Editar título<input id="note-title" type="text" maxlength="160" autocomplete="off" placeholder="Título para encontrar la nota"/></label>
+          <label class="note-title-field">Editar título<input id="note-title" type="text" maxlength="160" readonly autocomplete="off" placeholder="Título para encontrar la nota"/></label>
           <div class="note-titlebar-row">
             <label>Grupo<input id="note-group" type="text" maxlength="40" list="note-group-list" autocomplete="off" placeholder="Sin grupo"/></label>
             <button type="button" class="btn" id="note-title-save">Guardar</button>
@@ -2158,6 +2297,33 @@ ${extractSection()}
 <script type="application/json" id="notes-data">${notesPayload.replace(/</g, '\\u003c')}</script>
 <script type="application/json" id="note-groups-data">${noteGroupsPayload.replace(/</g, '\\u003c')}</script>
 <script type="text/plain" id="flow-md">${esc(flowMd || '')}</script>
+<div id="note-title-modal" class="note-title-modal" hidden>
+  <div class="note-title-sheet" role="dialog" aria-modal="true" aria-labelledby="note-title-modal-h">
+    <div class="note-title-head">
+      <div>
+        <p class="k">Nota AFN</p>
+        <h3 id="note-title-modal-h">Editar título</h3>
+      </div>
+      <button type="button" class="x" data-note-title-close aria-label="Cerrar">×</button>
+    </div>
+    <div class="note-title-body">
+      <label>Título<textarea id="note-title-modal-input" maxlength="160" placeholder="Título para encontrar la nota"></textarea></label>
+      <label>Grupo<input id="note-title-modal-group" type="text" maxlength="40" list="note-group-list" autocomplete="off" placeholder="Sin grupo"/></label>
+      <dl class="note-title-facts">
+        <div><dt>Estado</dt><dd id="note-title-modal-status"></dd></div>
+        <div><dt>Ruta</dt><dd id="note-title-modal-rel"></dd></div>
+        <div><dt>Actualizada</dt><dd id="note-title-modal-when"></dd></div>
+        <div><dt>Archivos</dt><dd id="note-title-modal-files"></dd></div>
+        <div><dt>Texto</dt><dd id="note-title-modal-preview"></dd></div>
+      </dl>
+      <p id="note-title-modal-msg" class="muted" style="margin:0">El título se edita completo acá. El grupo es opcional.</p>
+      <div class="note-title-actions">
+        <button type="button" class="btn" id="note-title-modal-save">Guardar título</button>
+        <button type="button" class="btn" id="note-title-modal-open">Abrir nota</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
 `;
